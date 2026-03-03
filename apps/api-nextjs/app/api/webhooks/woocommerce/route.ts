@@ -116,6 +116,31 @@ async function findProductoPorSku(empresaId: string, sku: string) {
   return ci.data;
 }
 
+async function findProductoPorNombre(empresaId: string, nombre: string) {
+  const normalized = String(nombre || '').trim();
+  if (!normalized) return null;
+
+  const exact = await supabaseAdmin
+    .from('productos')
+    .select('id, precio')
+    .eq('empresa_id', empresaId)
+    .eq('nombre', normalized)
+    .limit(1)
+    .maybeSingle();
+
+  if (exact.data) return exact.data;
+
+  const ci = await supabaseAdmin
+    .from('productos')
+    .select('id, precio')
+    .eq('empresa_id', empresaId)
+    .ilike('nombre', normalized)
+    .limit(1)
+    .maybeSingle();
+
+  return ci.data;
+}
+
 async function registrarPedidoFallback(params: {
   empresaId: string;
   sucursalId: string;
@@ -143,34 +168,61 @@ async function registrarPedidoFallback(params: {
     return { pedidoId: duplicated.data.id, duplicado: true };
   }
 
-  const { data, error } = await supabaseAdmin
+  const richInsert = await supabaseAdmin
     .from('pedidos')
     .insert({
       empresa_id: params.empresaId,
       sucursal_id: params.sucursalId,
       canal_id: params.canalId,
-      numero: params.numeroPedido,
-      total: params.total,
+      numero: String(params.numeroPedido || params.idExterno).slice(0, 120),
+      total: Number.isFinite(params.total) ? params.total : 0,
       estado: params.estado,
-      id_externo: params.idExterno,
-      id_orden: params.idOrden,
+      id_externo: String(params.idExterno || '').slice(0, 120),
+      id_orden: String(params.idOrden || params.idExterno || '').slice(0, 120),
       medio_pedido: 'web',
       id_cliente: null,
-      metodo_pago: params.metodoPago,
-      direccion_cliente: params.direccion,
-      distrito_cliente: params.distrito,
-      provincia_cliente: params.provincia,
-      dni_cliente: params.dni,
-      fecha_pedido: params.fechaPedido,
+      metodo_pago: params.metodoPago || null,
+      direccion_cliente: params.direccion || null,
+      distrito_cliente: params.distrito || null,
+      provincia_cliente: params.provincia || null,
+      dni_cliente: params.dni || null,
+      fecha_pedido: params.fechaPedido || new Date().toISOString(),
     })
     .select('id')
     .single();
 
-  if (error) {
-    throw new Error(`fallback_insert_failed: ${error.message}`);
+  if (!richInsert.error && richInsert.data?.id) {
+    return { pedidoId: richInsert.data.id, duplicado: false };
   }
 
-  return { pedidoId: data.id, duplicado: false };
+  console.error(
+    '[WC_WEBHOOK] fallback rich insert failed, retrying minimal insert:',
+    richInsert.error?.message || 'unknown_error'
+  );
+
+  const minimalInsert = await supabaseAdmin
+    .from('pedidos')
+    .insert({
+      empresa_id: params.empresaId,
+      sucursal_id: params.sucursalId,
+      canal_id: params.canalId,
+      numero: String(params.numeroPedido || params.idExterno || `WC-${Date.now()}`).slice(0, 120),
+      total: Number.isFinite(params.total) ? params.total : 0,
+      estado: params.estado,
+      id_externo: String(params.idExterno || '').slice(0, 120),
+      medio_pedido: 'web',
+      fecha_pedido: params.fechaPedido || new Date().toISOString(),
+    })
+    .select('id')
+    .single();
+
+  if (minimalInsert.error || !minimalInsert.data?.id) {
+    throw new Error(
+      `fallback_insert_failed: ${minimalInsert.error?.message || richInsert.error?.message || 'unknown'}`
+    );
+  }
+
+  return { pedidoId: minimalInsert.data.id, duplicado: false };
 }
 
 export async function POST(req: NextRequest) {
@@ -291,19 +343,13 @@ export async function POST(req: NextRequest) {
     }
 
     const itemsInternos: PedidoItemSimple[] = [];
+    const itemWarnings: string[] = [];
+    let needsDirectFallback = false;
 
     for (const item of body.line_items) {
       const sku = String(item?.sku || '').trim();
+      const nombreProducto = String(item?.name || '').trim();
       const qty = Number(item?.quantity ?? 0);
-
-      if (!sku) {
-        return NextResponse.json(
-          {
-            error: `Linea sin SKU en WooCommerce (item id: ${item?.id ?? 'N/A'}).`,
-          },
-          { status: 400 }
-        );
-      }
 
       if (!Number.isFinite(qty) || qty <= 0) {
         return NextResponse.json(
@@ -314,15 +360,21 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const producto = await findProductoPorSku(empresa.id, sku);
+      let producto = null;
+      if (sku) {
+        producto = await findProductoPorSku(empresa.id, sku);
+      }
+
+      if (!producto && nombreProducto) {
+        producto = await findProductoPorNombre(empresa.id, nombreProducto);
+      }
 
       if (!producto) {
-        return NextResponse.json(
-          {
-            error: `Producto con SKU ${sku} no registrado en el sistema.`,
-          },
-          { status: 400 }
+        needsDirectFallback = true;
+        itemWarnings.push(
+          `Producto no mapeado (sku="${sku || 'N/A'}", nombre="${nombreProducto || 'N/A'}").`
         );
+        continue;
       }
 
       const unitPrice = computeUnitPrice(item, qty, Number(producto.precio));
@@ -357,6 +409,20 @@ export async function POST(req: NextRequest) {
       fechaPedido: body.date_created || new Date().toISOString(),
       estado: mapWooStatusToPedidoEstado(status),
     };
+
+    if (needsDirectFallback || itemsInternos.length === 0) {
+      const fallback = await registrarPedidoFallback(payloadPedido);
+      return NextResponse.json(
+        {
+          ok: true,
+          duplicado: fallback.duplicado,
+          pedidoId: fallback.pedidoId,
+          mode: 'fallback_unmapped_items',
+          warnings: itemWarnings,
+        },
+        { status: 200 }
+      );
+    }
 
     try {
       const resultado = await procesarPedido({
