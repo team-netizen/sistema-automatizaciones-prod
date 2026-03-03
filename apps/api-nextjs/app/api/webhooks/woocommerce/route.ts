@@ -5,6 +5,8 @@ import { procesarPedido, PedidoItemSimple } from '@/services/procesarPedido';
 
 const DEFAULT_ACCEPTED_STATUSES = ['processing', 'completed', 'on-hold', 'pending'];
 
+type PedidoEstado = 'pendiente' | 'confirmado' | 'cancelado' | null;
+
 function getAcceptedStatuses(): string[] {
   const raw = process.env.WC_ACCEPTED_STATUSES?.trim();
   if (!raw) return DEFAULT_ACCEPTED_STATUSES;
@@ -27,7 +29,7 @@ function computeUnitPrice(item: any, qty: number, fallbackPrice: number): number
   return Number.isFinite(fallbackPrice) ? fallbackPrice : 0;
 }
 
-function mapWooStatusToPedidoEstado(status: string | undefined): 'pendiente' | 'confirmado' | 'cancelado' | null {
+function mapWooStatusToPedidoEstado(status: string | undefined): PedidoEstado {
   const normalized = String(status || '').toLowerCase().trim();
 
   if (normalized === 'processing' || normalized === 'completed') return 'confirmado';
@@ -73,7 +75,7 @@ async function registrarPedidoFallback(params: {
   provincia: string;
   dni: string;
   fechaPedido: string;
-  estado: 'pendiente' | 'confirmado' | 'cancelado' | null;
+  estado: PedidoEstado;
 }) {
   const duplicated = await supabaseAdmin
     .from('pedidos')
@@ -119,24 +121,31 @@ async function registrarPedidoFallback(params: {
 export async function POST(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const empresaId = req.headers.get('x-empresa-id') || searchParams.get('empresa_id');
+    const empresaIdFromRequest = req.headers.get('x-empresa-id') || searchParams.get('empresa_id');
+    const tokenFromQuery = searchParams.get('token');
     const firmaHeader = req.headers.get('x-wc-webhook-signature');
 
-    if (!empresaId || !firmaHeader) {
+    if (!empresaIdFromRequest && !tokenFromQuery) {
       return NextResponse.json(
         {
-          error:
-            'Credenciales faltantes. Usa query ?empresa_id=UUID y header x-wc-webhook-signature.',
+          error: 'Credenciales faltantes. Usa ?empresa_id=UUID o ?token=WEBHOOK_TOKEN.',
         },
         { status: 401 }
       );
     }
 
-    const { data: empresa, error: empresaError } = await supabaseAdmin
+    let empresaQuery = supabaseAdmin
       .from('empresas')
       .select('id, webhook_token, estado')
-      .eq('id', empresaId)
-      .single();
+      .limit(1);
+
+    if (empresaIdFromRequest) {
+      empresaQuery = empresaQuery.eq('id', empresaIdFromRequest);
+    } else if (tokenFromQuery) {
+      empresaQuery = empresaQuery.eq('webhook_token', tokenFromQuery);
+    }
+
+    const { data: empresa, error: empresaError } = await empresaQuery.single();
 
     if (empresaError || !empresa || !empresa.webhook_token) {
       return NextResponse.json(
@@ -157,17 +166,26 @@ export async function POST(req: NextRequest) {
 
     const rawBody = await req.text();
 
-    const firmaGenerada = crypto
-      .createHmac('sha256', empresa.webhook_token)
-      .update(rawBody)
-      .digest('base64');
+    if (firmaHeader) {
+      const firmaGenerada = crypto
+        .createHmac('sha256', empresa.webhook_token)
+        .update(rawBody)
+        .digest('base64');
 
-    const firmaValida =
-      firmaHeader.length === firmaGenerada.length &&
-      crypto.timingSafeEqual(Buffer.from(firmaHeader), Buffer.from(firmaGenerada));
+      const firmaValida =
+        firmaHeader.length === firmaGenerada.length &&
+        crypto.timingSafeEqual(Buffer.from(firmaHeader), Buffer.from(firmaGenerada));
 
-    if (!firmaValida) {
-      return NextResponse.json({ error: 'Firma de webhook invalida.' }, { status: 403 });
+      if (!firmaValida) {
+        return NextResponse.json({ error: 'Firma de webhook invalida.' }, { status: 403 });
+      }
+    } else {
+      if (!tokenFromQuery || tokenFromQuery !== empresa.webhook_token) {
+        return NextResponse.json(
+          { error: 'Falta firma de webhook y token invalido o ausente.' },
+          { status: 401 }
+        );
+      }
     }
 
     const body = JSON.parse(rawBody);
@@ -183,14 +201,13 @@ export async function POST(req: NextRequest) {
     const status = String(body.status || '').toLowerCase();
 
     if (!acceptedStatuses.includes(status)) {
-      // Responder 200 evita reintentos de Woo para eventos que decidimos ignorar.
       return NextResponse.json({ ok: true, skipped: true, statusRecibido: status }, { status: 200 });
     }
 
     const { data: sucursal } = await supabaseAdmin
       .from('sucursales')
       .select('id')
-      .eq('empresa_id', empresaId)
+      .eq('empresa_id', empresa.id)
       .eq('activa', true)
       .limit(1)
       .maybeSingle();
@@ -206,7 +223,7 @@ export async function POST(req: NextRequest) {
       await supabaseAdmin
         .from('canales_venta')
         .select('id')
-        .eq('empresa_id', empresaId)
+        .eq('empresa_id', empresa.id)
         .eq('activo', true)
         .ilike('nombre', '%woo%')
         .limit(1)
@@ -218,7 +235,7 @@ export async function POST(req: NextRequest) {
         await supabaseAdmin
           .from('canales_venta')
           .select('id')
-          .eq('empresa_id', empresaId)
+          .eq('empresa_id', empresa.id)
           .eq('activo', true)
           .limit(1)
           .maybeSingle()
@@ -256,7 +273,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const producto = await findProductoPorSku(empresaId, sku);
+      const producto = await findProductoPorSku(empresa.id, sku);
 
       if (!producto) {
         return NextResponse.json(
@@ -281,7 +298,7 @@ export async function POST(req: NextRequest) {
     const shipping = body.shipping || {};
 
     const payloadPedido = {
-      empresaId,
+      empresaId: empresa.id,
       sucursalId: sucursal.id,
       canalId: canal.id,
       idExterno: String(body.id),
