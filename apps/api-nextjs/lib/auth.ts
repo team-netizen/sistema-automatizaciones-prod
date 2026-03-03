@@ -18,7 +18,15 @@ import { createSupabaseServerClient, supabaseAdmin } from './supabaseClient';
 import { headers } from 'next/headers';
 
 // ─── Tipos ───────────────────────────────────────────────
-export type Rol = 'super_admin' | 'owner' | 'admin' | 'empleado' | 'lector';
+export type Rol =
+    | 'super_admin'
+    | 'superadmin'
+    | 'owner'
+    | 'admin'
+    | 'empleado'
+    | 'operador'
+    | 'operator'
+    | 'lector';
 
 export interface UsuarioActual {
     id: string;
@@ -118,5 +126,5 @@ export async function getUsuarioActual(): Promise<UsuarioActual> {
 
 // ─── Helper: ¿Es super admin? ───────────────────────────
 export function esSuperAdmin(usuario: UsuarioActual): boolean {
-    return usuario.rol === 'super_admin';
+    return usuario.rol === 'super_admin' || usuario.rol === 'superadmin';
 }
