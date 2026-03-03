@@ -40,6 +40,61 @@ function mapWooStatusToPedidoEstado(status: string | undefined): PedidoEstado {
   return null;
 }
 
+function isValidHmacSignature(rawBody: string, webhookToken: string, signature: string): boolean {
+  const generated = crypto
+    .createHmac('sha256', webhookToken)
+    .update(rawBody)
+    .digest('base64');
+
+  return (
+    signature.length === generated.length &&
+    crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(generated))
+  );
+}
+
+async function resolveEmpresa(params: {
+  empresaIdFromRequest: string | null;
+  tokenFromQuery: string | null;
+  firmaHeader: string | null;
+  rawBody: string;
+}) {
+  const { empresaIdFromRequest, tokenFromQuery, firmaHeader, rawBody } = params;
+
+  if (empresaIdFromRequest) {
+    const { data } = await supabaseAdmin
+      .from('empresas')
+      .select('id, webhook_token, estado')
+      .eq('id', empresaIdFromRequest)
+      .maybeSingle();
+    return data ?? null;
+  }
+
+  if (tokenFromQuery) {
+    const { data } = await supabaseAdmin
+      .from('empresas')
+      .select('id, webhook_token, estado')
+      .eq('webhook_token', tokenFromQuery)
+      .maybeSingle();
+    return data ?? null;
+  }
+
+  if (firmaHeader) {
+    const { data: empresas } = await supabaseAdmin
+      .from('empresas')
+      .select('id, webhook_token, estado')
+      .not('webhook_token', 'is', null)
+      .limit(500);
+
+    const matched = (empresas || []).find((e: any) =>
+      isValidHmacSignature(rawBody, String(e.webhook_token || ''), firmaHeader)
+    );
+
+    return matched ?? null;
+  }
+
+  return null;
+}
+
 async function findProductoPorSku(empresaId: string, sku: string) {
   const exact = await supabaseAdmin
     .from('productos')
@@ -124,30 +179,25 @@ export async function POST(req: NextRequest) {
     const empresaIdFromRequest = req.headers.get('x-empresa-id') || searchParams.get('empresa_id');
     const tokenFromQuery = searchParams.get('token');
     const firmaHeader = req.headers.get('x-wc-webhook-signature');
+    const rawBody = await req.text();
 
-    if (!empresaIdFromRequest && !tokenFromQuery) {
+    if (!empresaIdFromRequest && !tokenFromQuery && !firmaHeader) {
       return NextResponse.json(
         {
-          error: 'Credenciales faltantes. Usa ?empresa_id=UUID o ?token=WEBHOOK_TOKEN.',
+          error: 'Credenciales faltantes. Usa firma Woo o ?empresa_id / ?token.',
         },
         { status: 401 }
       );
     }
 
-    let empresaQuery = supabaseAdmin
-      .from('empresas')
-      .select('id, webhook_token, estado')
-      .limit(1);
+    const empresa = await resolveEmpresa({
+      empresaIdFromRequest,
+      tokenFromQuery,
+      firmaHeader,
+      rawBody,
+    });
 
-    if (empresaIdFromRequest) {
-      empresaQuery = empresaQuery.eq('id', empresaIdFromRequest);
-    } else if (tokenFromQuery) {
-      empresaQuery = empresaQuery.eq('webhook_token', tokenFromQuery);
-    }
-
-    const { data: empresa, error: empresaError } = await empresaQuery.single();
-
-    if (empresaError || !empresa || !empresa.webhook_token) {
+    if (!empresa || !empresa.webhook_token) {
       return NextResponse.json(
         { error: 'Configuracion de empresa no encontrada o incompleta.' },
         { status: 403 }
@@ -164,17 +214,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const rawBody = await req.text();
-
     if (firmaHeader) {
-      const firmaGenerada = crypto
-        .createHmac('sha256', empresa.webhook_token)
-        .update(rawBody)
-        .digest('base64');
-
-      const firmaValida =
-        firmaHeader.length === firmaGenerada.length &&
-        crypto.timingSafeEqual(Buffer.from(firmaHeader), Buffer.from(firmaGenerada));
+      const firmaValida = isValidHmacSignature(rawBody, empresa.webhook_token, firmaHeader);
 
       if (!firmaValida) {
         return NextResponse.json({ error: 'Firma de webhook invalida.' }, { status: 403 });
