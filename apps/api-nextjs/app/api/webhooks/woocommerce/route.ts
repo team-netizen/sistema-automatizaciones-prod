@@ -220,6 +220,68 @@ function getBodyValue(body: any, paths: string[]): any {
   return null;
 }
 
+function getBodyValuesByHints(body: any, hints: string[], maxItems = 20): string[] {
+  const normalizedHints = hints.map((hint) => normalizeLooseKey(hint)).filter(Boolean);
+  if (!normalizedHints.length) return [];
+
+  const out: string[] = [];
+  const stack: any[] = [body];
+  const visited = new Set<any>();
+
+  while (stack.length > 0 && out.length < maxItems) {
+    const current = stack.pop();
+    if (!current || typeof current !== 'object') continue;
+    if (visited.has(current)) continue;
+    visited.add(current);
+
+    if (Array.isArray(current)) {
+      for (let i = current.length - 1; i >= 0; i -= 1) {
+        const value = current[i];
+        if (value && typeof value === 'object') {
+          stack.push(value);
+        }
+      }
+      continue;
+    }
+
+    for (const [key, value] of Object.entries(current)) {
+      const normalizedKey = normalizeLooseKey(key);
+      const keyMatches = normalizedHints.some((hint) => normalizedKey.includes(hint));
+
+      if (keyMatches && value !== null && value !== undefined) {
+        if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+          out.push(String(value));
+        } else if (Array.isArray(value)) {
+          for (const item of value) {
+            if (item === null || item === undefined) continue;
+            if (typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean') {
+              out.push(String(item));
+              break;
+            }
+          }
+        } else if (typeof value === 'object') {
+          const picked =
+            (value as any).value ??
+            (value as any).number ??
+            (value as any).text ??
+            (value as any).label ??
+            (value as any).name ??
+            null;
+          if (picked !== null && picked !== undefined) {
+            out.push(String(picked));
+          }
+        }
+      }
+
+      if (value && typeof value === 'object') {
+        stack.push(value);
+      }
+    }
+  }
+
+  return out;
+}
+
 function extractMetaData(body: any): any[] {
   const direct = getBodyValue(body, ['meta_data', 'metaData', 'data.meta_data', 'data.metaData']);
 
@@ -306,7 +368,7 @@ function normalizeEmail(value: any): string | null {
 }
 
 function normalizeDni(value: any): string | null {
-  const clean = cleanHumanText(value, 40);
+  const clean = cleanHumanText(value, 80);
   if (!clean) return null;
 
   const normalized = clean.toLowerCase().trim();
@@ -314,7 +376,20 @@ function normalizeDni(value: any): string | null {
   if (blocked.has(normalized)) return null;
   if (!/[0-9]/.test(clean)) return null;
 
-  return clean;
+  const labeled = clean.match(
+    /(?:dni|documento|doc(?:umento)?|cedula|ruc|rut|passport|pasaporte)\s*[:#-]?\s*([A-Za-z0-9-]{6,20})/i
+  );
+  if (labeled?.[1]) {
+    return labeled[1].trim().toUpperCase();
+  }
+
+  const tokens = clean.match(/[A-Za-z0-9-]{6,20}/g) || [];
+  const useful = tokens.filter((token) => /[0-9]/.test(token) && !blocked.has(token.toLowerCase()));
+  if (useful.length > 0) {
+    return useful[useful.length - 1];
+  }
+
+  return clean.slice(0, 40);
 }
 
 function pickFirstNormalized(
@@ -342,7 +417,8 @@ function logExtractionDebug(params: {
     process.env.WC_DEBUG_FIELDS === 'true' ||
     !params.nombreCliente ||
     !params.telefonoCliente ||
-    !params.emailCliente;
+    !params.emailCliente ||
+    !params.dni;
 
   if (!shouldLog) return;
 
@@ -1010,8 +1086,17 @@ export async function POST(req: NextRequest) {
       normalizeEmail
     );
     const notaCliente = cleanHumanText(
-      getBodyValue(body, ['customer_note', 'note', 'customer_message', 'order_note', 'message']) ||
-        getMetaValue(metaData, ['customer_note', 'note', 'observaciones']),
+      getBodyValue(body, [
+        'customer_note',
+        'note',
+        'customer_message',
+        'order_note',
+        'message',
+        'order.comments',
+        'order.notes',
+      ]) ||
+        getMetaValue(metaData, ['customer_note', 'note', 'observaciones']) ||
+        getMetaValueByHints(metaData, ['nota', 'note', 'observacion', 'comentario']),
       600
     );
     const resumenItems = cleanText(buildItemsResumen(lineItems), 1200);
@@ -1109,8 +1194,18 @@ export async function POST(req: NextRequest) {
             getMetaValue(metaData, [
               '_billing_dni',
               '_billing_document',
+              '_billing_document_number',
+              '_billing_number_document',
+              '_billing_numero_documento',
+              '_billing_nro_documento',
+              '_billing_nro_doc',
               'billing_dni',
               'billing_document',
+              'billing_document_number',
+              'billing_number_document',
+              'billing_numero_documento',
+              'billing_nro_documento',
+              'billing_nro_doc',
               'billing_doc_number',
               'billing_vat',
               'dni',
@@ -1120,6 +1215,8 @@ export async function POST(req: NextRequest) {
               'dni',
               'document',
               'doc',
+              'numero_documento',
+              'nro_documento',
               'cedula',
               'rut',
               'ruc',
@@ -1130,11 +1227,29 @@ export async function POST(req: NextRequest) {
               'billing.document',
               'billing.doc_number',
               'billing.document_number',
+              'billing.number_document',
+              'billing.numero_documento',
+              'billing.nro_documento',
+              'billing.nro_doc',
+              'billing.id_number',
               'billing.vat',
               'shipping.dni',
               'customer.dni',
+              'customer.document',
+              'customer.document_number',
               'billing_dni',
               'dni',
+            ]),
+            ...getBodyValuesByHints(body, [
+              'dni',
+              'document',
+              'docnumber',
+              'numerodocumento',
+              'nrodocumento',
+              'cedula',
+              'rut',
+              'ruc',
+              'passport',
             ]),
           ],
           normalizeDni

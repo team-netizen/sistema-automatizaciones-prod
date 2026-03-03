@@ -81,6 +81,23 @@ function extractItemSummaryFromObservaciones(text: string | null): string | null
     return null;
 }
 
+function stripItemSummaryFromObservaciones(text: string | null): string | null {
+    const clean = sanitizeText(text, 2500);
+    if (!clean) return null;
+
+    const segments = clean
+        .split('|')
+        .map((seg) => seg.trim())
+        .filter(Boolean);
+
+    const noteSegments = segments.filter((seg) => !/\bSKU\s*:|\bx\s*\d+\b/i.test(seg));
+    if (noteSegments.length > 0) {
+        return noteSegments.join(' | ').slice(0, 1500);
+    }
+
+    return null;
+}
+
 function extractSkuFromText(text: string | null): string | null {
     const clean = sanitizeText(text, 2500);
     if (!clean) return null;
@@ -97,7 +114,7 @@ function extractCantidadFromText(text: string | null): string | null {
 
     const matches = [...clean.matchAll(/\bx\s*(\d+)\b/gi)].map((m) => String(m[1]).trim());
     if (!matches.length) return null;
-    return matches.join(', ');
+    return matches[matches.length - 1];
 }
 
 async function fetchPedidosByEmpresa(empresaId: string) {
@@ -140,6 +157,7 @@ function mapPedido(row: PedidoRow) {
     const productos = productosRaw || productosFromObs;
     const cantidad = sanitizeText(row.cantidad ?? null, 120) || extractCantidadFromText(productos);
     const sku = sanitizeText(row.sku ?? null, 350) || extractSkuFromText(productos);
+    const observacionesOnlyNotes = stripItemSummaryFromObservaciones(observacionesRaw);
 
     return {
         ...row,
@@ -179,7 +197,7 @@ function mapPedido(row: PedidoRow) {
         productos,
         cantidad,
         sku,
-        observaciones: observacionesRaw,
+        observaciones: observacionesOnlyNotes,
         estado: row.estado ?? 'pendiente',
     };
 }
