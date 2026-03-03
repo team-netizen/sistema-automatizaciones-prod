@@ -232,6 +232,132 @@ function extractMetaData(body: any): any[] {
   return [];
 }
 
+function getMetaValueByHints(metaData: any[], hints: string[]): string | null {
+  const normalizedHints = hints.map((hint) => normalizeLooseKey(hint)).filter(Boolean);
+  if (!normalizedHints.length) return null;
+
+  for (const entry of metaData || []) {
+    const key = normalizeLooseKey(entry?.key);
+    if (!key) continue;
+    if (!normalizedHints.some((hint) => key.includes(hint))) continue;
+
+    const value = entry?.value;
+    if (value === null || value === undefined) continue;
+
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+
+    if (Array.isArray(value)) {
+      const first = value.find((v) => v !== null && v !== undefined);
+      if (first !== undefined) return String(first);
+      continue;
+    }
+
+    if (typeof value === 'object') {
+      const picked =
+        (value as any).value ??
+        (value as any).text ??
+        (value as any).label ??
+        (value as any).name ??
+        null;
+      if (picked !== null && picked !== undefined) {
+        return String(picked);
+      }
+    }
+  }
+
+  return null;
+}
+
+function normalizeCustomerName(value: any): string | null {
+  const clean = cleanHumanText(value, 180);
+  if (!clean) return null;
+
+  const normalized = clean.toLowerCase().trim();
+  const blocked = new Set(['nombre', 'name', 'cliente', 'customer', 'n/a', 'na', 'null', 'none', '-']);
+  if (blocked.has(normalized)) return null;
+
+  return clean;
+}
+
+function normalizePhone(value: any): string | null {
+  const clean = cleanHumanText(value, 40);
+  if (!clean) return null;
+
+  const onlyDigits = clean.replace(/\D/g, '');
+  if (onlyDigits.length < 6) return null;
+
+  return clean;
+}
+
+function looksLikeEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function normalizeEmail(value: any): string | null {
+  const clean = cleanHumanText(value, 180);
+  if (!clean) return null;
+
+  const normalized = clean.toLowerCase().trim();
+  if (!looksLikeEmail(normalized)) return null;
+
+  return normalized;
+}
+
+function normalizeDni(value: any): string | null {
+  const clean = cleanHumanText(value, 40);
+  if (!clean) return null;
+
+  const normalized = clean.toLowerCase().trim();
+  const blocked = new Set(['dni', 'documento', 'document', 'doc', 'n/a', 'na', 'null', 'none', '-']);
+  if (blocked.has(normalized)) return null;
+  if (!/[0-9]/.test(clean)) return null;
+
+  return clean;
+}
+
+function logExtractionDebug(params: {
+  empresaId: string;
+  orderId: string;
+  body: any;
+  metaData: any[];
+  nombreCliente: string | null;
+  telefonoCliente: string | null;
+  emailCliente: string | null;
+  dni: string | null;
+}) {
+  const shouldLog =
+    process.env.WC_DEBUG_FIELDS === 'true' ||
+    !params.nombreCliente ||
+    !params.telefonoCliente ||
+    !params.emailCliente;
+
+  if (!shouldLog) return;
+
+  const topLevelKeys = Object.keys(params.body || {}).slice(0, 80);
+  const metaKeys = (params.metaData || [])
+    .map((entry) => String(entry?.key || '').trim())
+    .filter(Boolean)
+    .slice(0, 80);
+
+  console.warn(
+    '[WC_WEBHOOK][field_debug]',
+    JSON.stringify({
+      empresa_id: params.empresaId,
+      order_id: params.orderId,
+      extracted: {
+        nombre_cliente: params.nombreCliente,
+        telefono: params.telefonoCliente,
+        email: params.emailCliente,
+        dni: params.dni,
+      },
+      top_level_keys: topLevelKeys,
+      meta_keys: metaKeys,
+    })
+  );
+}
+
 function buildNombreCliente(body: any, metaData: any[]): string | null {
   const firstName = cleanHumanText(
     getBodyValue(body, [
@@ -284,6 +410,23 @@ function buildNombreCliente(body: any, metaData: any[]): string | null {
     180
   );
   if (company) return company;
+
+  const fullName = normalizeCustomerName(
+    getBodyValue(body, [
+      'billing.full_name',
+      'billing.fullName',
+      'shipping.full_name',
+      'shipping.fullName',
+      'customer.full_name',
+      'customer.fullName',
+      'customer.name',
+      'billing_name',
+      'shipping_name',
+      'customer_name',
+      'name',
+    ]) || getMetaValueByHints(metaData, ['full_name', 'fullname', 'customer_name', 'nombre_completo'])
+  );
+  if (fullName) return fullName;
 
   const emailPrefix = cleanHumanText(
     String(
@@ -805,36 +948,45 @@ export async function POST(req: NextRequest) {
 
     const metaData = extractMetaData(body);
     const numeroConsecutivo = await getNextConsecutiveNumero(empresa.id);
-    const nombreCliente = cleanHumanText(buildNombreCliente(body, metaData), 180);
-    const telefonoCliente = cleanHumanText(
+    const nombreCliente = normalizeCustomerName(
+      buildNombreCliente(body, metaData) || getMetaValueByHints(metaData, ['nombre', 'name', 'cliente'])
+    );
+    const telefonoCliente = normalizePhone(
       getBodyValue(body, [
         'billing.phone',
         'billing.phone_number',
         'billing.mobile',
         'billing.celular',
         'billing.telefono',
+        'billing_phone',
         'shipping.phone',
         'shipping.phone_number',
         'shipping.mobile',
         'shipping.celular',
         'shipping.telefono',
+        'shipping_phone',
         'customer.phone',
         'customer.telefono',
+        'customer_phone',
         'telefono',
         'phone',
       ]) ||
-        getMetaValue(metaData, ['billing_phone', 'phone', 'telefono', 'celular']),
-      40
+        getMetaValue(metaData, ['billing_phone', 'phone', 'telefono', 'celular']) ||
+        getMetaValueByHints(metaData, ['phone', 'telefono', 'celular', 'mobile'])
     );
-    const emailCliente = cleanHumanText(
+    const emailCliente = normalizeEmail(
       getBodyValue(body, [
         'billing.email',
         'billing.email_address',
+        'billing_email',
         'shipping.email',
+        'shipping_email',
         'customer.email',
+        'customer_email',
         'email',
-      ]) || getMetaValue(metaData, ['billing_email', 'email']),
-      180
+      ]) ||
+        getMetaValue(metaData, ['billing_email', 'email']) ||
+        getMetaValueByHints(metaData, ['email', 'correo'])
     );
     const notaCliente = cleanHumanText(
       getBodyValue(body, ['customer_note', 'note', 'customer_message', 'order_note', 'message']) ||
@@ -931,7 +1083,7 @@ export async function POST(req: NextRequest) {
       emailCliente,
       observaciones,
       dni:
-        cleanHumanText(
+        normalizeDni(
           getBodyValue(body, [
             'billing.dni',
             'billing.document',
@@ -940,6 +1092,7 @@ export async function POST(req: NextRequest) {
             'billing.vat',
             'shipping.dni',
             'customer.dni',
+            'billing_dni',
             'dni',
           ]) ||
             getMetaValue(metaData, [
@@ -951,12 +1104,23 @@ export async function POST(req: NextRequest) {
               'billing_vat',
               'dni',
               'documento',
-            ]),
-          40
+            ]) ||
+            getMetaValueByHints(metaData, ['dni', 'document', 'doc', 'cedula'])
         ) || '',
       fechaPedido: body.date_created || new Date().toISOString(),
       estado: mapWooStatusToPedidoEstado(status),
     };
+
+    logExtractionDebug({
+      empresaId: empresa.id,
+      orderId: String(orderIdRaw),
+      body,
+      metaData,
+      nombreCliente: payloadPedido.nombreCliente,
+      telefonoCliente: payloadPedido.telefonoCliente,
+      emailCliente: payloadPedido.emailCliente,
+      dni: payloadPedido.dni || null,
+    });
 
     if (needsDirectFallback || itemsInternos.length === 0) {
       const fallback = await registrarPedidoFallback(payloadPedido);
