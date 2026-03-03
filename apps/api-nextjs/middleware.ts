@@ -40,6 +40,12 @@ function withCorsHeaders(response: NextResponse, allowedOrigin: string | null): 
 
 export function middleware(request: NextRequest) {
     const allowedOrigin = resolveAllowedOrigin(request);
+    const pathname = request.nextUrl.pathname;
+    const isLegacyApiPath =
+        pathname.startsWith('/operaciones') ||
+        pathname.startsWith('/productos') ||
+        pathname.startsWith('/sucursales') ||
+        pathname.startsWith('/pedidos');
 
     if (request.method === 'OPTIONS') {
         if (!allowedOrigin) {
@@ -52,9 +58,23 @@ export function middleware(request: NextRequest) {
         return withCorsHeaders(new NextResponse(null, { status: 204 }), allowedOrigin);
     }
 
+    if (isLegacyApiPath) {
+        const rewriteUrl = request.nextUrl.clone();
+        rewriteUrl.pathname = `/api${pathname}`;
+        return withCorsHeaders(NextResponse.rewrite(rewriteUrl), allowedOrigin);
+    }
+
     return withCorsHeaders(NextResponse.next(), allowedOrigin);
 }
 
 export const config = {
-    matcher: ['/api/:path*', '/auth/:path*', '/notificaciones/:path*'],
+    matcher: [
+        '/api/:path*',
+        '/auth/:path*',
+        '/notificaciones/:path*',
+        '/operaciones/:path*',
+        '/productos/:path*',
+        '/sucursales/:path*',
+        '/pedidos/:path*',
+    ],
 };
