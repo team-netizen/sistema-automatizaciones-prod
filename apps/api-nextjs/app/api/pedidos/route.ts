@@ -7,6 +7,15 @@ type PedidoRow = Record<string, any>;
 type PedidoItemRow = Record<string, any>;
 
 const ORDER_CANDIDATES = ['fecha_creacion', 'created_at', 'fecha_sinc'] as const;
+const REQUIRED_DETAIL_COLUMNS = [
+    'nombre_cliente',
+    'telefono_cliente',
+    'email_cliente',
+    'observaciones',
+    'direccion_envio',
+    'distrito',
+    'provincia',
+] as const;
 
 function isRecoverableOrderError(error: any): boolean {
     const code = String(error?.code || '');
@@ -19,6 +28,20 @@ function isRecoverableOrderError(error: any): boolean {
         message.includes('schema cache') ||
         message.includes('does not exist')
     );
+}
+
+async function detectMissingDetailColumns(): Promise<string[]> {
+    const missing: string[] = [];
+
+    for (const column of REQUIRED_DETAIL_COLUMNS) {
+        const { error } = await supabaseAdmin.from('pedidos').select(column).limit(1);
+        if (!error) continue;
+        if (isRecoverableOrderError(error)) {
+            missing.push(column);
+        }
+    }
+
+    return missing;
 }
 
 function sanitizeText(value: any, maxLength = 600): string | null {
@@ -203,10 +226,20 @@ export const GET = withAuth(async (_req, usuario) => {
 
         const withItems = await attachPedidoItemsSummary(pedidos || []);
         const normalized = withItems.map(mapPedido);
+        const missingColumns = await detectMissingDetailColumns();
 
         return NextResponse.json({
             success: true,
             data: normalized,
+            schema_warning:
+                missingColumns.length > 0
+                    ? {
+                        missing_columns: missingColumns,
+                        message:
+                            'Faltan columnas en la tabla pedidos para almacenar todos los campos del webhook.',
+                        migration: 'scripts/2026-03-03_pedidos_campos_adicionales.sql',
+                    }
+                    : null,
         });
     } catch (error: any) {
         console.error('[API_PEDIDOS] Error inesperado en GET:', error?.message || error);

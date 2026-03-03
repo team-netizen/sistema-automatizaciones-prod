@@ -11,6 +11,7 @@ export const Pedidos = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedPedido, setSelectedPedido] = useState<any | null>(null);
     const [syncing, setSyncing] = useState(false);
+    const [schemaWarning, setSchemaWarning] = useState<string | null>(null);
 
     const fetchPedidos = async (opts?: { silent?: boolean }) => {
         const silent = Boolean(opts?.silent);
@@ -25,6 +26,16 @@ export const Pedidos = () => {
 
             const data = await response.json();
             setPedidos(data.data || []);
+            const missing = Array.isArray(data?.schema_warning?.missing_columns)
+                ? data.schema_warning.missing_columns
+                : [];
+            if (missing.length > 0) {
+                setSchemaWarning(
+                    `Faltan columnas en BD (${missing.join(', ')}). Ejecuta scripts/2026-03-03_pedidos_campos_adicionales.sql`
+                );
+            } else {
+                setSchemaWarning(null);
+            }
         } catch (error) {
             console.error('Error fetching pedidos:', error);
         } finally {
@@ -106,6 +117,11 @@ export const Pedidos = () => {
 
     return (
         <div className="space-y-10 animate-fadeIn w-full">
+            {schemaWarning && (
+                <div className="mx-4 p-4 rounded-2xl border border-orange-500/30 bg-orange-500/10 text-orange-200 text-xs font-bold tracking-wide">
+                    {schemaWarning}
+                </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <MetricCard
                     title="Pedidos"
