@@ -10,9 +10,15 @@ export const Pedidos = () => {
     const [showNewOrderModal, setShowNewOrderModal] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedPedido, setSelectedPedido] = useState<any | null>(null);
+    const [syncing, setSyncing] = useState(false);
 
-    const fetchPedidos = async () => {
-        setLoading(true);
+    const fetchPedidos = async (opts?: { silent?: boolean }) => {
+        const silent = Boolean(opts?.silent);
+        if (silent) {
+            setSyncing(true);
+        } else {
+            setLoading(true);
+        }
         try {
             const response = await authFetch(`${API_URL}/operaciones/pedidos`);
             if (!response.ok) throw new Error('Error al obtener pedidos');
@@ -22,12 +28,31 @@ export const Pedidos = () => {
         } catch (error) {
             console.error('Error fetching pedidos:', error);
         } finally {
-            setLoading(false);
+            if (silent) {
+                setSyncing(false);
+            } else {
+                setLoading(false);
+            }
         }
     };
 
     useEffect(() => {
-        fetchPedidos();
+        fetchPedidos({ silent: false });
+
+        const intervalId = window.setInterval(() => {
+            fetchPedidos({ silent: true });
+        }, 15000);
+
+        const handleFocus = () => {
+            fetchPedidos({ silent: true });
+        };
+
+        window.addEventListener('focus', handleFocus);
+
+        return () => {
+            window.clearInterval(intervalId);
+            window.removeEventListener('focus', handleFocus);
+        };
     }, []);
 
     const formatDate = (value: any) => {
@@ -125,6 +150,13 @@ export const Pedidos = () => {
                     </div>
                 </div>
                 <div className="flex gap-4">
+                    <button
+                        onClick={() => fetchPedidos({ silent: true })}
+                        disabled={syncing}
+                        className="h-14 px-8 bg-[#111C19] border border-[#1F2D29] text-gray-200 text-xs font-black rounded-2xl hover:border-[#22C55E]/50 hover:text-white transition-all uppercase tracking-widest disabled:opacity-60"
+                    >
+                        {syncing ? 'Sincronizando...' : 'Actualizar'}
+                    </button>
                     <button
                         onClick={() => setShowNewOrderModal(true)}
                         className="h-14 px-10 bg-[#22C55E] text-[#0B1412] text-xs font-black rounded-2xl hover:bg-[#16A34A] transition-all shadow-xl shadow-[#22C55E]/20 flex items-center gap-3 uppercase tracking-widest"
