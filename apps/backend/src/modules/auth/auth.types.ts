@@ -1,0 +1,39 @@
+/**
+ * Tipos del módulo de autenticación.
+ * DTOs para entrada y salida del login.
+ */
+
+/** DTO de entrada del login */
+export interface LoginDto {
+    email: string;
+    password: string;
+}
+
+/** Datos del perfil enriquecido devuelto al frontend */
+export interface PerfilAutenticado {
+    usuario_id: string;
+    email: string;
+    empresa_id: string;
+    empresa_nombre: string;
+    rol: string;
+    estado_empresa: string;
+}
+
+/** Respuesta exitosa del login */
+export interface LoginResponse {
+    ok: true;
+    mensaje: string;
+    sesion: {
+        access_token: string;
+        refresh_token: string;
+        expires_in: number;
+    };
+    usuario: PerfilAutenticado;
+}
+
+/** Respuesta de error del login */
+export interface LoginErrorResponse {
+    ok: false;
+    mensaje: string;
+    codigo: string;
+}
