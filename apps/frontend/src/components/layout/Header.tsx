@@ -1,39 +1,20 @@
-import { useState, useEffect } from 'react';
-import { NOTIFICACIONES_URL, getAuthHeaders } from '../../lib/api';
-
 interface HeaderProps {
     usuario?: any;
 }
 
 export function Header({ usuario }: HeaderProps) {
-    const [notifCount, setNotifCount] = useState(0);
-
-    // En una implementación real, esto sería un polling o un webhook de Supabase Realtime
-    useEffect(() => {
-        if (usuario) {
-            fetch(`${NOTIFICACIONES_URL}/count`, {
-                credentials: 'include',
-                headers: getAuthHeaders()
-            })
-                .then(res => {
-                    if (!res.ok) return { total: 0 };
-                    return res.json();
-                })
-                .then(data => setNotifCount(data.total || 0))
-                .catch(() => { });
-        }
-    }, [usuario]);
+    const notifCount = 0;
 
     return (
         <header className="w-full flex items-center justify-between p-5 border-b border-[#1F2D29] bg-[#0B1412]/60 backdrop-blur-3xl sticky top-0 z-40">
             <div className="flex items-center gap-6">
                 <div className="flex items-center gap-3 text-white font-black uppercase tracking-[0.2em] text-[10px] md:text-xs">
                     <div className="w-1.5 h-4 bg-[#22C55E] rounded-full shadow-[0_0_10px_rgba(34,197,94,0.4)]"></div>
-                    SisAutomatización
+                    SisAutomatizaci�n
                 </div>
                 {usuario?.rol === 'superadmin' && (
                     <div className="px-3 py-1 rounded-full bg-[#8B7AF0]/10 border border-[#8B7AF0]/20 text-[9px] font-black text-[#8B7AF0] uppercase tracking-widest">
-                        Súper Admin
+                        S�per Admin
                     </div>
                 )}
             </div>
