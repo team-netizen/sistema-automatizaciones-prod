@@ -1,12 +1,13 @@
 /**
  * Servicio de Frontend para obtener pedidos
  */
+import { API_URL } from '../lib/api';
+
 export const obtenerPedidos = async () => {
     try {
         const token = localStorage.getItem('access_token');
         if (!token) throw new Error('No hay token de acceso');
 
-        const API_URL = import.meta.env.VITE_API_URL || '/api';
         const response = await fetch(`${API_URL}/pedidos`, {
             headers: {
                 'Authorization': `Bearer ${token}`,

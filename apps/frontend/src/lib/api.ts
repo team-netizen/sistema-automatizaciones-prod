@@ -1,4 +1,21 @@
-export const API_URL = import.meta.env.VITE_API_URL || '/api';
+const normalizeApiUrl = (rawUrl?: string) => {
+    const fallback = '/api';
+    const input = (rawUrl ?? fallback).trim();
+
+    if (!input) return fallback;
+
+    if (input.startsWith('http://') || input.startsWith('https://')) {
+        const withoutTrailingSlash = input.replace(/\/+$/, '');
+        return withoutTrailingSlash.endsWith('/api')
+            ? withoutTrailingSlash
+            : `${withoutTrailingSlash}/api`;
+    }
+
+    const normalizedPath = input.replace(/\/+$/, '');
+    return normalizedPath || fallback;
+};
+
+export const API_URL = normalizeApiUrl(import.meta.env.VITE_API_URL);
 
 // Extraer la base (sin el /api al final)
 const getBase = (url: string) => {
