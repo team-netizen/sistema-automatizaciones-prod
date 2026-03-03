@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabaseClient';
 import { procesarPedido, PedidoItemSimple } from '@/services/procesarPedido';
 
 const DEFAULT_ACCEPTED_STATUSES = ['processing', 'completed', 'on-hold', 'pending'];
+const OBS_BUNDLE_PREFIX = '[[SISAUTO]]';
 
 type PedidoEstado = 'pendiente' | 'confirmado' | 'cancelado' | null;
 
@@ -175,6 +176,32 @@ function getMetaValue(metaData: any[], keys: string[]): string | null {
   return null;
 }
 
+function buildItemsResumen(lineItems: any[]): string | null {
+  if (!Array.isArray(lineItems) || lineItems.length === 0) return null;
+
+  const parts = lineItems.map((item: any) => {
+    const name = String(item?.name || 'Producto').trim();
+    const sku = String(item?.sku || 'N/A').trim();
+    const qty = Number(item?.quantity ?? 0);
+    const qtyText = Number.isFinite(qty) && qty > 0 ? qty : 1;
+    return `${name} [SKU:${sku}] x${qtyText}`;
+  });
+
+  return parts.join(' | ').slice(0, 1200);
+}
+
+function encodeObservacionesBundle(note: string | null, items: string | null): string | null {
+  const payload = {
+    note: cleanHumanText(note, 700) || null,
+    items: cleanHumanText(items, 1200) || null,
+  };
+
+  if (!payload.note && !payload.items) return null;
+
+  const encoded = `${OBS_BUNDLE_PREFIX}${JSON.stringify(payload)}`;
+  return encoded.slice(0, 1500);
+}
+
 function normalizeLooseKey(key: any): string {
   return String(key || '')
     .toLowerCase()
@@ -330,6 +357,74 @@ function getMetaValueByHints(metaData: any[], hints: string[]): string | null {
   }
 
   return null;
+}
+
+function extractMetaDocumentCandidates(metaData: any[]): string[] {
+  const candidates: string[] = [];
+  const hintRegex = /(dni|document|doc|cedula|rut|ruc|passport|pasaporte|identificacion|numero_documento|nro_documento)/i;
+
+  for (const entry of metaData || []) {
+    const labels = [
+      entry?.key,
+      entry?.display_key,
+      entry?.displayKey,
+      entry?.label,
+      entry?.name,
+      entry?.title,
+    ]
+      .map((v) => String(v || '').trim())
+      .filter(Boolean);
+
+    const hasDocHint = labels.some((label) => hintRegex.test(label));
+
+    const values: any[] = [
+      entry?.value,
+      entry?.display_value,
+      entry?.displayValue,
+      entry?.text,
+      entry?.raw_value,
+      entry?.rawValue,
+    ];
+
+    for (const value of values) {
+      if (value === null || value === undefined) continue;
+
+      if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+        const raw = String(value);
+        if (hasDocHint) {
+          candidates.push(raw);
+          continue;
+        }
+
+        const inline = raw.match(
+          /(?:dni|documento|document|cedula|ruc|rut|passport|pasaporte)\s*[:#-]?\s*([A-Za-z0-9-]{6,20})/i
+        );
+        if (inline?.[1]) {
+          candidates.push(inline[1]);
+        }
+        continue;
+      }
+
+      if (typeof value === 'object') {
+        const nested = [
+          (value as any).value,
+          (value as any).number,
+          (value as any).text,
+          (value as any).label,
+          (value as any).name,
+          (value as any).id_number,
+          (value as any).document,
+          (value as any).dni,
+        ];
+        for (const nestedValue of nested) {
+          if (nestedValue === null || nestedValue === undefined) continue;
+          candidates.push(String(nestedValue));
+        }
+      }
+    }
+  }
+
+  return candidates;
 }
 
 function normalizeCustomerName(value: any): string | null {
@@ -1113,7 +1208,8 @@ export async function POST(req: NextRequest) {
         getMetaValueByHints(metaData, ['nota', 'note', 'observacion', 'comentario']),
       600
     );
-    const observaciones = cleanText(notaCliente, 1500);
+    const resumenItems = cleanText(buildItemsResumen(lineItems), 1200);
+    const observaciones = encodeObservacionesBundle(notaCliente, resumenItems);
 
     const payloadPedido = {
       empresaId: empresa.id,
@@ -1202,6 +1298,7 @@ export async function POST(req: NextRequest) {
         pickFirstNormalized(
           [
             dniFromRawBody,
+            ...extractMetaDocumentCandidates(metaData),
             getMetaValue(metaData, [
               '_billing_dni',
               '_billing_document',

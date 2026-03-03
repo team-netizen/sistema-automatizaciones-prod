@@ -7,6 +7,7 @@ type PedidoRow = Record<string, any>;
 type PedidoItemRow = Record<string, any>;
 
 const ORDER_CANDIDATES = ['fecha_creacion', 'created_at', 'fecha_sinc'] as const;
+const OBS_BUNDLE_PREFIX = '[[SISAUTO]]';
 const REQUIRED_DETAIL_COLUMNS = [
     'nombre_cliente',
     'telefono_cliente',
@@ -61,6 +62,26 @@ function sanitizeText(value: any, maxLength = 600): string | null {
     if (!compact) return null;
 
     return compact.slice(0, maxLength);
+}
+
+function decodeObservacionesBundle(text: string | null): { note: string | null; items: string | null } {
+    const clean = sanitizeText(text, 2500);
+    if (!clean || !clean.startsWith(OBS_BUNDLE_PREFIX)) {
+        return { note: null, items: null };
+    }
+
+    const payloadRaw = clean.slice(OBS_BUNDLE_PREFIX.length).trim();
+    if (!payloadRaw) return { note: null, items: null };
+
+    try {
+        const payload = JSON.parse(payloadRaw);
+        return {
+            note: sanitizeText(payload?.note ?? null, 1500),
+            items: sanitizeText(payload?.items ?? null, 1500),
+        };
+    } catch {
+        return { note: null, items: null };
+    }
 }
 
 function extractItemSummaryFromObservaciones(text: string | null): string | null {
@@ -165,12 +186,13 @@ async function fetchPedidosByEmpresa(empresaId: string) {
 
 function mapPedido(row: PedidoRow) {
     const observacionesRaw = sanitizeText(row.observaciones ?? row.notas ?? null, 1500);
+    const obsBundle = decodeObservacionesBundle(observacionesRaw);
     const productosRaw = sanitizeText(row.productos ?? null, 1500);
-    const productosFromObs = extractItemSummaryFromObservaciones(observacionesRaw);
+    const productosFromObs = obsBundle.items || extractItemSummaryFromObservaciones(observacionesRaw);
     const productos = productosRaw || productosFromObs;
     const cantidad = normalizeCantidadValue(row.cantidad ?? null) || extractCantidadFromText(productos);
     const sku = sanitizeText(row.sku ?? null, 350) || extractSkuFromText(productos);
-    const observacionesOnlyNotes = stripItemSummaryFromObservaciones(observacionesRaw);
+    const observacionesOnlyNotes = obsBundle.note ?? stripItemSummaryFromObservaciones(observacionesRaw);
 
     return {
         ...row,
