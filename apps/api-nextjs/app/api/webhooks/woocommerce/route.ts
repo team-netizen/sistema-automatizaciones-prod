@@ -77,7 +77,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (empresa.estado !== 'activa' && empresa.estado !== 'prueba') {
+    const estadoEmpresa = String(empresa.estado || '').toLowerCase().trim();
+    const estadosPermitidos = new Set(['activo', 'activa', 'prueba']);
+
+    if (!estadosPermitidos.has(estadoEmpresa)) {
       return NextResponse.json(
         { error: 'La empresa no se encuentra en estado activo.' },
         { status: 403 }
