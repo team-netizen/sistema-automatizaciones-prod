@@ -531,7 +531,6 @@ async function persistPedidoExtras(params: {
   provincia: string | null;
 }) {
   await tryUpdatePedidoField(params.pedidoId, ['nombre_cliente', 'cliente_nombre'], params.nombreCliente);
-  await tryUpdatePedidoField(params.pedidoId, ['id_cliente'], params.nombreCliente);
   await tryUpdatePedidoField(params.pedidoId, ['telefono_cliente', 'telefono'], params.telefonoCliente);
   await tryUpdatePedidoField(params.pedidoId, ['email_cliente', 'email'], params.emailCliente);
   await tryUpdatePedidoField(params.pedidoId, ['observaciones', 'nota', 'notas'], params.observaciones);
@@ -630,7 +629,7 @@ async function registrarPedidoFallback(params: {
       id_externo: String(params.idExterno || '').slice(0, 120),
       id_orden: String(params.idOrden || params.idExterno || '').slice(0, 120),
       medio_pedido: 'web',
-      id_cliente: params.nombreCliente || null,
+      id_cliente: null,
       metodo_pago: params.metodoPago || null,
       direccion_cliente: params.direccion || null,
       distrito_cliente: params.distrito || null,
@@ -661,7 +660,7 @@ async function registrarPedidoFallback(params: {
       estado: params.estado,
       id_externo: String(params.idExterno || '').slice(0, 120),
       medio_pedido: 'web',
-      id_cliente: params.nombreCliente || null,
+      id_cliente: null,
       fecha_pedido: params.fechaPedido || new Date().toISOString(),
     })
     .select('id')
