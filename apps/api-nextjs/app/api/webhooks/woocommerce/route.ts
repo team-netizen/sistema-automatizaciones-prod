@@ -27,6 +27,17 @@ function computeUnitPrice(item: any, qty: number, fallbackPrice: number): number
   return Number.isFinite(fallbackPrice) ? fallbackPrice : 0;
 }
 
+function mapWooStatusToPedidoEstado(status: string | undefined): 'pendiente' | 'confirmado' | 'cancelado' | null {
+  const normalized = String(status || '').toLowerCase().trim();
+
+  if (normalized === 'processing' || normalized === 'completed') return 'confirmado';
+  if (normalized === 'cancelled' || normalized === 'canceled' || normalized === 'failed' || normalized === 'refunded') {
+    return 'cancelado';
+  }
+  if (normalized === 'pending' || normalized === 'on-hold') return 'pendiente';
+  return null;
+}
+
 async function findProductoPorSku(empresaId: string, sku: string) {
   const exact = await supabaseAdmin
     .from('productos')
@@ -62,6 +73,7 @@ async function registrarPedidoFallback(params: {
   provincia: string;
   dni: string;
   fechaPedido: string;
+  estado: 'pendiente' | 'confirmado' | 'cancelado' | null;
 }) {
   const duplicated = await supabaseAdmin
     .from('pedidos')
@@ -82,7 +94,7 @@ async function registrarPedidoFallback(params: {
       canal_id: params.canalId,
       numero: params.numeroPedido,
       total: params.total,
-      estado: null,
+      estado: params.estado,
       id_externo: params.idExterno,
       id_orden: params.idOrden,
       medio_pedido: 'web',
@@ -285,6 +297,7 @@ export async function POST(req: NextRequest) {
         body.meta_data?.find((m: any) => m?.key === '_billing_document')?.value ||
         '',
       fechaPedido: body.date_created || new Date().toISOString(),
+      estado: mapWooStatusToPedidoEstado(status),
     };
 
     try {
