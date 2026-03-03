@@ -223,10 +223,7 @@ export async function POST(req: NextRequest) {
       usuarioSistemaId: null,
       id_orden: String(body.number || body.id),
       medio_pedido: 'web',
-      cliente_id:
-        billing.email ||
-        `${billing.first_name || ''} ${billing.last_name || ''}`.trim() ||
-        null,
+      cliente_id: null,
       metodo_pago: body.payment_method_title || 'WooCommerce',
       direccion_cliente: shipping.address_1 || billing.address_1 || '',
       distrito_cliente: shipping.city || billing.city || '',
