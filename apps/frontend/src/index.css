@@ -146,6 +146,25 @@ a {
   background: #0b1412;
 }
 
+.pedido-detail-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #2a3a35 #0b1412;
+}
+
+.pedido-detail-scroll::-webkit-scrollbar {
+  display: block;
+  width: 10px;
+}
+
+.pedido-detail-scroll::-webkit-scrollbar-thumb {
+  background: #2a3a35;
+  border-radius: 999px;
+}
+
+.pedido-detail-scroll::-webkit-scrollbar-track {
+  background: #0b1412;
+}
+
 /* Unificar padding del header global solicitado por el usuario */
 #root>div>div>header {
   padding: 20px !important;

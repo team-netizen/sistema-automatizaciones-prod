@@ -21,6 +21,25 @@ function isRecoverableOrderError(error: any): boolean {
   );
 }
 
+function sanitizeText(value: any, maxLength = 600): string | null {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+
+  const withoutHtml = raw.replace(/<[^>]*>/g, ' ');
+  const decoded = withoutHtml
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>');
+
+  const compact = decoded.replace(/\s+/g, ' ').trim();
+  if (!compact) return null;
+
+  return compact.slice(0, maxLength);
+}
+
 function mapPedido(row: PedidoRow) {
   return {
     ...row,
@@ -50,14 +69,14 @@ function mapPedido(row: PedidoRow) {
       null,
     dni: row.dni ?? row.dni_cliente ?? null,
     fecha_pedido: row.fecha_pedido ?? row.fecha_creacion ?? null,
-    nombre_cliente: row.nombre_cliente ?? row.cliente_nombre ?? null,
-    telefono: row.telefono ?? row.telefono_cliente ?? null,
-    email: row.email ?? row.email_cliente ?? null,
-    direccion_envio: row.direccion_envio ?? row.direccion_cliente ?? null,
-    distrito: row.distrito ?? row.distrito_cliente ?? null,
-    provincia: row.provincia ?? row.provincia_cliente ?? null,
-    metodo_pago: row.metodo_pago ?? null,
-    observaciones: row.observaciones ?? row.notas ?? null,
+    nombre_cliente: sanitizeText(row.nombre_cliente ?? row.cliente_nombre ?? row.id_cliente ?? null, 180),
+    telefono: sanitizeText(row.telefono ?? row.telefono_cliente ?? null, 40),
+    email: sanitizeText(row.email ?? row.email_cliente ?? null, 180),
+    direccion_envio: sanitizeText(row.direccion_envio ?? row.direccion_cliente ?? null, 350),
+    distrito: sanitizeText(row.distrito ?? row.distrito_cliente ?? null, 120),
+    provincia: sanitizeText(row.provincia ?? row.provincia_cliente ?? null, 120),
+    metodo_pago: sanitizeText(row.metodo_pago ?? null, 220),
+    observaciones: sanitizeText(row.observaciones ?? row.notas ?? null, 1500),
     estado: row.estado ?? 'pendiente',
   };
 }

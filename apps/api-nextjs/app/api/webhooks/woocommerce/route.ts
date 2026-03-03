@@ -114,15 +114,98 @@ function cleanText(value: any, maxLength = 255): string | null {
   return normalized.slice(0, maxLength);
 }
 
-function buildNombreCliente(body: any): string | null {
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>');
+}
+
+function cleanHumanText(value: any, maxLength = 255): string | null {
+  const raw = String(value ?? '');
+  if (!raw.trim()) return null;
+
+  const noHtml = raw.replace(/<[^>]*>/g, ' ');
+  const decoded = decodeHtmlEntities(noHtml);
+  const compact = decoded.replace(/\s+/g, ' ').trim();
+  if (!compact) return null;
+
+  return compact.slice(0, maxLength);
+}
+
+function normalizeMetaKey(key: any): string {
+  return String(key || '')
+    .toLowerCase()
+    .trim()
+    .replace(/^_+/, '');
+}
+
+function getMetaValue(metaData: any[], keys: string[]): string | null {
+  const normalizedKeys = new Set(keys.map((k) => normalizeMetaKey(k)));
+
+  for (const entry of metaData || []) {
+    const key = normalizeMetaKey(entry?.key);
+    if (!normalizedKeys.has(key)) continue;
+
+    const value = entry?.value;
+    if (value === null || value === undefined) continue;
+
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+
+    if (Array.isArray(value)) {
+      const first = value.find((v) => v !== null && v !== undefined);
+      if (first !== undefined) return String(first);
+      continue;
+    }
+
+    if (typeof value === 'object') {
+      try {
+        return JSON.stringify(value);
+      } catch {
+        continue;
+      }
+    }
+  }
+
+  return null;
+}
+
+function buildNombreCliente(body: any, metaData: any[]): string | null {
   const billing = body?.billing || {};
   const shipping = body?.shipping || {};
 
-  const billingName = `${String(billing?.first_name || '').trim()} ${String(billing?.last_name || '').trim()}`.trim();
+  const firstName = cleanHumanText(
+    billing?.first_name ||
+      shipping?.first_name ||
+      getMetaValue(metaData, ['billing_first_name', '_billing_first_name', 'first_name', 'nombre']),
+    90
+  );
+  const lastName = cleanHumanText(
+    billing?.last_name ||
+      shipping?.last_name ||
+      getMetaValue(metaData, ['billing_last_name', '_billing_last_name', 'last_name', 'apellido']),
+    90
+  );
+
+  const billingName = `${firstName || ''} ${lastName || ''}`.trim();
   if (billingName) return billingName.slice(0, 180);
 
-  const shippingName = `${String(shipping?.first_name || '').trim()} ${String(shipping?.last_name || '').trim()}`.trim();
-  if (shippingName) return shippingName.slice(0, 180);
+  const company = cleanHumanText(
+    billing?.company || shipping?.company || getMetaValue(metaData, ['billing_company', 'company']),
+    180
+  );
+  if (company) return company;
+
+  const emailPrefix = cleanHumanText(
+    String(billing?.email || getMetaValue(metaData, ['billing_email', 'email']) || '').split('@')[0],
+    120
+  );
+  if (emailPrefix) return emailPrefix;
 
   return null;
 }
@@ -360,6 +443,7 @@ async function persistPedidoExtras(params: {
   provincia: string | null;
 }) {
   await tryUpdatePedidoField(params.pedidoId, ['nombre_cliente', 'cliente_nombre'], params.nombreCliente);
+  await tryUpdatePedidoField(params.pedidoId, ['id_cliente'], params.nombreCliente);
   await tryUpdatePedidoField(params.pedidoId, ['telefono_cliente', 'telefono'], params.telefonoCliente);
   await tryUpdatePedidoField(params.pedidoId, ['email_cliente', 'email'], params.emailCliente);
   await tryUpdatePedidoField(params.pedidoId, ['observaciones', 'nota', 'notas'], params.observaciones);
@@ -426,6 +510,7 @@ async function registrarPedidoFallback(params: {
   numeroPedido: string;
   total: number;
   idOrden: string;
+  nombreCliente?: string | null;
   metodoPago: string;
   direccion: string;
   distrito: string;
@@ -457,7 +542,7 @@ async function registrarPedidoFallback(params: {
       id_externo: String(params.idExterno || '').slice(0, 120),
       id_orden: String(params.idOrden || params.idExterno || '').slice(0, 120),
       medio_pedido: 'web',
-      id_cliente: null,
+      id_cliente: params.nombreCliente || null,
       metodo_pago: params.metodoPago || null,
       direccion_cliente: params.direccion || null,
       distrito_cliente: params.distrito || null,
@@ -488,6 +573,7 @@ async function registrarPedidoFallback(params: {
       estado: params.estado,
       id_externo: String(params.idExterno || '').slice(0, 120),
       medio_pedido: 'web',
+      id_cliente: params.nombreCliente || null,
       fecha_pedido: params.fechaPedido || new Date().toISOString(),
     })
     .select('id')
@@ -632,11 +718,26 @@ export async function POST(req: NextRequest) {
 
     const billing = body.billing || {};
     const shipping = body.shipping || {};
+    const metaData = Array.isArray(body.meta_data) ? body.meta_data : [];
     const numeroConsecutivo = await getNextConsecutiveNumero(empresa.id);
-    const nombreCliente = cleanText(buildNombreCliente(body), 180);
-    const telefonoCliente = cleanText(billing.phone, 40);
-    const emailCliente = cleanText(billing.email, 180);
-    const notaCliente = cleanText(body.customer_note || body.note || body.customer_message, 600);
+    const nombreCliente = cleanHumanText(buildNombreCliente(body, metaData), 180);
+    const telefonoCliente = cleanHumanText(
+      billing.phone ||
+        shipping.phone ||
+        getMetaValue(metaData, ['billing_phone', 'phone', 'telefono', 'celular']),
+      40
+    );
+    const emailCliente = cleanHumanText(
+      billing.email || shipping.email || getMetaValue(metaData, ['billing_email', 'email']),
+      180
+    );
+    const notaCliente = cleanHumanText(
+      body.customer_note ||
+        body.note ||
+        body.customer_message ||
+        getMetaValue(metaData, ['customer_note', 'note', 'observaciones']),
+      600
+    );
     const resumenItems = cleanText(buildItemsResumen(lineItems), 1200);
     const observaciones = cleanText(
       [notaCliente, resumenItems].filter(Boolean).join(' | '),
@@ -651,7 +752,7 @@ export async function POST(req: NextRequest) {
       numeroPedido: numeroConsecutivo,
       total: Number(body.total) || 0,
       idOrden: String(body.number || orderIdRaw),
-      metodoPago: body.payment_method_title || 'WooCommerce',
+      metodoPago: cleanHumanText(body.payment_method_title || body.payment_method || 'WooCommerce', 180) || 'WooCommerce',
       direccion: cleanText(shipping.address_1 || billing.address_1, 350) || '',
       distrito: cleanText(shipping.city || billing.city, 120) || '',
       provincia: cleanText(shipping.state || billing.state, 120) || '',
@@ -660,13 +761,22 @@ export async function POST(req: NextRequest) {
       emailCliente,
       observaciones,
       dni:
-        (Array.isArray(body.meta_data) ? body.meta_data : [])
-          ?.find((m: any) => m?.key === '_billing_dni')
-          ?.value ||
-        (Array.isArray(body.meta_data) ? body.meta_data : [])
-          ?.find((m: any) => m?.key === '_billing_document')
-          ?.value ||
-        '',
+        cleanHumanText(
+          billing.dni ||
+            billing.document ||
+            billing.vat ||
+            getMetaValue(metaData, [
+              '_billing_dni',
+              '_billing_document',
+              'billing_dni',
+              'billing_document',
+              'billing_doc_number',
+              'billing_vat',
+              'dni',
+              'documento',
+            ]),
+          40
+        ) || '',
       fechaPedido: body.date_created || new Date().toISOString(),
       estado: mapWooStatusToPedidoEstado(status),
     };

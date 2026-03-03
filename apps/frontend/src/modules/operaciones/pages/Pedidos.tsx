@@ -206,7 +206,7 @@ export const Pedidos = () => {
                             <button onClick={() => setSelectedPedido(null)} className="text-gray-500 hover:text-white transition-colors">Cerrar</button>
                         </div>
 
-                        <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[70vh] overflow-y-auto">
+                        <div className="pedido-detail-scroll p-8 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[70vh] overflow-y-auto">
                             <Field label="ORDER ID" value={selectedPedido.id_transaccion} />
                             <Field label="ID ORDEN EXTERNA" value={selectedPedido.id_orden} />
                             <Field label="DNI" value={selectedPedido.dni} />
@@ -242,7 +242,7 @@ const Field = ({ label, value, fullWidth = false }: { label: string; value: any;
     <div className={fullWidth ? 'md:col-span-2' : ''}>
         <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.18em] mb-2">{label}</p>
         <div className="bg-[#111C19] border border-[#1F2D29] rounded-xl px-4 py-3 text-sm text-gray-200 break-words">
-            {String(value ?? '-').trim() || '-'}
+            {String(value ?? '').trim() || 'No enviado por WooCommerce'}
         </div>
     </div>
 );
