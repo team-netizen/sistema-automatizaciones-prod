@@ -48,6 +48,62 @@ async function findProductoPorSku(empresaId: string, sku: string) {
   return ci.data;
 }
 
+async function registrarPedidoFallback(params: {
+  empresaId: string;
+  sucursalId: string;
+  canalId: string;
+  idExterno: string;
+  numeroPedido: string;
+  total: number;
+  idOrden: string;
+  metodoPago: string;
+  direccion: string;
+  distrito: string;
+  provincia: string;
+  dni: string;
+  fechaPedido: string;
+}) {
+  const duplicated = await supabaseAdmin
+    .from('pedidos')
+    .select('id')
+    .eq('empresa_id', params.empresaId)
+    .eq('id_externo', params.idExterno)
+    .maybeSingle();
+
+  if (duplicated.data?.id) {
+    return { pedidoId: duplicated.data.id, duplicado: true };
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('pedidos')
+    .insert({
+      empresa_id: params.empresaId,
+      sucursal_id: params.sucursalId,
+      canal_id: params.canalId,
+      numero: params.numeroPedido,
+      total: params.total,
+      estado: 'pendiente',
+      id_externo: params.idExterno,
+      id_orden: params.idOrden,
+      medio_pedido: 'web',
+      id_cliente: null,
+      metodo_pago: params.metodoPago,
+      direccion_cliente: params.direccion,
+      distrito_cliente: params.distrito,
+      provincia_cliente: params.provincia,
+      dni_cliente: params.dni,
+      fecha_pedido: params.fechaPedido,
+    })
+    .select('id')
+    .single();
+
+  if (error) {
+    throw new Error(`fallback_insert_failed: ${error.message}`);
+  }
+
+  return { pedidoId: data.id, duplicado: false };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -212,41 +268,73 @@ export async function POST(req: NextRequest) {
     const billing = body.billing || {};
     const shipping = body.shipping || {};
 
-    const resultado = await procesarPedido({
+    const payloadPedido = {
       empresaId,
       sucursalId: sucursal.id,
       canalId: canal.id,
       idExterno: String(body.id),
       numeroPedido: String(body.number || body.id),
       total: Number(body.total) || 0,
-      items: itemsInternos,
-      usuarioSistemaId: null,
-      id_orden: String(body.number || body.id),
-      medio_pedido: 'web',
-      cliente_id: null,
-      metodo_pago: body.payment_method_title || 'WooCommerce',
-      direccion_cliente: shipping.address_1 || billing.address_1 || '',
-      distrito_cliente: shipping.city || billing.city || '',
-      provincia_cliente: shipping.state || billing.state || '',
-      dni_cliente:
+      idOrden: String(body.number || body.id),
+      metodoPago: body.payment_method_title || 'WooCommerce',
+      direccion: shipping.address_1 || billing.address_1 || '',
+      distrito: shipping.city || billing.city || '',
+      provincia: shipping.state || billing.state || '',
+      dni:
         body.meta_data?.find((m: any) => m?.key === '_billing_dni')?.value ||
         body.meta_data?.find((m: any) => m?.key === '_billing_document')?.value ||
         '',
-      fecha_pedido: body.date_created || new Date().toISOString(),
-    });
+      fechaPedido: body.date_created || new Date().toISOString(),
+    };
 
-    if (!resultado.success && !resultado.duplicado) {
-      throw new Error(resultado.message || 'Error desconocido en procesarPedido');
+    try {
+      const resultado = await procesarPedido({
+        empresaId: payloadPedido.empresaId,
+        sucursalId: payloadPedido.sucursalId,
+        canalId: payloadPedido.canalId,
+        idExterno: payloadPedido.idExterno,
+        numeroPedido: payloadPedido.numeroPedido,
+        total: payloadPedido.total,
+        items: itemsInternos,
+        usuarioSistemaId: null,
+        id_orden: payloadPedido.idOrden,
+        medio_pedido: 'web',
+        cliente_id: null,
+        metodo_pago: payloadPedido.metodoPago,
+        direccion_cliente: payloadPedido.direccion,
+        distrito_cliente: payloadPedido.distrito,
+        provincia_cliente: payloadPedido.provincia,
+        dni_cliente: payloadPedido.dni,
+        fecha_pedido: payloadPedido.fechaPedido,
+      });
+
+      if (!resultado.success && !resultado.duplicado) {
+        throw new Error(resultado.message || 'Error desconocido en procesarPedido');
+      }
+
+      return NextResponse.json(
+        {
+          ok: true,
+          duplicado: Boolean(resultado.duplicado),
+          pedidoId: resultado.pedidoId || null,
+          mode: 'full',
+        },
+        { status: 200 }
+      );
+    } catch (processingError: any) {
+      console.error('[WC_WEBHOOK] procesarPedido fallo, activando fallback:', processingError?.message || processingError);
+
+      const fallback = await registrarPedidoFallback(payloadPedido);
+      return NextResponse.json(
+        {
+          ok: true,
+          duplicado: fallback.duplicado,
+          pedidoId: fallback.pedidoId,
+          mode: 'fallback',
+        },
+        { status: 200 }
+      );
     }
-
-    return NextResponse.json(
-      {
-        ok: true,
-        duplicado: Boolean(resultado.duplicado),
-        pedidoId: resultado.pedidoId || null,
-      },
-      { status: 200 }
-    );
   } catch (error: any) {
     console.error('[WC_WEBHOOK] Error critico:', error?.message || error);
     return NextResponse.json(
