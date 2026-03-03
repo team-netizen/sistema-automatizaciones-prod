@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
-/* ── Tailwind v4: Custom theme tokens ─────────────── */
+/* Tailwind v4 custom theme tokens */
 @theme {
   --color-dark: #0B1412;
   --color-surface: #111C19;
@@ -121,9 +121,29 @@ a {
   border: 1px solid rgba(255, 255, 255, 0.03);
   border-radius: 50px;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
   position: relative;
   box-shadow: 0 80px 150px -40px rgba(0, 0, 0, 1);
+}
+
+.operation-table-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #2a3a35 #0b1412;
+}
+
+.operation-table-scroll::-webkit-scrollbar {
+  display: block;
+  height: 10px;
+  width: 10px;
+}
+
+.operation-table-scroll::-webkit-scrollbar-thumb {
+  background: #2a3a35;
+  border-radius: 999px;
+}
+
+.operation-table-scroll::-webkit-scrollbar-track {
+  background: #0b1412;
 }
 
 /* Unificar padding del header global solicitado por el usuario */
@@ -835,7 +855,7 @@ div::-webkit-scrollbar {
   }
 }
 
-/* ── Branding Panel ── */
+/* â”€â”€ Branding Panel â”€â”€ */
 .login-branding {
   background: linear-gradient(160deg,
       rgba(62, 219, 159, 0.08) 0%,
@@ -922,7 +942,7 @@ div::-webkit-scrollbar {
   z-index: 1;
 }
 
-/* ── Form Panel ── */
+/* â”€â”€ Form Panel â”€â”€ */
 .login-form-panel {
   display: flex;
   align-items: center;
@@ -1123,7 +1143,7 @@ div::-webkit-scrollbar {
   opacity: 0.8;
 }
 
-/* ── Responsive ── */
+/* â”€â”€ Responsive â”€â”€ */
 @media (max-width: 768px) {
   .login-container {
     grid-template-columns: 1fr;
@@ -1190,21 +1210,3 @@ div::-webkit-scrollbar {
 }
 
 /* ==================== DASHBOARD HEADER ==================== */
-/* ======================== CARD SYSTEM STANDARDIZATION ======================== */
-/* Estandarización de Cards solicitada por el usuario (Padding 30px, Margin 20px) */
-/* Solo aplica a contenedores de fondo oscuro principales (#111C18 y #111C19) */
-div[class*="bg-[#111C"] {
-  padding: 10px !important;
-  margin: 20px 0 0 0 !important;
-  /* Solo margin-top de 20px, el resto 0 */
-  border-radius: 40px;
-  /* Asegurar redondeado premium */
-  border: 1px solid rgba(255, 255, 255, 0.03) !important;
-}
-
-/* Compensar el margin en los layouts para que no se desplace el contenido hacia abajo excesivamente */
-.main-area>div {
-  margin-top: 0 !important;
-}
-
-/* Fin de estilos premium */

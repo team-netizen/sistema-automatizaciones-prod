@@ -136,7 +136,7 @@ export const OperationTable: React.FC<OperationTableProps> = ({
             </div>
 
             {/* ── Table Content ─────────────────────────── */}
-            <div className="flex-1 overflow-auto hide-scrollbar scroll-smooth">
+            <div className="operation-table-scroll flex-1 overflow-auto scroll-smooth">
                 <table className="w-full border-separate border-spacing-0 min-w-[800px]">
                     <thead className="sticky top-0 z-10 bg-[#111C19]">
                         <tr>

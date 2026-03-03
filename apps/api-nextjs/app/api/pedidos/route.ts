@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { procesarPedido } from '@/services/procesarPedido';
 
 type PedidoRow = Record<string, any>;
+type PedidoItemRow = Record<string, any>;
 
 const ORDER_CANDIDATES = ['fecha_creacion', 'created_at', 'fecha_sinc'] as const;
 
@@ -94,6 +95,79 @@ function mapPedido(row: PedidoRow) {
     };
 }
 
+function extractProductoNombre(item: PedidoItemRow): string {
+    const productosRel = item?.productos;
+
+    if (Array.isArray(productosRel)) {
+        const nombre = productosRel[0]?.nombre;
+        return typeof nombre === 'string' ? nombre : '';
+    }
+
+    if (productosRel && typeof productosRel === 'object') {
+        const nombre = (productosRel as any).nombre;
+        return typeof nombre === 'string' ? nombre : '';
+    }
+
+    return '';
+}
+
+async function attachPedidoItemsSummary(rows: PedidoRow[]): Promise<PedidoRow[]> {
+    const pedidoIds = rows.map((row) => row.id).filter(Boolean);
+    if (pedidoIds.length === 0) return rows;
+
+    const { data: items, error } = await supabaseAdmin
+        .from('pedido_items')
+        .select('pedido_id, cantidad, sku_producto, productos (nombre)')
+        .in('pedido_id', pedidoIds);
+
+    if (error || !items) {
+        if (error) {
+            console.error('[API_PEDIDOS] attach items summary error:', error.message);
+        }
+        return rows;
+    }
+
+    const grouped = new Map<
+        string,
+        {
+            productos: string[];
+            cantidades: string[];
+            skus: string[];
+        }
+    >();
+
+    for (const item of items as PedidoItemRow[]) {
+        const pedidoId = String(item.pedido_id || '');
+        if (!pedidoId) continue;
+
+        if (!grouped.has(pedidoId)) {
+            grouped.set(pedidoId, { productos: [], cantidades: [], skus: [] });
+        }
+
+        const bucket = grouped.get(pedidoId)!;
+        const nombreProducto = extractProductoNombre(item);
+        const sku = String(item.sku_producto || '').trim();
+        const cantidad = Number(item.cantidad ?? 0);
+
+        bucket.productos.push(nombreProducto || sku || 'SIN_PRODUCTO');
+        bucket.skus.push(sku || 'N/A');
+        bucket.cantidades.push(Number.isFinite(cantidad) ? String(cantidad) : '0');
+    }
+
+    return rows.map((row) => {
+        const key = String(row.id || '');
+        const summary = grouped.get(key);
+        if (!summary) return row;
+
+        return {
+            ...row,
+            productos: summary.productos.join(' | '),
+            cantidad: summary.cantidades.join(', '),
+            sku: summary.skus.join(', '),
+        };
+    });
+}
+
 /**
  * GET /api/pedidos - Listar pedidos de la empresa.
  */
@@ -108,7 +182,8 @@ export const GET = withAuth(async (_req, usuario) => {
             return NextResponse.json({ error: 'Error al obtener pedidos' }, { status: 500 });
         }
 
-        const normalized = (pedidos || []).map(mapPedido);
+        const withItems = await attachPedidoItemsSummary(pedidos || []);
+        const normalized = withItems.map(mapPedido);
 
         return NextResponse.json({
             success: true,
