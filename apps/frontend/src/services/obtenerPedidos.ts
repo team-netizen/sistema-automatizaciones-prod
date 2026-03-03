@@ -6,7 +6,8 @@ export const obtenerPedidos = async () => {
         const token = localStorage.getItem('access_token');
         if (!token) throw new Error('No hay token de acceso');
 
-        const response = await fetch('/api/pedidos', {
+        const API_URL = import.meta.env.VITE_API_URL || '/api';
+        const response = await fetch(`${API_URL}/pedidos`, {
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'

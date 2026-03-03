@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+import { AUTH_URL } from '../lib/api';
+
 interface LoginPageProps {
     onLoginSuccess: (data: any) => void;
 }
@@ -17,7 +19,7 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
         setLoading(true);
 
         try {
-            const response = await fetch('/auth/login', {
+            const response = await fetch(`${AUTH_URL}/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password }),

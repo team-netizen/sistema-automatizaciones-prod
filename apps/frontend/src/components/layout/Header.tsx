@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { NOTIFICACIONES_URL, getAuthHeaders } from '../../lib/api';
 
 interface HeaderProps {
     usuario?: any;
@@ -10,11 +11,9 @@ export function Header({ usuario }: HeaderProps) {
     // En una implementación real, esto sería un polling o un webhook de Supabase Realtime
     useEffect(() => {
         if (usuario) {
-            fetch('/notificaciones/count', {
+            fetch(`${NOTIFICACIONES_URL}/count`, {
                 credentials: 'include',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-                }
+                headers: getAuthHeaders()
             })
                 .then(res => {
                     if (!res.ok) return { total: 0 };

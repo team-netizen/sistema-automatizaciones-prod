@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { MetricCard } from '../components/MetricCard';
 import { OperationTable } from '../components/OperationTable';
 import { NuevoPedidoModal } from '../components/NuevoPedidoModal';
+import { API_URL, getAuthHeaders } from '../../../lib/api';
 
 export const Pedidos = () => {
     const [pedidos, setPedidos] = useState<any[]>([]);
@@ -14,10 +15,8 @@ export const Pedidos = () => {
             const token = localStorage.getItem('access_token');
             if (!token) throw new Error('No autenticado');
 
-            const response = await fetch('/api/pedidos', {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
+            const response = await fetch(`${API_URL}/pedidos`, {
+                headers: getAuthHeaders()
             });
 
             if (!response.ok) throw new Error('Error al obtener pedidos');

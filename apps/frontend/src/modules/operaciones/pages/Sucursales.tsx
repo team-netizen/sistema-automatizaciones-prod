@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { MetricCard } from '../components/MetricCard';
 import { OperationTable } from '../components/OperationTable';
+import { API_URL, getAuthHeaders } from '../../../lib/api';
 
 export const Sucursales = () => {
     const [sucursales, setSucursales] = useState<any[]>([]);
@@ -27,11 +28,9 @@ export const Sucursales = () => {
     const cargarSucursales = async () => {
         try {
             setLoading(true);
-            const res = await fetch("/api/sucursales", {
+            const res = await fetch(`${API_URL}/sucursales`, {
                 credentials: "include",
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-                }
+                headers: getAuthHeaders()
             });
             if (!res.ok) throw new Error("Error cargando sucursales");
             const data = await res.json();
@@ -77,15 +76,12 @@ export const Sucursales = () => {
         try {
             setIsSaving(true);
             const method = isEditing ? 'PUT' : 'POST';
-            const url = isEditing ? `/api/sucursales/${selectedId}` : '/api/sucursales';
+            const url = isEditing ? `${API_URL}/sucursales/${selectedId}` : `${API_URL}/sucursales`;
 
             const res = await fetch(url, {
                 method,
                 credentials: "include",
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-                },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({
                     nombre: formNombre,
                     tipo: formTipo,
@@ -109,12 +105,10 @@ export const Sucursales = () => {
     const handleEliminar = async (id: string) => {
         if (!confirm("¿Estás seguro de eliminar esta sucursal?")) return;
         try {
-            const res = await fetch(`/api/sucursales/${id}`, {
+            const res = await fetch(`${API_URL}/sucursales/${id}`, {
                 method: 'DELETE',
                 credentials: "include",
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-                }
+                headers: getAuthHeaders()
             });
             if (!res.ok) throw new Error("Error al eliminar");
             showToast("Sucursal eliminada");

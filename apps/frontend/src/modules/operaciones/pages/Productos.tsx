@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { MetricCard } from '../components/MetricCard';
 import { OperationTable } from '../components/OperationTable';
+import { API_URL, getAuthHeaders } from '../../../lib/api';
 
 export const Productos = () => {
     const [productos, setProductos] = useState<any[]>([]);
@@ -49,11 +50,9 @@ export const Productos = () => {
     const cargarProductos = async () => {
         try {
             setLoading(true);
-            const res = await fetch("/api/productos", {
+            const res = await fetch(`${API_URL}/productos`, {
                 credentials: "include",
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-                }
+                headers: getAuthHeaders()
             });
             if (!res.ok) throw new Error("Error API");
             const data = await res.json();
@@ -71,16 +70,13 @@ export const Productos = () => {
         e.preventDefault();
         try {
             setIsSaving(true);
-            const url = isEditing ? `/api/productos/${selectedProducto.id}` : "/api/productos";
+            const url = isEditing ? `${API_URL}/productos/${selectedProducto.id}` : `${API_URL}/productos`;
             const method = isEditing ? "PUT" : "POST";
 
             const response = await fetch(url, {
                 method: method,
                 credentials: "include",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${localStorage.getItem('access_token')}`
-                },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({
                     nombre: formNombre,
                     sku: formSku,
@@ -112,12 +108,10 @@ export const Productos = () => {
         if (!window.confirm("¿Estás seguro de que deseas eliminar este producto?")) return;
 
         try {
-            const response = await fetch(`/api/productos/${id}`, {
+            const response = await fetch(`${API_URL}/productos/${id}`, {
                 method: "DELETE",
                 credentials: "include",
-                headers: {
-                    "Authorization": `Bearer ${localStorage.getItem('access_token')}`
-                }
+                headers: getAuthHeaders()
             });
 
             const result = await response.json();

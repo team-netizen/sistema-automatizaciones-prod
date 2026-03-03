@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_URL, getAuthHeaders } from '../../../lib/api';
 
 interface Producto {
     id: string;
@@ -54,10 +55,9 @@ export const NuevoPedidoModal: React.FC<NuevoPedidoModalProps> = ({ isOpen, onCl
 
     const fetchData = async () => {
         try {
-            const token = localStorage.getItem('access_token');
             const [resSucursales, resProductos] = await Promise.all([
-                fetch('/api/sucursales', { headers: { 'Authorization': `Bearer ${token}` } }),
-                fetch('/api/productos', { headers: { 'Authorization': `Bearer ${token}` } })
+                fetch(`${API_URL}/sucursales`, { headers: getAuthHeaders() }),
+                fetch(`${API_URL}/productos`, { headers: getAuthHeaders() })
             ]);
 
             const dataSuc = await resSucursales.json();
@@ -107,13 +107,9 @@ export const NuevoPedidoModal: React.FC<NuevoPedidoModalProps> = ({ isOpen, onCl
         setError(null);
 
         try {
-            const token = localStorage.getItem('access_token');
-            const response = await fetch('/api/pedidos', {
+            const response = await fetch(`${API_URL}/pedidos`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({
                     sucursal_id: sucursalId,
                     medio_pedido: medio,
