@@ -392,6 +392,33 @@ function normalizeDni(value: any): string | null {
   return clean.slice(0, 40);
 }
 
+function extractDniFromRawBody(rawBody: string): string | null {
+  const raw = String(rawBody || '');
+  if (!raw.trim()) return null;
+
+  const candidates: string[] = [];
+
+  const jsonKeyRegex =
+    /"(?:_?billing_(?:dni|document|document_number|doc_number|numero_documento|nro_documento)|dni|documento|cedula|ruc|rut|passport)"\s*:\s*"([^"]+)"/gi;
+  let match: RegExpExecArray | null;
+  while ((match = jsonKeyRegex.exec(raw)) !== null) {
+    if (match[1]) candidates.push(match[1]);
+  }
+
+  const genericLabelRegex =
+    /(?:dni|documento|document|cedula|ruc|rut|passport)\s*[:#=-]?\s*([A-Za-z0-9-]{6,20})/gi;
+  while ((match = genericLabelRegex.exec(raw)) !== null) {
+    if (match[1]) candidates.push(match[1]);
+  }
+
+  for (const candidate of candidates) {
+    const normalized = normalizeDni(candidate);
+    if (normalized) return normalized;
+  }
+
+  return null;
+}
+
 function pickFirstNormalized(
   candidates: any[],
   normalizer: (value: any) => string | null
@@ -526,20 +553,6 @@ function buildNombreCliente(body: any, metaData: any[]): string | null {
   if (emailPrefix) return emailPrefix;
 
   return null;
-}
-
-function buildItemsResumen(lineItems: any[]): string | null {
-  if (!Array.isArray(lineItems) || lineItems.length === 0) return null;
-
-  const parts = lineItems.map((item: any) => {
-    const name = String(item?.name || 'Producto').trim();
-    const sku = String(item?.sku || 'N/A').trim();
-    const qty = Number(item?.quantity ?? 0);
-    const qtyText = Number.isFinite(qty) && qty > 0 ? qty : 1;
-    return `${name} [SKU:${sku}] x${qtyText}`;
-  });
-
-  return parts.join(' | ').slice(0, 1200);
 }
 
 async function getNextConsecutiveNumero(empresaId: string): Promise<string> {
@@ -984,6 +997,7 @@ export async function POST(req: NextRequest) {
     const acceptedStatuses = getAcceptedStatuses();
     const status = String(body.status || body.order_status || 'processing').toLowerCase();
     const lineItems = getLineItems(body);
+    const dniFromRawBody = extractDniFromRawBody(rawBody);
 
     // Compatibilidad: si el estado no está en la lista permitida, igual se procesa en fallback.
     const outOfScopeStatus = !acceptedStatuses.includes(status);
@@ -1099,11 +1113,7 @@ export async function POST(req: NextRequest) {
         getMetaValueByHints(metaData, ['nota', 'note', 'observacion', 'comentario']),
       600
     );
-    const resumenItems = cleanText(buildItemsResumen(lineItems), 1200);
-    const observaciones = cleanText(
-      [notaCliente, resumenItems].filter(Boolean).join(' | '),
-      1500
-    );
+    const observaciones = cleanText(notaCliente, 1500);
 
     const payloadPedido = {
       empresaId: empresa.id,
@@ -1191,6 +1201,7 @@ export async function POST(req: NextRequest) {
       dni:
         pickFirstNormalized(
           [
+            dniFromRawBody,
             getMetaValue(metaData, [
               '_billing_dni',
               '_billing_document',

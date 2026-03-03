@@ -106,7 +106,7 @@ export const Pedidos = () => {
     );
 
     const columns = [
-        { key: 'id_transaccion', label: 'Order ID', align: 'left' as const, sortable: true },
+        { key: 'id_transaccion', label: 'ID Interno', align: 'left' as const, sortable: true },
         { key: 'nombre_cliente', label: 'Cliente', align: 'left' as const, sortable: true },
         { key: 'contacto', label: 'Contacto', align: 'left' as const },
         { key: 'monto_total', label: 'Total', align: 'right' as const, sortable: true },
@@ -255,8 +255,8 @@ export const Pedidos = () => {
                         </div>
 
                         <div className="pedido-detail-scroll p-8 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[70vh] overflow-y-auto">
-                            <Field label="ORDER ID" value={selectedPedido.id_transaccion} />
-                            <Field label="ID ORDEN EXTERNA" value={selectedPedido.id_orden} />
+                            <Field label="ID INTERNO" value={selectedPedido.id_transaccion} />
+                            <Field label="ID WOOCOMMERCE" value={selectedPedido.id_orden} />
                             <Field label="DNI" value={selectedPedido.dni} />
                             <Field label="FECHA PEDIDO" value={formatDate(selectedPedido.fecha_pedido || selectedPedido.fecha_sinc)} />
                             <Field label="ESTADO" value={selectedPedido.estado} />

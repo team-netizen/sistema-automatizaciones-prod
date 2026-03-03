@@ -117,6 +117,19 @@ function extractCantidadFromText(text: string | null): string | null {
     return matches[matches.length - 1];
 }
 
+function normalizeCantidadValue(value: string | null): string | null {
+    const clean = sanitizeText(value, 120);
+    if (!clean) return null;
+
+    const fromX = [...clean.matchAll(/\bx\s*(\d+)\b/gi)].map((m) => String(m[1]).trim());
+    if (fromX.length > 0) return fromX[fromX.length - 1];
+
+    const tokens = [...clean.matchAll(/\b\d+\b/g)].map((m) => String(m[0]).trim());
+    if (tokens.length > 0) return tokens[tokens.length - 1];
+
+    return null;
+}
+
 async function fetchPedidosByEmpresa(empresaId: string) {
     let lastError: any = null;
 
@@ -155,7 +168,7 @@ function mapPedido(row: PedidoRow) {
     const productosRaw = sanitizeText(row.productos ?? null, 1500);
     const productosFromObs = extractItemSummaryFromObservaciones(observacionesRaw);
     const productos = productosRaw || productosFromObs;
-    const cantidad = sanitizeText(row.cantidad ?? null, 120) || extractCantidadFromText(productos);
+    const cantidad = normalizeCantidadValue(row.cantidad ?? null) || extractCantidadFromText(productos);
     const sku = sanitizeText(row.sku ?? null, 350) || extractSkuFromText(productos);
     const observacionesOnlyNotes = stripItemSummaryFromObservaciones(observacionesRaw);
 
