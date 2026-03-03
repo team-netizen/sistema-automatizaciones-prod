@@ -82,7 +82,7 @@ async function registrarPedidoFallback(params: {
       canal_id: params.canalId,
       numero: params.numeroPedido,
       total: params.total,
-      estado: 'pendiente',
+      estado: null,
       id_externo: params.idExterno,
       id_orden: params.idOrden,
       medio_pedido: 'web',
