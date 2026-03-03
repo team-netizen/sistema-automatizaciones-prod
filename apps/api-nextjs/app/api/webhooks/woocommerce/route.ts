@@ -95,6 +95,78 @@ function getLineItems(body: any): any[] {
   return [];
 }
 
+function isMissingColumnError(error: any): boolean {
+  const code = String(error?.code || '');
+  const message = String(error?.message || '').toLowerCase();
+
+  return (
+    code === '42703' ||
+    code === 'PGRST204' ||
+    message.includes('column') ||
+    message.includes('schema cache') ||
+    message.includes('does not exist')
+  );
+}
+
+function cleanText(value: any, maxLength = 255): string | null {
+  const normalized = String(value ?? '').trim();
+  if (!normalized) return null;
+  return normalized.slice(0, maxLength);
+}
+
+function buildNombreCliente(body: any): string | null {
+  const billing = body?.billing || {};
+  const shipping = body?.shipping || {};
+
+  const billingName = `${String(billing?.first_name || '').trim()} ${String(billing?.last_name || '').trim()}`.trim();
+  if (billingName) return billingName.slice(0, 180);
+
+  const shippingName = `${String(shipping?.first_name || '').trim()} ${String(shipping?.last_name || '').trim()}`.trim();
+  if (shippingName) return shippingName.slice(0, 180);
+
+  return null;
+}
+
+function buildItemsResumen(lineItems: any[]): string | null {
+  if (!Array.isArray(lineItems) || lineItems.length === 0) return null;
+
+  const parts = lineItems.map((item: any) => {
+    const name = String(item?.name || 'Producto').trim();
+    const sku = String(item?.sku || 'N/A').trim();
+    const qty = Number(item?.quantity ?? 0);
+    const qtyText = Number.isFinite(qty) && qty > 0 ? qty : 1;
+    return `${name} [SKU:${sku}] x${qtyText}`;
+  });
+
+  return parts.join(' | ').slice(0, 1200);
+}
+
+async function getNextConsecutiveNumero(empresaId: string): Promise<string> {
+  const { data, error } = await supabaseAdmin
+    .from('pedidos')
+    .select('numero')
+    .eq('empresa_id', empresaId)
+    .order('fecha_creacion', { ascending: false })
+    .limit(2000);
+
+  if (error) {
+    console.error('[WC_WEBHOOK] getNextConsecutiveNumero error:', error.message);
+    return String(Date.now()).slice(-6);
+  }
+
+  let maxNumero = 0;
+  for (const row of data || []) {
+    const numero = String(row?.numero || '').trim();
+    if (!/^\d+$/.test(numero)) continue;
+    const parsed = Number(numero);
+    if (Number.isFinite(parsed) && parsed > maxNumero) {
+      maxNumero = parsed;
+    }
+  }
+
+  return String(maxNumero + 1);
+}
+
 async function resolveEmpresa(params: {
   empresaIdFromRequest: string | null;
   tokenFromQuery: string | null;
@@ -254,6 +326,96 @@ async function ensureCanalActivo(empresaId: string): Promise<{ id: string }> {
   }
 
   return created.data;
+}
+
+async function tryUpdatePedidoField(
+  pedidoId: string,
+  columns: string[],
+  value: string | null
+): Promise<void> {
+  if (value === null) return;
+
+  for (const column of columns) {
+    const { error } = await supabaseAdmin
+      .from('pedidos')
+      .update({ [column]: value })
+      .eq('id', pedidoId);
+
+    if (!error) return;
+    if (isMissingColumnError(error)) continue;
+
+    console.error(`[WC_WEBHOOK] update field "${column}" failed:`, error.message);
+    return;
+  }
+}
+
+async function persistPedidoExtras(params: {
+  pedidoId: string;
+  nombreCliente: string | null;
+  telefonoCliente: string | null;
+  emailCliente: string | null;
+  observaciones: string | null;
+  direccionEnvio: string | null;
+  distrito: string | null;
+  provincia: string | null;
+}) {
+  await tryUpdatePedidoField(params.pedidoId, ['nombre_cliente', 'cliente_nombre'], params.nombreCliente);
+  await tryUpdatePedidoField(params.pedidoId, ['telefono_cliente', 'telefono'], params.telefonoCliente);
+  await tryUpdatePedidoField(params.pedidoId, ['email_cliente', 'email'], params.emailCliente);
+  await tryUpdatePedidoField(params.pedidoId, ['observaciones', 'nota', 'notas'], params.observaciones);
+  await tryUpdatePedidoField(params.pedidoId, ['direccion_envio'], params.direccionEnvio);
+  await tryUpdatePedidoField(params.pedidoId, ['distrito'], params.distrito);
+  await tryUpdatePedidoField(params.pedidoId, ['provincia'], params.provincia);
+}
+
+async function persistPedidoItemsIfMissing(params: {
+  pedidoId: string;
+  empresaId: string;
+  sucursalId: string;
+  itemsInternos: PedidoItemSimple[];
+}) {
+  const { pedidoId, empresaId, sucursalId, itemsInternos } = params;
+  if (!itemsInternos.length) return;
+
+  const existing = await supabaseAdmin
+    .from('pedido_items')
+    .select('id')
+    .eq('pedido_id', pedidoId)
+    .limit(1);
+
+  if (existing.data && existing.data.length > 0) {
+    return;
+  }
+
+  const fullRows = itemsInternos.map((it) => ({
+    pedido_id: pedidoId,
+    empresa_id: empresaId,
+    sucursal_id: sucursalId,
+    producto_id: it.productoId,
+    cantidad: it.cantidad,
+    precio_unitario: it.precioUnitario,
+    sku_producto: it.sku_producto || null,
+  }));
+
+  const fullInsert = await supabaseAdmin.from('pedido_items').insert(fullRows);
+  if (!fullInsert.error) return;
+
+  if (!isMissingColumnError(fullInsert.error)) {
+    console.error('[WC_WEBHOOK] insert pedido_items failed:', fullInsert.error.message);
+    return;
+  }
+
+  const compactRows = itemsInternos.map((it) => ({
+    pedido_id: pedidoId,
+    producto_id: it.productoId,
+    cantidad: it.cantidad,
+    precio_unitario: it.precioUnitario,
+  }));
+
+  const compactInsert = await supabaseAdmin.from('pedido_items').insert(compactRows);
+  if (compactInsert.error) {
+    console.error('[WC_WEBHOOK] insert pedido_items compact failed:', compactInsert.error.message);
+  }
 }
 
 async function registrarPedidoFallback(params: {
@@ -470,19 +632,33 @@ export async function POST(req: NextRequest) {
 
     const billing = body.billing || {};
     const shipping = body.shipping || {};
+    const numeroConsecutivo = await getNextConsecutiveNumero(empresa.id);
+    const nombreCliente = cleanText(buildNombreCliente(body), 180);
+    const telefonoCliente = cleanText(billing.phone, 40);
+    const emailCliente = cleanText(billing.email, 180);
+    const notaCliente = cleanText(body.customer_note || body.note || body.customer_message, 600);
+    const resumenItems = cleanText(buildItemsResumen(lineItems), 1200);
+    const observaciones = cleanText(
+      [notaCliente, resumenItems].filter(Boolean).join(' | '),
+      1500
+    );
 
     const payloadPedido = {
       empresaId: empresa.id,
       sucursalId: sucursal.id,
       canalId: canal.id,
       idExterno: String(orderIdRaw),
-      numeroPedido: String(body.number || orderIdRaw),
+      numeroPedido: numeroConsecutivo,
       total: Number(body.total) || 0,
       idOrden: String(body.number || orderIdRaw),
       metodoPago: body.payment_method_title || 'WooCommerce',
-      direccion: shipping.address_1 || billing.address_1 || '',
-      distrito: shipping.city || billing.city || '',
-      provincia: shipping.state || billing.state || '',
+      direccion: cleanText(shipping.address_1 || billing.address_1, 350) || '',
+      distrito: cleanText(shipping.city || billing.city, 120) || '',
+      provincia: cleanText(shipping.state || billing.state, 120) || '',
+      nombreCliente,
+      telefonoCliente,
+      emailCliente,
+      observaciones,
       dni:
         (Array.isArray(body.meta_data) ? body.meta_data : [])
           ?.find((m: any) => m?.key === '_billing_dni')
@@ -497,6 +673,22 @@ export async function POST(req: NextRequest) {
 
     if (needsDirectFallback || itemsInternos.length === 0) {
       const fallback = await registrarPedidoFallback(payloadPedido);
+      await persistPedidoExtras({
+        pedidoId: fallback.pedidoId,
+        nombreCliente: payloadPedido.nombreCliente,
+        telefonoCliente: payloadPedido.telefonoCliente,
+        emailCliente: payloadPedido.emailCliente,
+        observaciones: payloadPedido.observaciones,
+        direccionEnvio: payloadPedido.direccion,
+        distrito: payloadPedido.distrito,
+        provincia: payloadPedido.provincia,
+      });
+      await persistPedidoItemsIfMissing({
+        pedidoId: fallback.pedidoId,
+        empresaId: payloadPedido.empresaId,
+        sucursalId: payloadPedido.sucursalId,
+        itemsInternos,
+      });
       return NextResponse.json(
         {
           ok: true,
@@ -534,6 +726,25 @@ export async function POST(req: NextRequest) {
         throw new Error(resultado.message || 'Error desconocido en procesarPedido');
       }
 
+      if (resultado.pedidoId) {
+        await persistPedidoExtras({
+          pedidoId: resultado.pedidoId,
+          nombreCliente: payloadPedido.nombreCliente,
+          telefonoCliente: payloadPedido.telefonoCliente,
+          emailCliente: payloadPedido.emailCliente,
+          observaciones: payloadPedido.observaciones,
+          direccionEnvio: payloadPedido.direccion,
+          distrito: payloadPedido.distrito,
+          provincia: payloadPedido.provincia,
+        });
+        await persistPedidoItemsIfMissing({
+          pedidoId: resultado.pedidoId,
+          empresaId: payloadPedido.empresaId,
+          sucursalId: payloadPedido.sucursalId,
+          itemsInternos,
+        });
+      }
+
       return NextResponse.json(
         {
           ok: true,
@@ -547,6 +758,22 @@ export async function POST(req: NextRequest) {
       console.error('[WC_WEBHOOK] procesarPedido fallo, activando fallback:', processingError?.message || processingError);
 
       const fallback = await registrarPedidoFallback(payloadPedido);
+      await persistPedidoExtras({
+        pedidoId: fallback.pedidoId,
+        nombreCliente: payloadPedido.nombreCliente,
+        telefonoCliente: payloadPedido.telefonoCliente,
+        emailCliente: payloadPedido.emailCliente,
+        observaciones: payloadPedido.observaciones,
+        direccionEnvio: payloadPedido.direccion,
+        distrito: payloadPedido.distrito,
+        provincia: payloadPedido.provincia,
+      });
+      await persistPedidoItemsIfMissing({
+        pedidoId: fallback.pedidoId,
+        empresaId: payloadPedido.empresaId,
+        sucursalId: payloadPedido.sucursalId,
+        itemsInternos,
+      });
       return NextResponse.json(
         {
           ok: true,

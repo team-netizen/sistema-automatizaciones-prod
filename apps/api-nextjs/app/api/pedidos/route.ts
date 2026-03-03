@@ -58,9 +58,9 @@ function mapPedido(row: PedidoRow) {
         ...row,
         id_transaccion:
             row.id_transaccion ??
+            row.numero ??
             row.id_externo ??
             row.order_id_externo ??
-            row.numero ??
             row.id,
         canal_origen:
             row.canal_origen ??
@@ -80,6 +80,16 @@ function mapPedido(row: PedidoRow) {
             row.id_externo ??
             row.order_id_externo ??
             null,
+        dni: row.dni ?? row.dni_cliente ?? null,
+        fecha_pedido: row.fecha_pedido ?? row.fecha_creacion ?? null,
+        nombre_cliente: row.nombre_cliente ?? row.cliente_nombre ?? null,
+        telefono: row.telefono ?? row.telefono_cliente ?? null,
+        email: row.email ?? row.email_cliente ?? null,
+        direccion_envio: row.direccion_envio ?? row.direccion_cliente ?? null,
+        distrito: row.distrito ?? row.distrito_cliente ?? null,
+        provincia: row.provincia ?? row.provincia_cliente ?? null,
+        metodo_pago: row.metodo_pago ?? null,
+        observaciones: row.observaciones ?? row.notas ?? null,
         estado: row.estado ?? 'pendiente',
     };
 }
