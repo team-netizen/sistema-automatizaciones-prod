@@ -5,6 +5,54 @@ import { procesarPedido } from '@/services/procesarPedido';
 
 type PedidoRow = Record<string, any>;
 
+const ORDER_CANDIDATES = ['fecha_creacion', 'created_at', 'fecha_sinc'] as const;
+
+function isRecoverableOrderError(error: any): boolean {
+    const code = String(error?.code || '');
+    const message = String(error?.message || '').toLowerCase();
+
+    return (
+        code === '42703' || // undefined_column (Postgres)
+        code === 'PGRST204' || // column missing in schema cache
+        message.includes('column') ||
+        message.includes('schema cache') ||
+        message.includes('does not exist')
+    );
+}
+
+async function fetchPedidosByEmpresa(empresaId: string) {
+    let lastError: any = null;
+
+    for (const orderBy of ORDER_CANDIDATES) {
+        const result = await supabaseAdmin
+            .from('pedidos')
+            .select('*')
+            .eq('empresa_id', empresaId)
+            .order(orderBy, { ascending: false });
+
+        if (!result.error) {
+            return { data: result.data || [], error: null };
+        }
+
+        lastError = result.error;
+        if (!isRecoverableOrderError(result.error)) {
+            break;
+        }
+    }
+
+    // Ultimo intento sin ORDER BY (por compatibilidad de esquemas legacy)
+    const fallback = await supabaseAdmin
+        .from('pedidos')
+        .select('*')
+        .eq('empresa_id', empresaId);
+
+    if (!fallback.error) {
+        return { data: fallback.data || [], error: null };
+    }
+
+    return { data: null, error: fallback.error || lastError };
+}
+
 function mapPedido(row: PedidoRow) {
     return {
         ...row,
@@ -43,11 +91,7 @@ export const GET = withAuth(async (_req, usuario) => {
     try {
         const empresaId = usuario.empresa_id;
 
-        const { data: pedidos, error } = await supabaseAdmin
-            .from('pedidos')
-            .select('*')
-            .eq('empresa_id', empresaId)
-            .order('created_at', { ascending: false });
+        const { data: pedidos, error } = await fetchPedidosByEmpresa(empresaId);
 
         if (error) {
             console.error('[API_PEDIDOS] Error en GET:', error);
