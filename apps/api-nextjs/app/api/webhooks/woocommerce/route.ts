@@ -317,6 +317,17 @@ function normalizeDni(value: any): string | null {
   return clean;
 }
 
+function pickFirstNormalized(
+  candidates: any[],
+  normalizer: (value: any) => string | null
+): string | null {
+  for (const candidate of candidates) {
+    const normalized = normalizer(candidate);
+    if (normalized) return normalized;
+  }
+  return null;
+}
+
 function logExtractionDebug(params: {
   empresaId: string;
   orderId: string;
@@ -948,45 +959,55 @@ export async function POST(req: NextRequest) {
 
     const metaData = extractMetaData(body);
     const numeroConsecutivo = await getNextConsecutiveNumero(empresa.id);
-    const nombreCliente = normalizeCustomerName(
-      buildNombreCliente(body, metaData) || getMetaValueByHints(metaData, ['nombre', 'name', 'cliente'])
+    const nombreCliente = pickFirstNormalized(
+      [
+        buildNombreCliente(body, metaData),
+        getMetaValueByHints(metaData, ['nombre', 'name', 'cliente', 'fullname', 'full_name']),
+      ],
+      normalizeCustomerName
     );
-    const telefonoCliente = normalizePhone(
-      getBodyValue(body, [
-        'billing.phone',
-        'billing.phone_number',
-        'billing.mobile',
-        'billing.celular',
-        'billing.telefono',
-        'billing_phone',
-        'shipping.phone',
-        'shipping.phone_number',
-        'shipping.mobile',
-        'shipping.celular',
-        'shipping.telefono',
-        'shipping_phone',
-        'customer.phone',
-        'customer.telefono',
-        'customer_phone',
-        'telefono',
-        'phone',
-      ]) ||
-        getMetaValue(metaData, ['billing_phone', 'phone', 'telefono', 'celular']) ||
-        getMetaValueByHints(metaData, ['phone', 'telefono', 'celular', 'mobile'])
+    const telefonoCliente = pickFirstNormalized(
+      [
+        getBodyValue(body, [
+          'billing.phone',
+          'billing.phone_number',
+          'billing.mobile',
+          'billing.celular',
+          'billing.telefono',
+          'billing_phone',
+          'shipping.phone',
+          'shipping.phone_number',
+          'shipping.mobile',
+          'shipping.celular',
+          'shipping.telefono',
+          'shipping_phone',
+          'customer.phone',
+          'customer.telefono',
+          'customer_phone',
+          'telefono',
+          'phone',
+        ]),
+        getMetaValue(metaData, ['billing_phone', 'phone', 'telefono', 'celular']),
+        getMetaValueByHints(metaData, ['phone', 'telefono', 'celular', 'mobile', 'whatsapp']),
+      ],
+      normalizePhone
     );
-    const emailCliente = normalizeEmail(
-      getBodyValue(body, [
-        'billing.email',
-        'billing.email_address',
-        'billing_email',
-        'shipping.email',
-        'shipping_email',
-        'customer.email',
-        'customer_email',
-        'email',
-      ]) ||
-        getMetaValue(metaData, ['billing_email', 'email']) ||
-        getMetaValueByHints(metaData, ['email', 'correo'])
+    const emailCliente = pickFirstNormalized(
+      [
+        getBodyValue(body, [
+          'billing.email',
+          'billing.email_address',
+          'billing_email',
+          'shipping.email',
+          'shipping_email',
+          'customer.email',
+          'customer_email',
+          'email',
+        ]),
+        getMetaValue(metaData, ['billing_email', 'email']),
+        getMetaValueByHints(metaData, ['email', 'correo', 'mail']),
+      ],
+      normalizeEmail
     );
     const notaCliente = cleanHumanText(
       getBodyValue(body, ['customer_note', 'note', 'customer_message', 'order_note', 'message']) ||
@@ -1083,18 +1104,8 @@ export async function POST(req: NextRequest) {
       emailCliente,
       observaciones,
       dni:
-        normalizeDni(
-          getBodyValue(body, [
-            'billing.dni',
-            'billing.document',
-            'billing.doc_number',
-            'billing.document_number',
-            'billing.vat',
-            'shipping.dni',
-            'customer.dni',
-            'billing_dni',
-            'dni',
-          ]) ||
+        pickFirstNormalized(
+          [
             getMetaValue(metaData, [
               '_billing_dni',
               '_billing_document',
@@ -1104,8 +1115,29 @@ export async function POST(req: NextRequest) {
               'billing_vat',
               'dni',
               'documento',
-            ]) ||
-            getMetaValueByHints(metaData, ['dni', 'document', 'doc', 'cedula'])
+            ]),
+            getMetaValueByHints(metaData, [
+              'dni',
+              'document',
+              'doc',
+              'cedula',
+              'rut',
+              'ruc',
+              'passport',
+            ]),
+            getBodyValue(body, [
+              'billing.dni',
+              'billing.document',
+              'billing.doc_number',
+              'billing.document_number',
+              'billing.vat',
+              'shipping.dni',
+              'customer.dni',
+              'billing_dni',
+              'dni',
+            ]),
+          ],
+          normalizeDni
         ) || '',
       fechaPedido: body.date_created || new Date().toISOString(),
       estado: mapWooStatusToPedidoEstado(status),

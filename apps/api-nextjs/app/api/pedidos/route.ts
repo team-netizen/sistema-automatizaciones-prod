@@ -63,6 +63,43 @@ function sanitizeText(value: any, maxLength = 600): string | null {
     return compact.slice(0, maxLength);
 }
 
+function extractItemSummaryFromObservaciones(text: string | null): string | null {
+    const clean = sanitizeText(text, 2500);
+    if (!clean) return null;
+
+    const segments = clean
+        .split('|')
+        .map((seg) => seg.trim())
+        .filter(Boolean);
+
+    const itemLike = segments.filter((seg) => /\bSKU\s*:|\bx\s*\d+\b/i.test(seg));
+    if (itemLike.length > 0) {
+        return itemLike.join(' | ');
+    }
+
+    if (/\bSKU\s*:|\bx\s*\d+\b/i.test(clean)) return clean;
+    return null;
+}
+
+function extractSkuFromText(text: string | null): string | null {
+    const clean = sanitizeText(text, 2500);
+    if (!clean) return null;
+
+    const matches = [...clean.matchAll(/\bSKU\s*:\s*([A-Za-z0-9._-]+)/gi)].map((m) => String(m[1]).trim());
+    const unique = [...new Set(matches.filter(Boolean))];
+    if (!unique.length) return null;
+    return unique.join(', ');
+}
+
+function extractCantidadFromText(text: string | null): string | null {
+    const clean = sanitizeText(text, 2500);
+    if (!clean) return null;
+
+    const matches = [...clean.matchAll(/\bx\s*(\d+)\b/gi)].map((m) => String(m[1]).trim());
+    if (!matches.length) return null;
+    return matches.join(', ');
+}
+
 async function fetchPedidosByEmpresa(empresaId: string) {
     let lastError: any = null;
 
@@ -97,6 +134,13 @@ async function fetchPedidosByEmpresa(empresaId: string) {
 }
 
 function mapPedido(row: PedidoRow) {
+    const observacionesRaw = sanitizeText(row.observaciones ?? row.notas ?? null, 1500);
+    const productosRaw = sanitizeText(row.productos ?? null, 1500);
+    const productosFromObs = extractItemSummaryFromObservaciones(observacionesRaw);
+    const productos = productosRaw || productosFromObs;
+    const cantidad = sanitizeText(row.cantidad ?? null, 120) || extractCantidadFromText(productos);
+    const sku = sanitizeText(row.sku ?? null, 350) || extractSkuFromText(productos);
+
     return {
         ...row,
         id_transaccion:
@@ -132,7 +176,10 @@ function mapPedido(row: PedidoRow) {
         distrito: sanitizeText(row.distrito ?? row.distrito_cliente ?? null, 120),
         provincia: sanitizeText(row.provincia ?? row.provincia_cliente ?? null, 120),
         metodo_pago: sanitizeText(row.metodo_pago ?? null, 220),
-        observaciones: sanitizeText(row.observaciones ?? row.notas ?? null, 1500),
+        productos,
+        cantidad,
+        sku,
+        observaciones: observacionesRaw,
         estado: row.estado ?? 'pendiente',
     };
 }
