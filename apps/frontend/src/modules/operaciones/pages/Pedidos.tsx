@@ -112,7 +112,10 @@ export const Pedidos = () => {
                     isLoading={loading}
                     totalEntries={pedidos.length}
                     accentColor="#8B7AF0"
-                    renderRow={(item) => (
+                    renderRow={(item) => {
+                        const canalOrigen = String(item.canal_origen ?? '').toLowerCase();
+
+                        return (
                         <tr key={item.id} className="group hover:bg-[#0B1412]/40 transition-all cursor-pointer">
                             <td className="px-6 md:px-8 py-5 border-b border-[#1F2D29]/30">
                                 <div className="flex flex-col">
@@ -125,7 +128,7 @@ export const Pedidos = () => {
                                 </div>
                             </td>
                             <td className="px-6 md:px-8 py-5 text-center border-b border-[#1F2D29]/30">
-                                <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${item.canal_origen?.toLowerCase().includes('web') ? 'bg-[#8B7AF0]/10 text-[#8B7AF0] border border-[#8B7AF0]/20' : 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'}`}>
+                                <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${canalOrigen.includes('web') ? 'bg-[#8B7AF0]/10 text-[#8B7AF0] border border-[#8B7AF0]/20' : 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'}`}>
                                     {item.canal_origen || 'DESCONOCIDO'}
                                 </span>
                             </td>
@@ -159,7 +162,8 @@ export const Pedidos = () => {
                                 </button>
                             </td>
                         </tr>
-                    )}
+                        );
+                    }}
                 />
             </div>
 

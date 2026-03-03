@@ -42,7 +42,10 @@ const ControlPedidos = () => {
                 isLoading={loading}
                 accentColor="#22C55E"
                 totalEntries={pedidos.length}
-                renderRow={(pedido) => (
+                renderRow={(pedido) => {
+                    const canalOrigen = String(pedido.canal_origen ?? '').toLowerCase();
+
+                    return (
                     <tr key={pedido.id_transaccion} className="group hover:bg-[#111C19]/60 transition-all cursor-pointer">
                         <td className="px-8 py-5">
                             <span className="font-mono text-[10px] font-black text-[#22C55E] tracking-widest uppercase bg-[#22C55E]/5 px-2 py-1 rounded-md">
@@ -50,7 +53,7 @@ const ControlPedidos = () => {
                             </span>
                         </td>
                         <td className="px-8 py-5 text-center">
-                            <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${pedido.canal_origen.toLowerCase().includes('web')
+                            <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${canalOrigen.includes('web')
                                 ? 'bg-[#8B7AF0]/10 text-[#8B7AF0] border border-[#8B7AF0]/20'
                                 : 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
                                 }`}>
@@ -79,7 +82,8 @@ const ControlPedidos = () => {
                             </span>
                         </td>
                     </tr>
-                )}
+                    );
+                }}
             />
         </div>
     );

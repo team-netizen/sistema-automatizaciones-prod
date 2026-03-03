@@ -45,13 +45,17 @@ export const PedidosTable = ({ pedidos, isLoading }: PedidosTableProps) => {
                     </tr>
                 </thead>
                 <tbody>
-                    {pedidos.map((pedido) => (
+                    {pedidos.map((pedido) => {
+                        const origen = String(pedido.origen ?? '').toLowerCase();
+                        const estado = String(pedido.estado ?? '').toLowerCase();
+
+                        return (
                         <tr key={pedido.id} className="group hover:bg-[#0B1412]/40 transition-all cursor-pointer">
                             <td className="px-6 md:px-8 py-5 border-b border-[#1F2D29]/30">
                                 <span className="font-mono text-[11px] font-black text-[#22C55E] tracking-widest uppercase">{pedido.order_id_externo}</span>
                             </td>
                             <td className="px-6 md:px-8 py-5 text-center border-b border-[#1F2D29]/30">
-                                <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${pedido.origen.toLowerCase().includes('woo') ? 'bg-[#8B7AF0]/10 text-[#8B7AF0]' : 'bg-cyan-500/10 text-cyan-400'}`}>
+                                <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${origen.includes('woo') ? 'bg-[#8B7AF0]/10 text-[#8B7AF0]' : 'bg-cyan-500/10 text-cyan-400'}`}>
                                     {pedido.origen}
                                 </span>
                             </td>
@@ -62,15 +66,16 @@ export const PedidosTable = ({ pedidos, isLoading }: PedidosTableProps) => {
                                 <span className="text-xs font-bold text-gray-400 tracking-tight">{new Date(pedido.fecha).toLocaleDateString(undefined, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
                             </td>
                             <td className="px-6 md:px-8 py-5 text-right border-b border-[#1F2D29]/30">
-                                <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${pedido.estado.toLowerCase().includes('comple') ? 'bg-[#22C55E]/10 text-[#22C55E]' :
-                                    pedido.estado.toLowerCase().includes('pend') ? 'bg-orange-500/10 text-orange-400' :
+                                <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${estado.includes('comple') ? 'bg-[#22C55E]/10 text-[#22C55E]' :
+                                    estado.includes('pend') ? 'bg-orange-500/10 text-orange-400' :
                                         'bg-red-500/10 text-red-500'
                                     }`}>
                                     {pedido.estado}
                                 </span>
                             </td>
                         </tr>
-                    ))}
+                        );
+                    })}
                 </tbody>
             </table>
         </div>
