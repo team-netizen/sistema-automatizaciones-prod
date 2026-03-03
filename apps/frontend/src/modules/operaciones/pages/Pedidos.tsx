@@ -15,7 +15,7 @@ export const Pedidos = () => {
             const token = localStorage.getItem('access_token');
             if (!token) throw new Error('No autenticado');
 
-            const response = await fetch(`${API_URL}/pedidos`, {
+            const response = await fetch(`${API_URL}/operaciones/pedidos`, {
                 headers: getAuthHeaders()
             });
 
