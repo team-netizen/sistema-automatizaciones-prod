@@ -52,6 +52,49 @@ function isValidHmacSignature(rawBody: string, webhookToken: string, signature: 
   );
 }
 
+function parseWebhookBody(rawBody: string): any | null {
+  try {
+    return JSON.parse(rawBody);
+  } catch {
+    try {
+      const params = new URLSearchParams(rawBody);
+      const embeddedPayload =
+        params.get('payload') ||
+        params.get('body') ||
+        params.get('data') ||
+        params.get('order');
+
+      if (embeddedPayload) {
+        return JSON.parse(embeddedPayload);
+      }
+
+      const id = params.get('id') || params.get('order_id');
+      if (id) {
+        return {
+          id,
+          status: params.get('status') || 'processing',
+          total: params.get('total') || '0',
+          line_items: [],
+          billing: {},
+          shipping: {},
+          meta_data: [],
+        };
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+function getLineItems(body: any): any[] {
+  if (Array.isArray(body?.line_items)) return body.line_items;
+  if (Array.isArray(body?.items)) return body.items;
+  if (Array.isArray(body?.lineItems)) return body.lineItems;
+  return [];
+}
+
 async function resolveEmpresa(params: {
   empresaIdFromRequest: string | null;
   tokenFromQuery: string | null;
@@ -139,6 +182,78 @@ async function findProductoPorNombre(empresaId: string, nombre: string) {
     .maybeSingle();
 
   return ci.data;
+}
+
+async function ensureSucursalActiva(empresaId: string): Promise<{ id: string }> {
+  const existing = await supabaseAdmin
+    .from('sucursales')
+    .select('id')
+    .eq('empresa_id', empresaId)
+    .eq('activa', true)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing.data?.id) return existing.data;
+
+  const created = await supabaseAdmin
+    .from('sucursales')
+    .insert({
+      empresa_id: empresaId,
+      nombre: 'Almacen Principal',
+      tipo: 'almacen',
+      activa: true,
+      permite_despacho: true,
+      prioridad_despacho: 1,
+    })
+    .select('id')
+    .single();
+
+  if (created.error || !created.data?.id) {
+    throw new Error(`no_active_sucursal: ${created.error?.message || 'insert_failed'}`);
+  }
+
+  return created.data;
+}
+
+async function ensureCanalActivo(empresaId: string): Promise<{ id: string }> {
+  const woo = await supabaseAdmin
+    .from('canales_venta')
+    .select('id')
+    .eq('empresa_id', empresaId)
+    .eq('activo', true)
+    .ilike('nombre', '%woo%')
+    .limit(1)
+    .maybeSingle();
+
+  if (woo.data?.id) return woo.data;
+
+  const any = await supabaseAdmin
+    .from('canales_venta')
+    .select('id')
+    .eq('empresa_id', empresaId)
+    .eq('activo', true)
+    .limit(1)
+    .maybeSingle();
+
+  if (any.data?.id) return any.data;
+
+  const codigo = `WOO-${Date.now().toString(36).toUpperCase()}`;
+  const created = await supabaseAdmin
+    .from('canales_venta')
+    .insert({
+      empresa_id: empresaId,
+      nombre: 'WooCommerce',
+      codigo,
+      activo: true,
+    })
+    .select('id')
+    .single();
+
+  if (created.error || !created.data?.id) {
+    throw new Error(`no_active_canal: ${created.error?.message || 'insert_failed'}`);
+  }
+
+  return created.data;
 }
 
 async function registrarPedidoFallback(params: {
@@ -281,83 +396,49 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const body = JSON.parse(rawBody);
-
-    if (!body?.id || !Array.isArray(body?.line_items)) {
+    const body = parseWebhookBody(rawBody);
+    if (!body) {
       return NextResponse.json(
-        { error: 'Payload invalido. Se requiere id y line_items.' },
-        { status: 400 }
+        {
+          ok: true,
+          skipped: true,
+          reason: 'invalid_payload_format',
+        },
+        { status: 200 }
+      );
+    }
+
+    const orderIdRaw = body?.id ?? body?.order_id ?? body?.resource_id ?? body?.data?.id;
+    if (!orderIdRaw) {
+      return NextResponse.json(
+        { ok: true, skipped: true, reason: 'missing_order_id' },
+        { status: 200 }
       );
     }
 
     const acceptedStatuses = getAcceptedStatuses();
-    const status = String(body.status || '').toLowerCase();
+    const status = String(body.status || body.order_status || 'processing').toLowerCase();
+    const lineItems = getLineItems(body);
 
-    if (!acceptedStatuses.includes(status)) {
-      return NextResponse.json({ ok: true, skipped: true, statusRecibido: status }, { status: 200 });
-    }
+    // Compatibilidad: si el estado no está en la lista permitida, igual se procesa en fallback.
+    const outOfScopeStatus = !acceptedStatuses.includes(status);
 
-    const { data: sucursal } = await supabaseAdmin
-      .from('sucursales')
-      .select('id')
-      .eq('empresa_id', empresa.id)
-      .eq('activa', true)
-      .limit(1)
-      .maybeSingle();
-
-    if (!sucursal) {
-      return NextResponse.json(
-        { error: 'No se encontro una sucursal activa para la empresa.' },
-        { status: 500 }
-      );
-    }
-
-    let canal = (
-      await supabaseAdmin
-        .from('canales_venta')
-        .select('id')
-        .eq('empresa_id', empresa.id)
-        .eq('activo', true)
-        .ilike('nombre', '%woo%')
-        .limit(1)
-        .maybeSingle()
-    ).data;
-
-    if (!canal) {
-      canal = (
-        await supabaseAdmin
-          .from('canales_venta')
-          .select('id')
-          .eq('empresa_id', empresa.id)
-          .eq('activo', true)
-          .limit(1)
-          .maybeSingle()
-      ).data;
-    }
-
-    if (!canal) {
-      return NextResponse.json(
-        { error: 'No se encontro un canal de venta activo para la empresa.' },
-        { status: 500 }
-      );
-    }
+    const sucursal = await ensureSucursalActiva(empresa.id);
+    const canal = await ensureCanalActivo(empresa.id);
 
     const itemsInternos: PedidoItemSimple[] = [];
     const itemWarnings: string[] = [];
-    let needsDirectFallback = false;
+    let needsDirectFallback = outOfScopeStatus || lineItems.length === 0;
 
-    for (const item of body.line_items) {
+    for (const item of lineItems) {
       const sku = String(item?.sku || '').trim();
       const nombreProducto = String(item?.name || '').trim();
       const qty = Number(item?.quantity ?? 0);
 
       if (!Number.isFinite(qty) || qty <= 0) {
-        return NextResponse.json(
-          {
-            error: `Cantidad invalida para SKU ${sku}.`,
-          },
-          { status: 400 }
-        );
+        needsDirectFallback = true;
+        itemWarnings.push(`Cantidad invalida para SKU ${sku || 'N/A'}.`);
+        continue;
       }
 
       let producto = null;
@@ -394,17 +475,21 @@ export async function POST(req: NextRequest) {
       empresaId: empresa.id,
       sucursalId: sucursal.id,
       canalId: canal.id,
-      idExterno: String(body.id),
-      numeroPedido: String(body.number || body.id),
+      idExterno: String(orderIdRaw),
+      numeroPedido: String(body.number || orderIdRaw),
       total: Number(body.total) || 0,
-      idOrden: String(body.number || body.id),
+      idOrden: String(body.number || orderIdRaw),
       metodoPago: body.payment_method_title || 'WooCommerce',
       direccion: shipping.address_1 || billing.address_1 || '',
       distrito: shipping.city || billing.city || '',
       provincia: shipping.state || billing.state || '',
       dni:
-        body.meta_data?.find((m: any) => m?.key === '_billing_dni')?.value ||
-        body.meta_data?.find((m: any) => m?.key === '_billing_document')?.value ||
+        (Array.isArray(body.meta_data) ? body.meta_data : [])
+          ?.find((m: any) => m?.key === '_billing_dni')
+          ?.value ||
+        (Array.isArray(body.meta_data) ? body.meta_data : [])
+          ?.find((m: any) => m?.key === '_billing_document')
+          ?.value ||
         '',
       fechaPedido: body.date_created || new Date().toISOString(),
       estado: mapWooStatusToPedidoEstado(status),
