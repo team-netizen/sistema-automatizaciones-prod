@@ -133,20 +133,40 @@ function extractCantidadFromText(text: string | null): string | null {
     const clean = sanitizeText(text, 2500);
     if (!clean) return null;
 
-    const matches = [...clean.matchAll(/\bx\s*(\d+)\b/gi)].map((m) => String(m[1]).trim());
-    if (!matches.length) return null;
-    return matches[matches.length - 1];
+    const segments = clean
+        .split('|')
+        .map((seg) => seg.trim())
+        .filter(Boolean);
+
+    const perItem: string[] = [];
+    for (const seg of segments) {
+        const endQty = seg.match(/(?:^|\s)x\s*(\d+)\s*$/i);
+        if (endQty?.[1]) {
+            perItem.push(String(endQty[1]).trim());
+        }
+    }
+    if (perItem.length > 0) {
+        return perItem.join(', ');
+    }
+
+    const fallback = [...clean.matchAll(/\bx\s*(\d+)\b/gi)].map((m) => String(m[1]).trim());
+    if (!fallback.length) return null;
+    return fallback[fallback.length - 1];
 }
 
 function normalizeCantidadValue(value: string | null): string | null {
     const clean = sanitizeText(value, 120);
     if (!clean) return null;
 
+    const commaValues = [...clean.matchAll(/\b\d+\b/g)].map((m) => String(m[0]).trim());
+    if (clean.includes(',') && commaValues.length > 0) {
+        return commaValues.join(', ');
+    }
+
     const fromX = [...clean.matchAll(/\bx\s*(\d+)\b/gi)].map((m) => String(m[1]).trim());
     if (fromX.length > 0) return fromX[fromX.length - 1];
 
-    const tokens = [...clean.matchAll(/\b\d+\b/g)].map((m) => String(m[0]).trim());
-    if (tokens.length > 0) return tokens[tokens.length - 1];
+    if (commaValues.length > 0) return commaValues[commaValues.length - 1];
 
     return null;
 }
