@@ -361,7 +361,8 @@ function getMetaValueByHints(metaData: any[], hints: string[]): string | null {
 
 function extractMetaDocumentCandidates(metaData: any[]): string[] {
   const candidates: string[] = [];
-  const hintRegex = /(dni|document|doc|cedula|rut|ruc|passport|pasaporte|identificacion|numero_documento|nro_documento)/i;
+  const hintRegex =
+    /(dni|document|doc|cedula|rut|ruc|passport|pasaporte|identificacion|numero_documento|nro_documento|nro_doc|nro)/i;
 
   for (const entry of metaData || []) {
     const labels = [
@@ -409,6 +410,8 @@ function extractMetaDocumentCandidates(metaData: any[]): string[] {
         const nested = [
           (value as any).value,
           (value as any).number,
+          (value as any).nro,
+          (value as any).numero,
           (value as any).text,
           (value as any).label,
           (value as any).name,
@@ -494,9 +497,15 @@ function extractDniFromRawBody(rawBody: string): string | null {
   const candidates: string[] = [];
 
   const jsonKeyRegex =
-    /"(?:_?billing_(?:dni|document|document_number|doc_number|numero_documento|nro_documento)|dni|documento|cedula|ruc|rut|passport)"\s*:\s*"([^"]+)"/gi;
+    /"(?:_?billing_(?:dni|document|document_number|doc_number|numero_documento|nro_documento|nro_doc|nro)|dni|documento|cedula|ruc|rut|passport|nro)"\s*:\s*"([^"]+)"/gi;
   let match: RegExpExecArray | null;
   while ((match = jsonKeyRegex.exec(raw)) !== null) {
+    if (match[1]) candidates.push(match[1]);
+  }
+
+  const nestedNroRegex =
+    /"(?:documento|document|identificacion|id_document|doc_data)"\s*:\s*\{[^{}]{0,220}"nro"\s*:\s*"([^"]+)"/gi;
+  while ((match = nestedNroRegex.exec(raw)) !== null) {
     if (match[1]) candidates.push(match[1]);
   }
 
@@ -1325,6 +1334,8 @@ export async function POST(req: NextRequest) {
               'doc',
               'numero_documento',
               'nro_documento',
+              'nro_doc',
+              'nro',
               'cedula',
               'rut',
               'ruc',
@@ -1339,12 +1350,21 @@ export async function POST(req: NextRequest) {
               'billing.numero_documento',
               'billing.nro_documento',
               'billing.nro_doc',
+              'billing.nro',
+              'billing.documento.nro',
+              'billing.document.nro',
               'billing.id_number',
               'billing.vat',
               'shipping.dni',
               'customer.dni',
               'customer.document',
               'customer.document_number',
+              'customer.nro',
+              'customer.documento.nro',
+              'customer.document.nro',
+              'documento.nro',
+              'document.nro',
+              'nro',
               'billing_dni',
               'dni',
             ]),
@@ -1354,6 +1374,8 @@ export async function POST(req: NextRequest) {
               'docnumber',
               'numerodocumento',
               'nrodocumento',
+              'nrodoc',
+              'nro',
               'cedula',
               'rut',
               'ruc',
