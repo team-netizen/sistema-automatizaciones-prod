@@ -175,19 +175,97 @@ function getMetaValue(metaData: any[], keys: string[]): string | null {
   return null;
 }
 
-function buildNombreCliente(body: any, metaData: any[]): string | null {
-  const billing = body?.billing || {};
-  const shipping = body?.shipping || {};
+function normalizeLooseKey(key: any): string {
+  return String(key || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
 
+function getObjectValueLoose(obj: any, key: string): any {
+  if (!obj || typeof obj !== 'object') return undefined;
+  if (Object.prototype.hasOwnProperty.call(obj, key)) return obj[key];
+
+  const wanted = normalizeLooseKey(key);
+  for (const k of Object.keys(obj)) {
+    if (normalizeLooseKey(k) === wanted) {
+      return obj[k];
+    }
+  }
+
+  return undefined;
+}
+
+function getPathValueLoose(obj: any, path: string): any {
+  const parts = String(path || '')
+    .split('.')
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  let current: any = obj;
+  for (const part of parts) {
+    current = getObjectValueLoose(current, part);
+    if (current === undefined || current === null) return undefined;
+  }
+
+  return current;
+}
+
+function getBodyValue(body: any, paths: string[]): any {
+  for (const path of paths) {
+    const value = getPathValueLoose(body, path);
+    if (value === null || value === undefined) continue;
+    if (typeof value === 'string' && !value.trim()) continue;
+    return value;
+  }
+  return null;
+}
+
+function extractMetaData(body: any): any[] {
+  const direct = getBodyValue(body, ['meta_data', 'metaData', 'data.meta_data', 'data.metaData']);
+
+  if (Array.isArray(direct)) return direct;
+
+  if (direct && typeof direct === 'object') {
+    return Object.entries(direct).map(([key, value]) => ({ key, value }));
+  }
+
+  return [];
+}
+
+function buildNombreCliente(body: any, metaData: any[]): string | null {
   const firstName = cleanHumanText(
-    billing?.first_name ||
-      shipping?.first_name ||
+    getBodyValue(body, [
+      'billing.first_name',
+      'billing.firstName',
+      'billing.nombre',
+      'billing.nombres',
+      'shipping.first_name',
+      'shipping.firstName',
+      'shipping.nombre',
+      'shipping.nombres',
+      'customer.first_name',
+      'customer.firstName',
+      'customer.nombre',
+      'billing_address.first_name',
+      'shipping_address.first_name',
+    ]) ||
       getMetaValue(metaData, ['billing_first_name', '_billing_first_name', 'first_name', 'nombre']),
     90
   );
   const lastName = cleanHumanText(
-    billing?.last_name ||
-      shipping?.last_name ||
+    getBodyValue(body, [
+      'billing.last_name',
+      'billing.lastName',
+      'billing.apellido',
+      'shipping.last_name',
+      'shipping.lastName',
+      'shipping.apellido',
+      'customer.last_name',
+      'customer.lastName',
+      'customer.apellido',
+      'billing_address.last_name',
+      'shipping_address.last_name',
+    ]) ||
       getMetaValue(metaData, ['billing_last_name', '_billing_last_name', 'last_name', 'apellido']),
     90
   );
@@ -196,13 +274,23 @@ function buildNombreCliente(body: any, metaData: any[]): string | null {
   if (billingName) return billingName.slice(0, 180);
 
   const company = cleanHumanText(
-    billing?.company || shipping?.company || getMetaValue(metaData, ['billing_company', 'company']),
+    getBodyValue(body, [
+      'billing.company',
+      'shipping.company',
+      'customer.company',
+      'billing.razon_social',
+      'billing.business_name',
+    ]) || getMetaValue(metaData, ['billing_company', 'company']),
     180
   );
   if (company) return company;
 
   const emailPrefix = cleanHumanText(
-    String(billing?.email || getMetaValue(metaData, ['billing_email', 'email']) || '').split('@')[0],
+    String(
+      getBodyValue(body, ['billing.email', 'shipping.email', 'customer.email', 'email']) ||
+        getMetaValue(metaData, ['billing_email', 'email']) ||
+        ''
+    ).split('@')[0],
     120
   );
   if (emailPrefix) return emailPrefix;
@@ -716,25 +804,41 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const billing = body.billing || {};
-    const shipping = body.shipping || {};
-    const metaData = Array.isArray(body.meta_data) ? body.meta_data : [];
+    const metaData = extractMetaData(body);
     const numeroConsecutivo = await getNextConsecutiveNumero(empresa.id);
     const nombreCliente = cleanHumanText(buildNombreCliente(body, metaData), 180);
     const telefonoCliente = cleanHumanText(
-      billing.phone ||
-        shipping.phone ||
+      getBodyValue(body, [
+        'billing.phone',
+        'billing.phone_number',
+        'billing.mobile',
+        'billing.celular',
+        'billing.telefono',
+        'shipping.phone',
+        'shipping.phone_number',
+        'shipping.mobile',
+        'shipping.celular',
+        'shipping.telefono',
+        'customer.phone',
+        'customer.telefono',
+        'telefono',
+        'phone',
+      ]) ||
         getMetaValue(metaData, ['billing_phone', 'phone', 'telefono', 'celular']),
       40
     );
     const emailCliente = cleanHumanText(
-      billing.email || shipping.email || getMetaValue(metaData, ['billing_email', 'email']),
+      getBodyValue(body, [
+        'billing.email',
+        'billing.email_address',
+        'shipping.email',
+        'customer.email',
+        'email',
+      ]) || getMetaValue(metaData, ['billing_email', 'email']),
       180
     );
     const notaCliente = cleanHumanText(
-      body.customer_note ||
-        body.note ||
-        body.customer_message ||
+      getBodyValue(body, ['customer_note', 'note', 'customer_message', 'order_note', 'message']) ||
         getMetaValue(metaData, ['customer_note', 'note', 'observaciones']),
       600
     );
@@ -752,19 +856,93 @@ export async function POST(req: NextRequest) {
       numeroPedido: numeroConsecutivo,
       total: Number(body.total) || 0,
       idOrden: String(body.number || orderIdRaw),
-      metodoPago: cleanHumanText(body.payment_method_title || body.payment_method || 'WooCommerce', 180) || 'WooCommerce',
-      direccion: cleanText(shipping.address_1 || billing.address_1, 350) || '',
-      distrito: cleanText(shipping.city || billing.city, 120) || '',
-      provincia: cleanText(shipping.state || billing.state, 120) || '',
+      metodoPago:
+        cleanHumanText(
+          getBodyValue(body, [
+            'payment_method_title',
+            'paymentMethodTitle',
+            'payment_method',
+            'paymentMethod',
+            'payment.title',
+            'payment.name',
+          ]) || 'WooCommerce',
+          180
+        ) || 'WooCommerce',
+      direccion:
+        cleanText(
+          getBodyValue(body, [
+            'shipping.address_1',
+            'shipping.address1',
+            'shipping.address',
+            'shipping.street_1',
+            'shipping.street1',
+            'shipping_address.address_1',
+            'shipping_address.address1',
+            'shipping_address.address',
+            'shipping_address_1',
+            'billing.address_1',
+            'billing.address1',
+            'billing.address',
+            'billing.street_1',
+            'billing_address.address_1',
+            'billing_address.address1',
+            'billing_address.address',
+            'billing_address_1',
+          ]),
+          350
+        ) || '',
+      distrito:
+        cleanText(
+          getBodyValue(body, [
+            'shipping.city',
+            'shipping.district',
+            'shipping.distrito',
+            'shipping_address.city',
+            'shipping_address.district',
+            'shipping_address.distrito',
+            'billing.city',
+            'billing.district',
+            'billing.distrito',
+            'billing_address.city',
+            'billing_address.district',
+            'billing_address.distrito',
+          ]),
+          120
+        ) || '',
+      provincia:
+        cleanText(
+          getBodyValue(body, [
+            'shipping.state',
+            'shipping.province',
+            'shipping.provincia',
+            'shipping_address.state',
+            'shipping_address.province',
+            'shipping_address.provincia',
+            'billing.state',
+            'billing.province',
+            'billing.provincia',
+            'billing_address.state',
+            'billing_address.province',
+            'billing_address.provincia',
+          ]),
+          120
+        ) || '',
       nombreCliente,
       telefonoCliente,
       emailCliente,
       observaciones,
       dni:
         cleanHumanText(
-          billing.dni ||
-            billing.document ||
-            billing.vat ||
+          getBodyValue(body, [
+            'billing.dni',
+            'billing.document',
+            'billing.doc_number',
+            'billing.document_number',
+            'billing.vat',
+            'shipping.dni',
+            'customer.dni',
+            'dni',
+          ]) ||
             getMetaValue(metaData, [
               '_billing_dni',
               '_billing_document',
