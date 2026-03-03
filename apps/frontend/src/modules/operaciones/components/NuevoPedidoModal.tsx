@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { API_URL, getAuthHeaders } from '../../../lib/api';
+import { API_URL, authFetch } from '../../../lib/api';
 
 interface Producto {
     id: string;
@@ -56,8 +56,8 @@ export const NuevoPedidoModal: React.FC<NuevoPedidoModalProps> = ({ isOpen, onCl
     const fetchData = async () => {
         try {
             const [resSucursales, resProductos] = await Promise.all([
-                fetch(`${API_URL}/sucursales`, { headers: getAuthHeaders() }),
-                fetch(`${API_URL}/productos`, { headers: getAuthHeaders() })
+                authFetch(`${API_URL}/sucursales`),
+                authFetch(`${API_URL}/productos`)
             ]);
 
             const dataSuc = await resSucursales.json();
@@ -107,9 +107,8 @@ export const NuevoPedidoModal: React.FC<NuevoPedidoModalProps> = ({ isOpen, onCl
         setError(null);
 
         try {
-            const response = await fetch(`${API_URL}/pedidos`, {
+            const response = await authFetch(`${API_URL}/pedidos`, {
                 method: 'POST',
-                headers: getAuthHeaders(),
                 body: JSON.stringify({
                     sucursal_id: sucursalId,
                     medio_pedido: medio,

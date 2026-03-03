@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { MetricCard } from '../components/MetricCard';
 import { OperationTable } from '../components/OperationTable';
-import { API_URL, getAuthHeaders } from '../../../lib/api';
+import { API_URL, authFetch } from '../../../lib/api';
 
 export const Productos = () => {
     const [productos, setProductos] = useState<any[]>([]);
@@ -50,10 +50,7 @@ export const Productos = () => {
     const cargarProductos = async () => {
         try {
             setLoading(true);
-            const res = await fetch(`${API_URL}/productos`, {
-                credentials: "include",
-                headers: getAuthHeaders()
-            });
+            const res = await authFetch(`${API_URL}/productos`);
             if (!res.ok) throw new Error("Error API");
             const data = await res.json();
             setProductos(data.data || []);
@@ -73,10 +70,8 @@ export const Productos = () => {
             const url = isEditing ? `${API_URL}/productos/${selectedProducto.id}` : `${API_URL}/productos`;
             const method = isEditing ? "PUT" : "POST";
 
-            const response = await fetch(url, {
+            const response = await authFetch(url, {
                 method: method,
-                credentials: "include",
-                headers: getAuthHeaders(),
                 body: JSON.stringify({
                     nombre: formNombre,
                     sku: formSku,
@@ -108,10 +103,8 @@ export const Productos = () => {
         if (!window.confirm("¿Estás seguro de que deseas eliminar este producto?")) return;
 
         try {
-            const response = await fetch(`${API_URL}/productos/${id}`, {
+            const response = await authFetch(`${API_URL}/productos/${id}`, {
                 method: "DELETE",
-                credentials: "include",
-                headers: getAuthHeaders()
             });
 
             const result = await response.json();

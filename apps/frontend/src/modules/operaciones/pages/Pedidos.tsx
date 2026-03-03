@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { MetricCard } from '../components/MetricCard';
 import { OperationTable } from '../components/OperationTable';
 import { NuevoPedidoModal } from '../components/NuevoPedidoModal';
-import { API_URL, getAuthHeaders } from '../../../lib/api';
+import { API_URL, authFetch } from '../../../lib/api';
 
 export const Pedidos = () => {
     const [pedidos, setPedidos] = useState<any[]>([]);
@@ -12,12 +12,7 @@ export const Pedidos = () => {
     const fetchPedidos = async () => {
         setLoading(true);
         try {
-            const token = localStorage.getItem('access_token');
-            if (!token) throw new Error('No autenticado');
-
-            const response = await fetch(`${API_URL}/operaciones/pedidos`, {
-                headers: getAuthHeaders()
-            });
+            const response = await authFetch(`${API_URL}/operaciones/pedidos`);
 
             if (!response.ok) throw new Error('Error al obtener pedidos');
 
