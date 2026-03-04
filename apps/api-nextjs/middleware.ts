@@ -24,6 +24,8 @@ function redirigir(request: NextRequest, destino: string): NextResponse {
 function esRutaPublicaSinAuth(pathname: string): boolean {
   if (pathname.startsWith('/_next')) return true
   if (pathname === '/favicon.ico') return true
+  if (pathname.startsWith('/api')) return true
+  if (pathname.startsWith('/auth')) return true
   if (pathname.startsWith('/api/webhooks')) return true
   return false
 }

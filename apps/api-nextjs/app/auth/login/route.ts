@@ -1,99 +1,117 @@
-/**
- * ═══════════════════════════════════════════════════════════
- * POST /auth/login — Autenticación de usuario
- * ═══════════════════════════════════════════════════════════
- * 
- * Flujo:
- *   1. Recibe email y password
- *   2. Autentica contra Supabase Auth
- *   3. Busca perfil del usuario (empresa, rol)
- *   4. Retorna sesión + datos del usuario
- * ═══════════════════════════════════════════════════════════
- */
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+const SUPABASE_URL = process.env.SUPABASE_URL as string
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY as string
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY as string
 
-const SUPABASE_URL = process.env.SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY!;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const ALLOWED_ORIGINS = [
+  process.env.FRONTEND_URL,
+  process.env.ALLOWED_ORIGIN,
+  ...(process.env.CORS_ORIGINS?.split(',').map((value) => value.trim()) ?? []),
+  'https://sistema-automatizaciones-prod.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000',
+].filter((value): value is string => Boolean(value))
 
-export async function POST(request: NextRequest) {
-    try {
-        const { email, password } = await request.json();
+type LoginBody = {
+  email?: string
+  password?: string
+}
 
-        if (!email || !password) {
-            return NextResponse.json(
-                { message: 'Email y contraseña son requeridos' },
-                { status: 400 }
-            );
-        }
+function resolveAllowedOrigin(request: NextRequest): string | null {
+  const origin = request.headers.get('origin')
+  if (!origin) return null
+  return ALLOWED_ORIGINS.includes(origin) ? origin : null
+}
 
-        // 1. Autenticar con Supabase Auth
-        const supabaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+function withCors(response: NextResponse, origin: string | null): NextResponse {
+  if (origin) {
+    response.headers.set('Access-Control-Allow-Origin', origin)
+    response.headers.set('Access-Control-Allow-Credentials', 'true')
+    response.headers.set('Vary', 'Origin')
+  }
 
-        const { data: authData, error: authError } = await supabaseAuth.auth.signInWithPassword({
-            email,
-            password
-        });
+  response.headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS')
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
+  return response
+}
 
-        if (authError) {
-            console.error('[AUTH_LOGIN] Error de autenticación:', authError.message);
-            return NextResponse.json(
-                { message: 'Credenciales inválidas' },
-                { status: 401 }
-            );
-        }
+export async function OPTIONS(request: NextRequest): Promise<NextResponse> {
+  const origin = resolveAllowedOrigin(request)
+  if (!origin && request.headers.get('origin')) {
+    return NextResponse.json({ message: 'Origen no permitido por CORS' }, { status: 403 })
+  }
+  return withCors(new NextResponse(null, { status: 204 }), origin)
+}
 
-        if (!authData.session || !authData.user) {
-            return NextResponse.json(
-                { message: 'No se pudo crear la sesión' },
-                { status: 401 }
-            );
-        }
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  const origin = resolveAllowedOrigin(request)
+  if (!origin && request.headers.get('origin')) {
+    return NextResponse.json({ message: 'Origen no permitido por CORS' }, { status: 403 })
+  }
 
-        // 2. Buscar perfil del usuario (con service_role para bypass RLS)
-        const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-            auth: { autoRefreshToken: false, persistSession: false }
-        });
+  try {
+    const body = (await request.json()) as LoginBody
+    const email = String(body.email ?? '').trim()
+    const password = String(body.password ?? '')
 
-        const { data: perfil, error: perfilError } = await supabaseAdmin
-            .from('perfiles')
-            .select('id, empresa_id, rol')
-            .eq('id', authData.user.id)
-            .single();
-
-        if (perfilError || !perfil) {
-            console.error('[AUTH_LOGIN] Perfil no encontrado o error:', perfilError?.message || 'No data');
-            return NextResponse.json(
-                { message: 'Perfil de usuario no encontrado o error de base de datos. Contacta al administrador.' },
-                { status: 403 }
-            );
-        }
-
-        // 3. Retornar sesión + datos del usuario
-        console.log(`[AUTH_LOGIN] Login exitoso: ${email} (${perfil.rol})`);
-
-        return NextResponse.json({
-            sesion: {
-                access_token: authData.session.access_token,
-                refresh_token: authData.session.refresh_token,
-                expires_at: authData.session.expires_at
-            },
-            usuario: {
-                id: perfil.id,
-                email: authData.user.email,
-                nombre: authData.user.user_metadata?.full_name || email.split('@')[0],
-                empresa_id: perfil.empresa_id,
-                rol: perfil.rol
-            }
-        });
-
-    } catch (error: any) {
-        console.error('[AUTH_LOGIN] Error inesperado:', error.message);
-        return NextResponse.json(
-            { message: 'Error interno del servidor' },
-            { status: 500 }
-        );
+    if (!email || !password) {
+      return withCors(
+        NextResponse.json({ message: 'Email y contrasena son requeridos' }, { status: 400 }),
+        origin
+      )
     }
+
+    const supabaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    const { data: authData, error: authError } = await supabaseAuth.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    if (authError || !authData.session || !authData.user) {
+      return withCors(NextResponse.json({ message: 'Credenciales invalidas' }, { status: 401 }), origin)
+    }
+
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+
+    const { data: perfil, error: perfilError } = await supabaseAdmin
+      .from('perfiles')
+      .select('id, empresa_id, rol')
+      .eq('id', authData.user.id)
+      .single()
+
+    if (perfilError || !perfil) {
+      return withCors(
+        NextResponse.json(
+          { message: 'Perfil de usuario no encontrado o error de base de datos. Contacta al administrador.' },
+          { status: 403 }
+        ),
+        origin
+      )
+    }
+
+    return withCors(
+      NextResponse.json({
+        sesion: {
+          access_token: authData.session.access_token,
+          refresh_token: authData.session.refresh_token,
+          expires_at: authData.session.expires_at,
+        },
+        usuario: {
+          id: perfil.id,
+          email: authData.user.email,
+          nombre: authData.user.user_metadata?.full_name || email.split('@')[0],
+          empresa_id: perfil.empresa_id,
+          rol: perfil.rol,
+        },
+      }),
+      origin
+    )
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Error interno del servidor'
+    return withCors(NextResponse.json({ message }, { status: 500 }), origin)
+  }
 }
