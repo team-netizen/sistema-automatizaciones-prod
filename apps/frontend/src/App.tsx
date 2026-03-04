@@ -20,6 +20,12 @@ import { Reportes as OperacionesReportes } from './modules/operaciones/pages/Rep
 import { Sucursales as OperacionesSucursales } from './modules/operaciones/pages/Sucursales';
 import { ModuloGuard } from './components/guards/ModuloGuard';
 
+function isSuperAdminRole(rol?: string): boolean {
+  if (!rol) return false;
+  const normalized = rol.toLowerCase().replace(/[\s_-]/g, '');
+  return normalized === 'superadmin';
+}
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [usuario, setUsuario] = useState<any>(null);
@@ -78,7 +84,7 @@ function App() {
   const renderContent = () => {
     switch (activeView) {
       case 'dashboard':
-        if (usuario?.rol === 'superadmin') {
+        if (isSuperAdminRole(usuario?.rol)) {
           return <SuperAdminDashboard usuario={usuario} />;
         }
 

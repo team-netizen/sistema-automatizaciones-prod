@@ -1,6 +1,13 @@
-interface HeaderProps {
+ï»¿interface HeaderProps {
     usuario?: any;
 }
+
+function isSuperAdminRole(rol?: string): boolean {
+    if (!rol) return false;
+    const normalized = rol.toLowerCase().replace(/[\s_-]/g, '');
+    return normalized === 'superadmin';
+}
+
 
 export function Header({ usuario }: HeaderProps) {
     const notifCount = 0;
@@ -10,11 +17,11 @@ export function Header({ usuario }: HeaderProps) {
             <div className="flex items-center gap-6">
                 <div className="flex items-center gap-3 text-white font-black uppercase tracking-[0.2em] text-[10px] md:text-xs">
                     <div className="w-1.5 h-4 bg-[#22C55E] rounded-full shadow-[0_0_10px_rgba(34,197,94,0.4)]"></div>
-                    SisAutomatización
+                    SisAutomatizaciÃ³n
                 </div>
-                {usuario?.rol === 'superadmin' && (
+                {isSuperAdminRole(usuario?.rol) && (
                     <div className="px-3 py-1 rounded-full bg-[#8B7AF0]/10 border border-[#8B7AF0]/20 text-[9px] font-black text-[#8B7AF0] uppercase tracking-widest">
-                        Súper Admin
+                        SÃºper Admin
                     </div>
                 )}
             </div>
