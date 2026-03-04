@@ -84,10 +84,6 @@ function App() {
   const renderContent = () => {
     switch (activeView) {
       case 'dashboard':
-        if (isSuperAdminRole(usuario?.rol)) {
-          return <SuperAdminDashboard usuario={usuario} />;
-        }
-
         return (
           <div className="w-full h-full flex flex-col pl-8 pr-12 md:pr-[200px] py-16 animate-fadeIn">
             <div className="w-full space-y-16">
@@ -181,6 +177,10 @@ function App() {
 
   if (!isAuthenticated) {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+  }
+
+  if (isSuperAdminRole(usuario?.rol)) {
+    return <SuperAdminDashboard usuario={usuario} />;
   }
 
   return (
