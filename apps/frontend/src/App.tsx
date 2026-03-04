@@ -180,7 +180,7 @@ function App() {
   }
 
   if (isSuperAdminRole(usuario?.rol)) {
-    return <SuperAdminDashboard usuario={usuario} />;
+    return <SuperAdminDashboard usuario={usuario} onLogout={handleLogout} />;
   }
 
   return (

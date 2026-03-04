@@ -9,6 +9,7 @@ interface SuperAdminDashboardProps {
     email?: string;
     rol?: string;
   };
+  onLogout?: () => void;
 }
 
 type Empresa = {
@@ -80,7 +81,7 @@ function planColor(plan: Empresa['plan']): string {
   return '#f59e0b';
 }
 
-export function SuperAdminDashboard({ usuario }: SuperAdminDashboardProps) {
+export function SuperAdminDashboard({ usuario, onLogout }: SuperAdminDashboardProps) {
   const [nav, setNav] = useState<Nav>('dashboard');
   const [tab, setTab] = useState<Tab>('todas');
   const [search, setSearch] = useState('');
@@ -129,6 +130,8 @@ export function SuperAdminDashboard({ usuario }: SuperAdminDashboardProps) {
             borderRight: '1px solid #12122a',
             transition: 'width .22s cubic-bezier(.4,0,.2,1)',
             flexShrink: 0,
+            display: 'flex',
+            flexDirection: 'column',
           }}
           onMouseEnter={() => setExpanded(true)}
           onMouseLeave={() => setExpanded(false)}
@@ -175,6 +178,33 @@ export function SuperAdminDashboard({ usuario }: SuperAdminDashboardProps) {
                 </span>
               </button>
             ))}
+          </div>
+
+          <div style={{ marginTop: 'auto', borderTop: '1px solid #12122a', padding: 8 }}>
+            <button
+              onClick={onLogout}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                border: 'none',
+                background: 'transparent',
+                color: '#ef4444',
+                cursor: 'pointer',
+                padding: expanded ? '9px 14px' : '9px 16px',
+                borderRadius: 8,
+              }}
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" strokeLinecap="round" strokeLinejoin="round" />
+                <polyline points="16 17 21 12 16 7" strokeLinecap="round" strokeLinejoin="round" />
+                <line x1="21" y1="12" x2="9" y2="12" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span style={{ opacity: expanded ? 1 : 0, width: expanded ? 'auto' : 0, overflow: 'hidden', whiteSpace: 'nowrap', fontSize: 12 }}>
+                Cerrar sesion
+              </span>
+            </button>
           </div>
         </aside>
 
