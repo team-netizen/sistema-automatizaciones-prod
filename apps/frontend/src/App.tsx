@@ -6,6 +6,7 @@ import { RevenueFlow } from './components/dashboard/RevenueFlow';
 import { MyCard } from './components/dashboard/MyCard';
 import { Transactions } from './components/dashboard/Transactions';
 import { ExpenseSummary } from './components/dashboard/ExpenseSummary';
+import { SuperAdminDashboard } from './components/dashboard/SuperAdminDashboard';
 
 // Módulo de Operaciones
 import { OperacionesLayout } from './modules/operaciones/layout/OperacionesLayout';
@@ -77,6 +78,10 @@ function App() {
   const renderContent = () => {
     switch (activeView) {
       case 'dashboard':
+        if (usuario?.rol === 'superadmin') {
+          return <SuperAdminDashboard usuario={usuario} />;
+        }
+
         return (
           <div className="w-full h-full flex flex-col pl-8 pr-12 md:pr-[200px] py-16 animate-fadeIn">
             <div className="w-full space-y-16">
