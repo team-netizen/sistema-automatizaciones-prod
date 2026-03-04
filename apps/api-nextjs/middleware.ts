@@ -21,11 +21,40 @@ function redirigir(request: NextRequest, destino: string): NextResponse {
   return NextResponse.redirect(url)
 }
 
+const configuredOrigins = [
+  process.env.FRONTEND_URL,
+  process.env.ALLOWED_ORIGIN,
+  ...(process.env.CORS_ORIGINS?.split(',').map((value) => value.trim()) ?? []),
+  'https://sistema-automatizaciones-prod.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000',
+].filter((value): value is string => Boolean(value))
+
+function resolveAllowedOrigin(request: NextRequest): string | null {
+  const requestOrigin = request.headers.get('origin')
+  if (!requestOrigin) return null
+  if (configuredOrigins.includes(requestOrigin)) return requestOrigin
+  return null
+}
+
+function withCorsHeaders(response: NextResponse, allowedOrigin: string | null): NextResponse {
+  if (allowedOrigin) {
+    response.headers.set('Access-Control-Allow-Origin', allowedOrigin)
+    response.headers.set('Access-Control-Allow-Credentials', 'true')
+    response.headers.set('Vary', 'Origin')
+  }
+
+  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
+  response.headers.set(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, X-Requested-With, x-empresa-id'
+  )
+  return response
+}
+
 function esRutaPublicaSinAuth(pathname: string): boolean {
   if (pathname.startsWith('/_next')) return true
   if (pathname === '/favicon.ico') return true
-  if (pathname.startsWith('/api')) return true
-  if (pathname.startsWith('/auth')) return true
   if (pathname.startsWith('/api/webhooks')) return true
   return false
 }
@@ -84,6 +113,20 @@ async function obtenerRolUsuario(request: NextRequest): Promise<{
 
 export async function middleware(request: NextRequest): Promise<NextResponse> {
   const pathname = request.nextUrl.pathname
+
+  if (pathname.startsWith('/api') || pathname.startsWith('/auth')) {
+    const allowedOrigin = resolveAllowedOrigin(request)
+
+    if (request.method === 'OPTIONS') {
+      if (!allowedOrigin && request.headers.get('origin')) {
+        return NextResponse.json({ message: 'Origen no permitido por CORS' }, { status: 403 })
+      }
+
+      return withCorsHeaders(new NextResponse(null, { status: 204 }), allowedOrigin)
+    }
+
+    return withCorsHeaders(NextResponse.next({ request }), allowedOrigin)
+  }
 
   if (esRutaPublicaSinAuth(pathname)) {
     return NextResponse.next({ request })
