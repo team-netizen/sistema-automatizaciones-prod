@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withModulo } from '@/middlewares/withModulo';
 import { supabaseAdmin } from '@/lib/supabaseClient';
+import { verificarRol } from '@/lib/permisos';
 
 async function getPedidosConfirmados(empresaId: string) {
   const firstTry = await supabaseAdmin
@@ -35,6 +36,7 @@ async function getPedidosConfirmados(empresaId: string) {
 }
 
 export const GET = withModulo('OPERACIONES', async (_req, usuario) => {
+  verificarRol(usuario, ['admin_empresa']);
   const { empresa_id } = usuario;
 
   const { data: pedidos, error: errorPedidos } = await getPedidosConfirmados(empresa_id);
@@ -74,3 +76,4 @@ export const GET = withModulo('OPERACIONES', async (_req, usuario) => {
     proyeccion: [30, 45, 25, 60, 40, 70, 50, 35, 65, 55, 45, 60, 75],
   });
 });
+

@@ -1,5 +1,6 @@
 import { withAuth } from "@/middlewares/withAuth"
 import { createSupabaseServerClient } from "@/lib/supabaseServer"
+import { verificarRol } from "@/lib/permisos"
 import { NextResponse } from "next/server"
 
 /**
@@ -9,6 +10,8 @@ import { NextResponse } from "next/server"
  */
 export const PUT = withAuth(async (req, usuario, context) => {
     try {
+        // [SECURITY FIX] Solo admin/encargado pueden editar productos.
+        verificarRol(usuario, ['admin_empresa', 'encargado_sucursal'])
         const params = await context.params;
         const productId = params?.id;
 
@@ -55,6 +58,8 @@ export const PUT = withAuth(async (req, usuario, context) => {
  */
 export const DELETE = withAuth(async (req, usuario, context) => {
     try {
+        // [SECURITY FIX] Solo admin empresa puede eliminar productos.
+        verificarRol(usuario, ['admin_empresa'])
         const params = await context.params;
         const productId = params?.id;
 

@@ -1,47 +1,103 @@
-﻿import { API_URL, authFetch } from '../../../lib/api';
+import { API_URL, authFetch } from '../../../lib/api';
+
+type PrimitiveValue = string | number | boolean | null | undefined;
+type QueryFilters = Record<string, PrimitiveValue>;
+
+function buildQueryString(filters?: QueryFilters): string {
+  if (!filters) return '';
+
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value === null || value === undefined || value === '') continue;
+    params.append(key, String(value));
+  }
+
+  const query = params.toString();
+  return query ? `?${query}` : '';
+}
+
+async function parseOrThrow(response: Response, errorMessage: string) {
+  if (!response.ok) throw new Error(errorMessage);
+  return response.json();
+}
 
 export const operacionesService = {
-    getDashboard: async () => {
-        const response = await authFetch(`${API_URL}/operaciones/dashboard`);
-        if (!response.ok) throw new Error('Error al obtener dashboard');
-        return response.json();
-    },
+  getDashboardMetrics: async () => {
+    const response = await authFetch(`${API_URL}/operaciones/dashboard`);
+    return parseOrThrow(response, 'Error al obtener metricas del dashboard');
+  },
 
-    getProductos: async (filters: any) => {
-        const query = new URLSearchParams(filters).toString();
-        const response = await authFetch(`${API_URL}/operaciones/productos?${query}`);
-        if (!response.ok) throw new Error('Error al obtener productos');
-        return response.json();
-    },
+  getProductosCriticos: async () => {
+    const response = await authFetch(`${API_URL}/operaciones/productos/criticos`);
+    return parseOrThrow(response, 'Error al obtener productos criticos');
+  },
 
-    getMovimientos: async (filters: any) => {
-        const query = new URLSearchParams(filters).toString();
-        const response = await authFetch(`${API_URL}/operaciones/movimientos?${query}`);
-        if (!response.ok) throw new Error('Error al obtener movimientos');
-        return response.json();
-    },
+  getProductos: async (filters?: QueryFilters) => {
+    const response = await authFetch(`${API_URL}/operaciones/productos${buildQueryString(filters)}`);
+    return parseOrThrow(response, 'Error al obtener productos');
+  },
 
-    getPedidos: async () => {
-        const response = await authFetch(`${API_URL}/operaciones/pedidos`);
-        if (!response.ok) throw new Error('Error al obtener pedidos');
-        return response.json();
-    },
+  getMovimientos: async (filters?: QueryFilters) => {
+    const response = await authFetch(`${API_URL}/operaciones/movimientos${buildQueryString(filters)}`);
+    return parseOrThrow(response, 'Error al obtener movimientos');
+  },
 
-    getAlertas: async () => {
-        const response = await authFetch(`${API_URL}/operaciones/alertas`);
-        if (!response.ok) throw new Error('Error al obtener alertas');
-        return response.json();
-    },
+  getPedidos: async () => {
+    const response = await authFetch(`${API_URL}/operaciones/pedidos`);
+    return parseOrThrow(response, 'Error al obtener pedidos');
+  },
 
-    getReportes: async () => {
-        const response = await authFetch(`${API_URL}/operaciones/reportes`);
-        if (!response.ok) throw new Error('Error al obtener reportes');
-        return response.json();
-    },
+  getAlertas: async () => {
+    const response = await authFetch(`${API_URL}/operaciones/alertas`);
+    return parseOrThrow(response, 'Error al obtener alertas');
+  },
 
-    getDashboardMetrics: async () => {
-        const response = await authFetch(`${API_URL}/operaciones/dashboard`);
-        if (!response.ok) throw new Error('Error al obtener metricas del dashboard');
-        return response.json();
-    }
+  getReportes: async () => {
+    const response = await authFetch(`${API_URL}/operaciones/reportes`);
+    return parseOrThrow(response, 'Error al obtener reportes');
+  },
+
+  getSucursales: async () => {
+    const response = await authFetch(`${API_URL}/operaciones/sucursales`);
+    return parseOrThrow(response, 'Error al obtener sucursales');
+  },
+
+  getTransferencias: async (filters?: QueryFilters) => {
+    const response = await authFetch(`${API_URL}/operaciones/transferencias${buildQueryString(filters)}`);
+    return parseOrThrow(response, 'Error al obtener transferencias');
+  },
+
+  getStockPorSucursal: async (sucursal_id?: string) => {
+    const response = await authFetch(
+      `${API_URL}/operaciones/stock${buildQueryString({ sucursal_id })}`,
+    );
+    return parseOrThrow(response, 'Error al obtener stock por sucursal');
+  },
+
+  getIntegraciones: async () => {
+    const response = await authFetch(`${API_URL}/operaciones/integraciones`);
+    return parseOrThrow(response, 'Error al obtener integraciones');
+  },
+
+  getReservas: async () => {
+    const response = await authFetch(`${API_URL}/operaciones/reservas`);
+    return parseOrThrow(response, 'Error al obtener reservas');
+  },
+
+  crearTransferencia: async (data: QueryFilters) => {
+    const response = await authFetch(`${API_URL}/operaciones/transferencias`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return parseOrThrow(response, 'Error al crear transferencia');
+  },
+
+  actualizarEstadoTransferencia: async (id: string, estado: string) => {
+    const response = await authFetch(`${API_URL}/operaciones/transferencias/${id}/estado`, {
+      method: 'PATCH',
+      body: JSON.stringify({ estado }),
+    });
+    return parseOrThrow(response, 'Error al actualizar estado de transferencia');
+  },
 };
+

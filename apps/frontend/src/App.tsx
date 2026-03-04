@@ -1,14 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import './index.css';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardLayout } from './components/layout/DashboardLayout';
-import { RevenueFlow } from './components/dashboard/RevenueFlow';
-import { MyCard } from './components/dashboard/MyCard';
-import { Transactions } from './components/dashboard/Transactions';
-import { ExpenseSummary } from './components/dashboard/ExpenseSummary';
 import { SuperAdminDashboard } from './components/dashboard/SuperAdminDashboard';
-
-// Módulo de Operaciones
+import AdminEmpresaDashboard from './components/dashboard/AdminEmpresaDashboard';
 import { OperacionesLayout } from './modules/operaciones/layout/OperacionesLayout';
 import { Dashboard as OperacionesDashboard } from './modules/operaciones/pages/Dashboard';
 import { WorkerDashboard as OperacionesWorkerDashboard } from './modules/operaciones/pages/WorkerDashboard';
@@ -18,183 +13,221 @@ import { Movimientos as OperacionesMovimientos } from './modules/operaciones/pag
 import { Alertas as OperacionesAlertas } from './modules/operaciones/pages/Alertas';
 import { Reportes as OperacionesReportes } from './modules/operaciones/pages/Reportes';
 import { Sucursales as OperacionesSucursales } from './modules/operaciones/pages/Sucursales';
-import { ModuloGuard } from './components/guards/ModuloGuard';
+import { cerrarSesion, type PerfilUsuario, verificarSesion } from './lib/auth';
 
-function isSuperAdminRole(rol?: string): boolean {
-  if (!rol) return false;
-  const normalized = rol.toLowerCase().replace(/[\s_-]/g, '');
-  return normalized === 'superadmin';
+type ActiveView =
+  | 'dashboard'
+  | 'operaciones'
+  | 'admin-companies'
+  | 'skills'
+  | 'executions'
+  | 'settings'
+  | 'super-dashboard'
+  | 'pos';
+
+type UsuarioSesion = PerfilUsuario & {
+  email?: string;
+};
+
+const ACTIVE_VIEWS: ReadonlyArray<ActiveView> = [
+  'dashboard',
+  'operaciones',
+  'admin-companies',
+  'skills',
+  'executions',
+  'settings',
+  'super-dashboard',
+  'pos',
+];
+
+function toActiveView(value: string): ActiveView {
+  return ACTIVE_VIEWS.includes(value as ActiveView) ? (value as ActiveView) : 'dashboard';
+}
+
+function getInitialViewByRole(rol: PerfilUsuario['rol']): ActiveView {
+  if (rol === 'super_admin') return 'super-dashboard';
+  if (rol === 'admin_empresa') return 'operaciones';
+  if (rol === 'encargado_sucursal') return 'operaciones';
+  return 'pos';
+}
+
+function sanitizeViewByRole(view: ActiveView, rol: PerfilUsuario['rol']): ActiveView {
+  if (rol === 'vendedor') return 'pos';
+  if (rol === 'admin_empresa' && view === 'super-dashboard') return 'operaciones';
+  if (rol === 'encargado_sucursal' && (view === 'admin-companies' || view === 'super-dashboard')) {
+    return 'operaciones';
+  }
+  return view;
+}
+
+function isSuperAdminRole(rol?: PerfilUsuario['rol'] | null): boolean {
+  return rol === 'super_admin';
 }
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [usuario, setUsuario] = useState<any>(null);
-  const [activeView, setActiveView] = useState('dashboard');
+  const [usuario, setUsuario] = useState<UsuarioSesion | null>(null);
+  const [activeView, setActiveView] = useState<ActiveView>('dashboard');
   const [activeOperacionesSubView, setActiveOperacionesSubView] = useState('dashboard');
+  const [isLoadingSesion, setIsLoadingSesion] = useState(true);
 
-  // Sincronizar subview de operaciones si se cambia la vista principal
+  const isEncargado = usuario?.rol === 'encargado_sucursal';
+
+  const syncSesion = async () => {
+    setIsLoadingSesion(true);
+    try {
+      const resultado = await verificarSesion();
+
+      if (!resultado?.perfil) {
+        setIsAuthenticated(false);
+        setUsuario(null);
+        setActiveView('dashboard');
+        return;
+      }
+
+      const perfil = resultado.perfil;
+      const email = resultado.session.user.email;
+      const usuarioSesion: UsuarioSesion = { ...perfil, email };
+
+      setUsuario(usuarioSesion);
+      setIsAuthenticated(true);
+      setActiveView(getInitialViewByRole(perfil.rol));
+    } finally {
+      setIsLoadingSesion(false);
+    }
+  };
+
+  useEffect(() => {
+    void syncSesion();
+  }, []);
+
+  useEffect(() => {
+    if (!usuario) return;
+
+    const safeView = sanitizeViewByRole(activeView, usuario.rol);
+    if (safeView !== activeView) {
+      setActiveView(safeView);
+    }
+  }, [activeView, usuario]);
+
   useEffect(() => {
     if (activeView === 'operaciones') {
       setActiveOperacionesSubView('dashboard');
     }
   }, [activeView]);
 
-  // Verificar sesión
-  useEffect(() => {
-    const token = localStorage.getItem('access_token');
-    const savedUser = localStorage.getItem('usuario');
-    if (token && savedUser) {
-      setIsAuthenticated(true);
-      setUsuario(JSON.parse(savedUser));
-    }
-  }, []);
-
-  const handleLoginSuccess = (data: any) => {
-    setIsAuthenticated(true);
-    setUsuario(data.usuario);
+  const handleLoginSuccess = (_data: unknown) => {
+    void syncSesion();
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('access_token');
+  const handleLogout = async () => {
+    await cerrarSesion();
     localStorage.removeItem('refresh_token');
-    localStorage.removeItem('usuario');
     setIsAuthenticated(false);
     setUsuario(null);
+    setActiveView('dashboard');
+    setActiveOperacionesSubView('dashboard');
   };
 
   const renderOperacionesPage = () => {
-    const isWorker = usuario?.rol?.toLowerCase() === 'operator' || usuario?.rol?.toLowerCase() === 'operador';
+    const isVistaLimitada = isEncargado;
 
     switch (activeOperacionesSubView) {
       case 'dashboard':
-        return isWorker ? <OperacionesWorkerDashboard /> : <OperacionesDashboard />;
-      case 'productos': return <OperacionesProductos />;
+        return isVistaLimitada ? <OperacionesWorkerDashboard /> : <OperacionesDashboard />;
+      case 'productos':
+        return <OperacionesProductos />;
       case 'sucursales':
-        return isWorker ? <OperacionesWorkerDashboard /> : <OperacionesSucursales />;
-      case 'pedidos': return <OperacionesPedidos />;
-      case 'movimientos': return <OperacionesMovimientos />;
-      case 'alertas': return <OperacionesAlertas />;
+        return isVistaLimitada ? <OperacionesWorkerDashboard /> : <OperacionesSucursales />;
+      case 'pedidos':
+        return <OperacionesPedidos />;
+      case 'movimientos':
+        return <OperacionesMovimientos />;
+      case 'alertas':
+        return <OperacionesAlertas />;
       case 'reportes':
-        return isWorker ? <OperacionesWorkerDashboard /> : <OperacionesReportes />;
+        return isVistaLimitada ? <OperacionesWorkerDashboard /> : <OperacionesReportes />;
       default:
-        return isWorker ? <OperacionesWorkerDashboard /> : <OperacionesDashboard />;
+        return isVistaLimitada ? <OperacionesWorkerDashboard /> : <OperacionesDashboard />;
     }
   };
 
-  const renderContent = () => {
-    switch (activeView) {
-      case 'dashboard':
-        return (
-          <div className="w-full h-full flex flex-col pl-8 pr-12 md:pr-[200px] py-16 animate-fadeIn">
-            <div className="w-full space-y-16">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 text-white">
-                <div>
-                  <h1 className="text-3xl md:text-5xl font-black tracking-widest uppercase">Mi Dashboard</h1>
-                  <p className="text-gray-500 font-bold uppercase tracking-widest text-[10px] mt-3 opacity-60">Resumen operativo general</p>
-                </div>
-                <div className="flex gap-4">
-                  <button className="h-12 px-10 rounded-2xl bg-[#22C55E] text-[#0B1412] font-black text-[10px] uppercase tracking-widest shadow-2xl shadow-[#22C55E]/20">Resumen</button>
-                  <button className="h-12 px-10 rounded-2xl bg-[#111C18] border border-white/5 text-gray-500 hover:text-white font-black text-[10px] uppercase tracking-widest transition-all">Reportes</button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 xl:grid-cols-12 gap-10">
-                <div className="xl:col-span-8 space-y-10">
-                  <RevenueFlow />
-                  <ExpenseSummary />
-                </div>
-                <div className="xl:col-span-4 space-y-10">
-                  <div className="flex justify-between items-center px-4">
-                    <h3 className="text-[10px] font-black text-white uppercase tracking-[0.2em] opacity-50">Mi Cuenta</h3>
-                    <button className="text-[9px] font-black text-[#22C55E] uppercase tracking-widest hover:underline text-white">Ver Todo</button>
-                  </div>
-                  <MyCard />
-                  <Transactions />
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-
-      case 'operaciones':
-        return (
-          <ModuloGuard modulo="operaciones">
-            <OperacionesLayout
-              rol={usuario?.rol}
-              activeSubView={activeOperacionesSubView}
-              onNavigate={setActiveOperacionesSubView}
-            >
-              <div className="w-full">
-                {renderOperacionesPage()}
-              </div>
-            </OperacionesLayout>
-          </ModuloGuard>
-        );
-
-      case 'admin-companies':
-        return (
-          <div className="w-full h-full flex flex-col pl-8 pr-12 md:pr-[200px] py-16 animate-fadeIn">
-            <div className="w-full flex-1 flex flex-col space-y-16">
-              <div>
-                <h1 className="text-3xl md:text-5xl font-black text-white tracking-widest uppercase mb-4">Empresas</h1>
-                <p className="text-gray-500 font-bold uppercase tracking-widest text-[10px] opacity-60">Gestión de Tenants & Infraestructura</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div className="bg-[#111C18] border border-white/5 p-10 rounded-[40px] shadow-2xl shadow-black/30 group hover:border-[#22C55E]/30 transition-all">
-                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4">Total Tenants</p>
-                  <h3 className="text-5xl font-black text-white">48</h3>
-                </div>
-                <div className="bg-[#111C18] border border-white/5 p-10 rounded-[40px] shadow-2xl shadow-black/30 group hover:border-[#22C55E]/30 transition-all border-l-4 border-l-[#22C55E]">
-                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4">Activos</p>
-                  <h3 className="text-5xl font-black text-[#22C55E]">42</h3>
-                </div>
-                <div className="bg-[#111C18] border border-white/5 p-10 rounded-[40px] shadow-2xl shadow-black/30 group hover:border-[#22C55E]/30 transition-all border-l-4 border-l-[#8B7AF0]">
-                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4">Suscripciones Pro</p>
-                  <h3 className="text-5xl font-black text-[#8B7AF0]">15</h3>
-                </div>
-              </div>
-
-              <div className="flex-1 bg-[#111C18] border border-white/5 rounded-[50px] p-24 flex flex-col items-center justify-center text-center shadow-inner">
-                <div className="w-24 h-24 bg-[#050807] border border-white/5 rounded-3xl flex items-center justify-center text-4xl mb-10 shadow-2xl opacity-40">🏢</div>
-                <h3 className="text-xl font-black text-white uppercase tracking-widest mb-6">Administrador de Tenants</h3>
-                <p className="text-sm text-gray-500 font-bold uppercase tracking-tight max-w-sm leading-loose opacity-60">Panel central para la gestión de infraestructura multi-empresa y escalabilidad global.</p>
-              </div>
-            </div>
-          </div>
-        );
-
-      default:
-        return (
-          <div className="flex-1 w-full px-4 md:px-10 py-24 flex flex-col items-center justify-center text-center animate-fadeIn">
-            <h1 className="text-5xl md:text-7xl font-black text-white opacity-5 mb-10 tracking-widest uppercase">{activeView}</h1>
-            <div className="w-20 h-1 bg-[#22C55E]/20 rounded-full mb-10"></div>
-            <p className="text-sm text-gray-500 font-black tracking-widest uppercase">Módulo en construcción especializada</p>
-          </div>
-        );
-    }
-  };
+  if (isLoadingSesion) {
+    return (
+      <div className="min-h-screen bg-[#0B1412] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-[#1F2D29] border-t-[#22C55E] rounded-full animate-spin" />
+          <p className="text-xs font-black uppercase tracking-widest text-gray-400">Verificando sesion...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;
   }
 
   if (isSuperAdminRole(usuario?.rol)) {
-    return <SuperAdminDashboard usuario={usuario} onLogout={handleLogout} />;
+    return <SuperAdminDashboard usuario={usuario ?? undefined} onLogout={handleLogout} />;
   }
 
-  return (
-    <DashboardLayout
-      onLogout={handleLogout}
-      usuario={usuario}
-      activeView={activeView}
-      onNavigate={setActiveView}
-    >
-      <div className="flex-1 w-full overflow-y-auto">
-        {renderContent()}
+  if (usuario?.rol === 'admin_empresa') {
+    return <AdminEmpresaDashboard usuario={usuario} onLogout={handleLogout} />;
+  }
+
+  if (usuario?.rol === 'encargado_sucursal') {
+    return (
+      <DashboardLayout
+        onLogout={handleLogout}
+        usuario={usuario}
+        activeView={activeView}
+        onNavigate={(view) => {
+          const parsedView = toActiveView(view);
+          setActiveView(parsedView);
+        }}
+      >
+        <OperacionesLayout rol={usuario?.rol} activeSubView={activeOperacionesSubView} onNavigate={setActiveOperacionesSubView}>
+          {renderOperacionesPage()}
+        </OperacionesLayout>
+      </DashboardLayout>
+    );
+  }
+
+  if (usuario?.rol === 'vendedor') {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          height: '100vh',
+          background: '#07090b',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexDirection: 'column',
+          gap: 16,
+        }}
+      >
+        <div style={{ color: '#00e87b', fontFamily: 'monospace', fontSize: 24, fontWeight: 800 }}>POS</div>
+        <div style={{ color: '#4d6b58', fontSize: 12 }}>Modulo Vendedor - proximamente</div>
+        <button
+          onClick={handleLogout}
+          style={{
+            marginTop: 16,
+            background: 'none',
+            border: '1px solid #1c2830',
+            borderRadius: 8,
+            padding: '8px 16px',
+            color: '#4d6b58',
+            cursor: 'pointer',
+            fontSize: 12,
+          }}
+        >
+          Cerrar Sesion
+        </button>
       </div>
-    </DashboardLayout>
-  );
+    );
+  }
+
+  return null;
 }
 
 export default App;

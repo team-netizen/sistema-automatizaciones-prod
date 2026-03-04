@@ -9,6 +9,7 @@ import { TrackingModule } from './modules/tracking/tracking.module';
 import { AlertasModule } from './modules/alertas/alertas.module';
 import { NotificacionesModule } from './modules/notificaciones/notificaciones.module';
 import { GoogleGeocodingModule } from './shared/google/google-geocoding.module';
+import { OperacionesModule } from './modules/operaciones/operaciones.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { GoogleGeocodingModule } from './shared/google/google-geocoding.module';
     // Módulos de negocio
     AuthModule,
     CompaniesModule,
+    OperacionesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

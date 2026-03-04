@@ -1,10 +1,42 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { Logger } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
+import helmet from 'helmet';
+import { SanitizedExceptionFilter } from './core/filters/sanitized-exception.filter';
+
+const REQUIRED_ENV_VARS = ['SUPABASE_URL', 'SUPABASE_KEY', 'SUPABASE_SERVICE_ROLE_KEY'] as const;
+
+function validateRequiredEnvVars(): void {
+  const missing = REQUIRED_ENV_VARS.filter((envName) => {
+    const value = process.env[envName];
+    return !value || value.trim().length === 0;
+  });
+
+  if (missing.length > 0) {
+    throw new Error(`Variables de entorno requeridas faltantes: ${missing.join(', ')}`);
+  }
+}
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
+  // [SECURITY FIX] Fail-fast para evitar arrancar con secretos/config incompletos.
+  validateRequiredEnvVars();
   const app = await NestFactory.create(AppModule);
+  app.setGlobalPrefix('api');
+
+  // [SECURITY FIX] Cabeceras HTTP seguras por defecto.
+  app.use(helmet());
+
+  // [SECURITY FIX] Rechaza payloads inesperados y evita inyecciones por propiedades extra.
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
+  // [SECURITY FIX] Oculta detalles internos de excepciones en respuestas HTTP.
+  app.useGlobalFilters(new SanitizedExceptionFilter());
 
   const corsOrigins = [
     process.env.FRONTEND_URL,

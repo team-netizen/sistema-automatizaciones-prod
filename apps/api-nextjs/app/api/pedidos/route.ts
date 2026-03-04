@@ -1,5 +1,6 @@
 import { withAuth } from '@/middlewares/withAuth';
 import { supabaseAdmin } from '@/lib/supabaseClient';
+import { verificarRol } from '@/lib/permisos';
 import { NextResponse } from 'next/server';
 import { procesarPedido } from '@/services/procesarPedido';
 
@@ -372,6 +373,8 @@ export const GET = withAuth(async (_req, usuario) => {
  */
 export const POST = withAuth(async (req, usuario) => {
     try {
+        // [SECURITY FIX] Solo roles operativos pueden registrar pedidos manuales.
+        verificarRol(usuario, ['admin_empresa', 'encargado_sucursal', 'vendedor']);
         const empresaId = usuario.empresa_id;
         const body = await req.json();
 

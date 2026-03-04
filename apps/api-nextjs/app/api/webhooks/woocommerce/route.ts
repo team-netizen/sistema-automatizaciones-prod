@@ -544,12 +544,7 @@ function logExtractionDebug(params: {
   emailCliente: string | null;
   dni: string | null;
 }) {
-  const shouldLog =
-    process.env.WC_DEBUG_FIELDS === 'true' ||
-    !params.nombreCliente ||
-    !params.telefonoCliente ||
-    !params.emailCliente ||
-    !params.dni;
+  const shouldLog = process.env.WC_DEBUG_FIELDS === 'true';
 
   if (!shouldLog) return;
 
@@ -565,10 +560,11 @@ function logExtractionDebug(params: {
       empresa_id: params.empresaId,
       order_id: params.orderId,
       extracted: {
-        nombre_cliente: params.nombreCliente,
-        telefono: params.telefonoCliente,
-        email: params.emailCliente,
-        dni: params.dni,
+        // [SECURITY FIX] No loggear PII completa en logs compartidos.
+        nombre_cliente: params.nombreCliente ? 'present' : 'missing',
+        telefono: params.telefonoCliente ? 'present' : 'missing',
+        email: params.emailCliente ? 'present' : 'missing',
+        dni: params.dni ? 'present' : 'missing',
       },
       top_level_keys: topLevelKeys,
       meta_keys: metaKeys,
@@ -687,17 +683,27 @@ async function getNextConsecutiveNumero(empresaId: string): Promise<string> {
 
 async function resolveEmpresa(params: {
   empresaIdFromRequest: string | null;
+  tokenFromHeader: string | null;
   tokenFromQuery: string | null;
   firmaHeader: string | null;
   rawBody: string;
 }) {
-  const { empresaIdFromRequest, tokenFromQuery, firmaHeader, rawBody } = params;
+  const { empresaIdFromRequest, tokenFromHeader, tokenFromQuery, firmaHeader, rawBody } = params;
 
   if (empresaIdFromRequest) {
     const { data } = await supabaseAdmin
       .from('empresas')
       .select('id, webhook_token, estado')
       .eq('id', empresaIdFromRequest)
+      .maybeSingle();
+    return data ?? null;
+  }
+
+  if (tokenFromHeader) {
+    const { data } = await supabaseAdmin
+      .from('empresas')
+      .select('id, webhook_token, estado')
+      .eq('webhook_token', tokenFromHeader)
       .maybeSingle();
     return data ?? null;
   }
@@ -1026,14 +1032,18 @@ export async function POST(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const empresaIdFromRequest = req.headers.get('x-empresa-id') || searchParams.get('empresa_id');
-    const tokenFromQuery = searchParams.get('token');
+    const tokenFromHeader = req.headers.get('x-webhook-token');
+    const allowInsecureQueryToken =
+      process.env.ALLOW_INSECURE_QUERY_TOKEN === 'true' && process.env.NODE_ENV !== 'production';
+    // [SECURITY FIX] Evitar secretos en URL (logs/proxies). Query token queda solo como fallback temporal no prod.
+    const tokenFromQuery = allowInsecureQueryToken ? searchParams.get('token') : null;
     const firmaHeader = req.headers.get('x-wc-webhook-signature');
     const rawBody = await req.text();
 
-    if (!empresaIdFromRequest && !tokenFromQuery && !firmaHeader) {
+    if (!empresaIdFromRequest && !tokenFromHeader && !tokenFromQuery && !firmaHeader) {
       return NextResponse.json(
         {
-          error: 'Credenciales faltantes. Usa firma Woo o ?empresa_id / ?token.',
+          error: 'Credenciales faltantes. Usa firma Woo o x-webhook-token.',
         },
         { status: 401 }
       );
@@ -1041,6 +1051,7 @@ export async function POST(req: NextRequest) {
 
     const empresa = await resolveEmpresa({
       empresaIdFromRequest,
+      tokenFromHeader,
       tokenFromQuery,
       firmaHeader,
       rawBody,
@@ -1070,7 +1081,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Firma de webhook invalida.' }, { status: 403 });
       }
     } else {
-      if (!tokenFromQuery || tokenFromQuery !== empresa.webhook_token) {
+      const providedToken = tokenFromHeader || tokenFromQuery;
+      if (!providedToken || providedToken !== empresa.webhook_token) {
         return NextResponse.json(
           { error: 'Falta firma de webhook y token invalido o ausente.' },
           { status: 401 }
@@ -1517,7 +1529,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error: 'Error interno al procesar el webhook.',
-        detail: error?.message || 'unknown_error',
       },
       { status: 500 }
     );

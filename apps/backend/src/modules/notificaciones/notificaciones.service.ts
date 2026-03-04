@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../../shared/supabase/supabase.service';
 
 @Injectable()
@@ -6,6 +6,16 @@ export class NotificacionesService {
     private readonly logger = new Logger(NotificacionesService.name);
 
     constructor(private readonly supabase: SupabaseService) { }
+
+    private validateUuid(value: string, field: string): string {
+        const normalized = String(value || '').trim();
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalized);
+        if (!isUuid) {
+            // [SECURITY FIX] Evita inyeccion en expresiones OR de PostgREST.
+            throw new BadRequestException(`${field} invalido`);
+        }
+        return normalized;
+    }
 
     /**
      * Crea una nueva notificación.
@@ -44,12 +54,13 @@ export class NotificacionesService {
      * Listar notificaciones del usuario actual.
      */
     async listarParaUsuario(empresa_id: string, usuario_id: string) {
+        const safeUsuarioId = this.validateUuid(usuario_id, 'usuario_id');
         const { data, error } = await this.supabase
             .getClient()
             .from('notificaciones')
             .select('*')
             .eq('empresa_id', empresa_id)
-            .or(`usuario_id.eq.${usuario_id},usuario_id.is.null`)
+            .or(`usuario_id.eq.${safeUsuarioId},usuario_id.is.null`)
             .order('fecha_creacion', { ascending: false })
             .limit(50);
 
@@ -76,12 +87,13 @@ export class NotificacionesService {
      * Contar no leídas.
      */
     async contarNoLeidas(empresa_id: string, usuario_id: string) {
+        const safeUsuarioId = this.validateUuid(usuario_id, 'usuario_id');
         const { count, error } = await this.supabase
             .getClient()
             .from('notificaciones')
             .select('*', { count: 'exact', head: true })
             .eq('empresa_id', empresa_id)
-            .or(`usuario_id.eq.${usuario_id},usuario_id.is.null`)
+            .or(`usuario_id.eq.${safeUsuarioId},usuario_id.is.null`)
             .eq('leida', false);
 
         if (error) throw error;

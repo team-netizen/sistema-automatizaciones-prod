@@ -1,56 +1,71 @@
-
+import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { procesarPedido } from '@/services/procesarPedido';
+import { procesarPedido, type ProcesarPedidoParams } from '@/services/procesarPedido';
 
-/**
- * ═══════════════════════════════════════════════════════════
- * POST /api/webhooks/pedidos
- * ═══════════════════════════════════════════════════════════
- * Recibe pedidos externos (WooCommerce, Kommo, etc.)
- */
-export async function POST(req: NextRequest) {
-    try {
-        const apiKey = req.headers.get('x-api-key');
-        if (!apiKey) {
-            return NextResponse.json({ error: 'API Key faltante (x-api-key header).' }, { status: 401 });
-        }
-
-        const signature = req.headers.get('x-wc-webhook-signature');
-        const rawBody = await req.text();
-        const body = JSON.parse(rawBody);
-
-        // Delegar lógica al servicio centralizado
-        // TODO: Map the properties extracted from body and raw webhook logic to fit procesarPedido
-        // For now, this just passes a mock object to type-check so we can see if build passes.
-        // The real implementation needs to map external ID and items correctly to `procesarPedido`
-        // or a new function `procesarPedidoWebhook` needs to be implemented.
-        const result = await procesarPedido({
-            empresaId: body.empresa_id || '',
-            sucursalId: body.sucursal_id || '',
-            canalId: body.canal_id || '',
-            idExterno: body.id,
-            numeroPedido: body.number || '',
-            total: parseFloat(body.total || '0'),
-            items: [],
-            usuarioSistemaId: null,
-            id_orden: body.id ? body.id.toString() : '',
-            medio_pedido: 'web',
-            // etc... this should be mapped properly
-        } as any);
-
-        // Responder según el resultado
-        const httpStatus = result.status === 'processed' ? 201 : 200;
-        return NextResponse.json(result, { status: httpStatus });
-
-    } catch (error: any) {
-        console.error(`[API_WEBHOOK_PEDIDOS] Error: ${error.message}`);
-
-        return NextResponse.json({
-            success: false,
-            status: 'error',
-            message: error.message || 'Error interno del servidor.'
-        }, { status: 500 });
-    }
+function isValidApiKey(provided: string, expected: string): boolean {
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-export const maxDuration = 60; // 60 segundos para procesar el pedido y descontar stock
+export async function POST(req: NextRequest) {
+  const expectedApiKey = process.env.WEBHOOK_API_KEY?.trim() || '';
+  const providedApiKey = req.headers.get('x-api-key')?.trim() || '';
+
+  // [SECURITY FIX] La sola presencia de header no autentica; validar secreto compartido.
+  if (!expectedApiKey || !providedApiKey || !isValidApiKey(providedApiKey, expectedApiKey)) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  }
+
+  try {
+    const rawBody = await req.text();
+    let body: Record<string, unknown> = {};
+
+    try {
+      body = JSON.parse(rawBody) as Record<string, unknown>;
+    } catch {
+      return NextResponse.json({ error: 'Payload invalido' }, { status: 400 });
+    }
+
+    const empresaId = String(body.empresa_id ?? '');
+    const sucursalId = String(body.sucursal_id ?? '');
+    const canalId = String(body.canal_id ?? 'manual');
+    const idExterno = String(body.id ?? '');
+
+    if (!empresaId || !sucursalId || !idExterno) {
+      return NextResponse.json(
+        { error: 'Faltan campos requeridos: empresa_id, sucursal_id, id' },
+        { status: 400 },
+      );
+    }
+
+    const payload: ProcesarPedidoParams = {
+      empresaId,
+      sucursalId,
+      canalId,
+      idExterno,
+      numeroPedido: String(body.number ?? idExterno),
+      total: parseFloat(String(body.total ?? '0')),
+      items: [],
+      usuarioSistemaId: null,
+      id_orden: idExterno,
+      medio_pedido: 'web',
+    };
+
+    const result = await procesarPedido(payload);
+
+    const httpStatus = result.status === 'processed' ? 201 : 200;
+    return NextResponse.json(result, { status: httpStatus });
+  } catch {
+    return NextResponse.json(
+      {
+        success: false,
+        status: 'error',
+        message: 'Error interno del servidor.',
+      },
+      { status: 500 },
+    );
+  }
+}
+
+export const maxDuration = 60;

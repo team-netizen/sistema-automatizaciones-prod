@@ -362,6 +362,7 @@ async function fetchPedidos(params: {
 }
 
 export const GET = withModulo('OPERACIONES', async (req, usuario) => {
+  verificarRol(usuario, ['admin_empresa', 'encargado_sucursal', 'vendedor']);
   const { empresa_id } = usuario;
   const { searchParams } = new URL(req.url);
 
@@ -406,7 +407,7 @@ export const GET = withModulo('OPERACIONES', async (req, usuario) => {
 });
 
 export const POST = withModulo('OPERACIONES', async (req, usuario) => {
-  verificarRol(usuario, ['owner', 'admin', 'empleado', 'operador']);
+  verificarRol(usuario, ['admin_empresa', 'encargado_sucursal', 'vendedor']);
 
   const body = await req.json();
   const { cliente, items, notas, prioridad } = body;
@@ -439,3 +440,5 @@ export const POST = withModulo('OPERACIONES', async (req, usuario) => {
 
   return NextResponse.json({ data }, { status: 201 });
 });
+
+

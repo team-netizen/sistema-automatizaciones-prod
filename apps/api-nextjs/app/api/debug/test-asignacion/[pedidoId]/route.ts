@@ -1,37 +1,39 @@
+import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { testAsignarSucursalHibrido } from '@/services/testAsignacion';
 
-/**
- * ═══════════════════════════════════════════════════════════
- * GET /api/debug/test-asignacion/[pedidoId]
- * ═══════════════════════════════════════════════════════════
- * Endpoint de depuración para simular la asignación híbrida.
- * No realiza cambios en la base de datos (solo lectura de lógica).
- */
+function isValidDebugKey(provided: string, expected: string): boolean {
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 export async function GET(
-    req: NextRequest,
-    { params }: { params: Promise<{ pedidoId: string }> }
+  req: NextRequest,
+  { params }: { params: Promise<{ pedidoId: string }> },
 ) {
-    // Solo permitir en desarrollo (puedes ajustar esta lógica según tus env vars)
-    if (process.env.NODE_ENV === 'production') {
-        return NextResponse.json({ error: 'Endpoint no disponible en producción' }, { status: 403 });
+  const debugKey = process.env.DEBUG_API_KEY?.trim() || '';
+  const provided = req.headers.get('x-debug-key')?.trim() || '';
+
+  // [SECURITY FIX] Endpoint de depuracion bloqueado por defecto sin credencial interna.
+  if (process.env.NODE_ENV === 'production' && (!debugKey || !provided || !isValidDebugKey(provided, debugKey))) {
+    return NextResponse.json({ error: 'Endpoint no disponible' }, { status: 403 });
+  }
+
+  if (!debugKey || !provided || !isValidDebugKey(provided, debugKey)) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  }
+
+  try {
+    const { pedidoId } = await params;
+
+    if (!pedidoId) {
+      return NextResponse.json({ error: 'ID de pedido no proporcionado' }, { status: 400 });
     }
 
-    try {
-        const { pedidoId } = await params;
-
-        if (!pedidoId) {
-            return NextResponse.json({ error: 'ID de pedido no proporcionado' }, { status: 400 });
-        }
-
-        const result = await testAsignarSucursalHibrido(pedidoId);
-
-        return NextResponse.json(result, { status: result.success ? 200 : 500 });
-
-    } catch (error: any) {
-        return NextResponse.json({
-            success: false,
-            error: error.message
-        }, { status: 500 });
-    }
+    const result = await testAsignarSucursalHibrido(pedidoId);
+    return NextResponse.json(result, { status: result.success ? 200 : 500 });
+  } catch {
+    return NextResponse.json({ success: false, error: 'Error interno del servidor' }, { status: 500 });
+  }
 }

@@ -22,6 +22,7 @@ const TIPOS_MOVIMIENTO = ['entrada', 'salida', 'ajuste', 'devolucion'] as const;
 
 // ─── GET: Listar movimientos ─────────────────────────────
 export const GET = withModulo('OPERACIONES', async (req, usuario) => {
+    verificarRol(usuario, ['admin_empresa', 'encargado_sucursal']);
     const { empresa_id } = usuario;
     const { searchParams } = new URL(req.url);
 
@@ -68,7 +69,7 @@ export const GET = withModulo('OPERACIONES', async (req, usuario) => {
 
 // ─── POST: Registrar movimiento ──────────────────────────
 export const POST = withModulo('OPERACIONES', async (req, usuario) => {
-    verificarRol(usuario, ['owner', 'admin', 'empleado', 'operador']);
+    verificarRol(usuario, ['admin_empresa', 'encargado_sucursal']);
 
     const body = await req.json();
     const { producto_id, tipo, cantidad, motivo } = body;
@@ -133,3 +134,5 @@ export const POST = withModulo('OPERACIONES', async (req, usuario) => {
 
     return NextResponse.json({ data }, { status: 201 });
 });
+
+

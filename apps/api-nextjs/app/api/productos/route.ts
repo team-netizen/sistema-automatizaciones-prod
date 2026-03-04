@@ -1,5 +1,6 @@
 import { withAuth } from "@/middlewares/withAuth"
 import { createSupabaseServerClient } from "@/lib/supabaseServer"
+import { verificarRol } from "@/lib/permisos"
 import { NextResponse } from "next/server"
 
 /**
@@ -40,6 +41,8 @@ export const GET = withAuth(async (req, usuario) => {
  */
 export const POST = withAuth(async (req, usuario) => {
     try {
+        // [SECURITY FIX] Solo admin/encargado pueden crear productos.
+        verificarRol(usuario, ['admin_empresa', 'encargado_sucursal'])
         const supabase = await createSupabaseServerClient()
         const empresaId = usuario.empresa_id
 

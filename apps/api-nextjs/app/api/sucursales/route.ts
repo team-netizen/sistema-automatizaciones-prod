@@ -1,5 +1,6 @@
 import { withAuth } from "@/middlewares/withAuth"
 import { createSupabaseServerClient } from "@/lib/supabaseServer"
+import { verificarRol } from "@/lib/permisos"
 import { NextResponse } from "next/server"
 
 /**
@@ -55,7 +56,7 @@ export const GET = withAuth(async (req, usuario) => {
 
     } catch (error: any) {
         console.error('[API_SUCURSALES] Error detallado en GET:', error)
-        return NextResponse.json({ error: error.message || "Error al obtener sucursales" }, { status: 500 })
+        return NextResponse.json({ error: "Error al obtener sucursales" }, { status: 500 })
     }
 })
 
@@ -66,6 +67,8 @@ export const GET = withAuth(async (req, usuario) => {
  */
 export const POST = withAuth(async (req, usuario) => {
     try {
+        // [SECURITY FIX] Solo admin empresa puede crear sucursales.
+        verificarRol(usuario, ['admin_empresa'])
         const supabase = await createSupabaseServerClient()
         const empresaId = usuario.empresa_id
 
@@ -92,7 +95,7 @@ export const POST = withAuth(async (req, usuario) => {
 
         if (error) {
             console.error('[API_SUCURSALES] Error Supabase en POST:', error)
-            return NextResponse.json({ error: error.message }, { status: 400 })
+            return NextResponse.json({ error: "No se pudo crear la sucursal" }, { status: 400 })
         }
 
         return NextResponse.json({
@@ -102,6 +105,6 @@ export const POST = withAuth(async (req, usuario) => {
 
     } catch (error: any) {
         console.error('[API_SUCURSALES] Error fatal en POST:', error)
-        return NextResponse.json({ error: error.message || "Error interno al crear sucursal" }, { status: 500 })
+        return NextResponse.json({ error: "Error interno al crear sucursal" }, { status: 500 })
     }
 })

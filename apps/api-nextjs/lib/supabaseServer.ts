@@ -17,6 +17,8 @@
  * ═══════════════════════════════════════════════════════════
  */
 
+import 'server-only';
+
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import { cookies, headers } from 'next/headers';

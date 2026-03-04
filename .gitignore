@@ -20,3 +20,4 @@ create_admin.ts
 create_new_tenant.js
 test_alerts.js
 seed.sql
+.vercel

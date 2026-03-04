@@ -125,6 +125,11 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
       return withCorsHeaders(new NextResponse(null, { status: 204 }), allowedOrigin)
     }
 
+    if (!allowedOrigin && request.headers.get('origin')) {
+      // [SECURITY FIX] Bloquea requests cross-origin no permitidos (no solo preflight).
+      return NextResponse.json({ message: 'Origen no permitido por CORS' }, { status: 403 })
+    }
+
     return withCorsHeaders(NextResponse.next({ request }), allowedOrigin)
   }
 

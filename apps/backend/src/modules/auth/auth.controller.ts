@@ -3,15 +3,18 @@ import {
     Post,
     Get,
     Body,
+    HttpException,
     UseGuards,
     Req,
     HttpCode,
     HttpStatus,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { AuthValidator } from './auth.validator';
 import { SupabaseAuthGuard } from '../../core/auth/auth.guard';
 import type { LoginDto } from './auth.types';
+import { consumeRateLimit } from '../../shared/utils/rate-limit';
 
 /**
  * AuthController — Endpoints de autenticación.
@@ -40,7 +43,19 @@ export class AuthController {
      */
     @Post('login')
     @HttpCode(HttpStatus.OK)
-    async login(@Body() body: LoginDto) {
+    async login(@Req() req: Request, @Body() body: LoginDto) {
+        const ip = String(req.headers['x-forwarded-for'] || req.ip || 'unknown')
+            .split(',')[0]
+            .trim();
+        const rate = consumeRateLimit(`auth-login:${ip}`, 10, 60_000);
+        if (rate.limited) {
+            // [SECURITY FIX] Limita fuerza bruta en login.
+            throw new HttpException(
+                'Demasiados intentos. Intenta nuevamente en breve.',
+                HttpStatus.TOO_MANY_REQUESTS,
+            );
+        }
+
         // Validar input antes de tocar Supabase
         AuthValidator.validateLogin(body);
 

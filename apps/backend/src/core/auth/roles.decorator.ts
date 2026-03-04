@@ -1,13 +1,10 @@
 import { SetMetadata } from '@nestjs/common';
 
 export const ROLES_KEY = 'roles';
+export type RolPermitido =
+  | 'super_admin'
+  | 'admin_empresa'
+  | 'encargado_sucursal'
+  | 'vendedor';
 
-export type Rol =
-    | 'superadmin'
-    | 'propietario'
-    | 'administrador'
-    | 'editor'
-    | 'operador'
-    | 'lector';
-
-export const Roles = (...roles: Rol[]) => SetMetadata(ROLES_KEY, roles);
+export const Roles = (...roles: RolPermitido[]) => SetMetadata(ROLES_KEY, roles);

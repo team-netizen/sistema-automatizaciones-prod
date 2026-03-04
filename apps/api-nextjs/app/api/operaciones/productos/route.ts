@@ -17,6 +17,7 @@ import { verificarRol } from '@/lib/permisos';
 
 // ─── GET: Listar productos de la empresa ─────────────────
 export const GET = withModulo('OPERACIONES', async (req, usuario) => {
+    verificarRol(usuario, ['admin_empresa', 'encargado_sucursal']);
     const { empresa_id } = usuario;
     const { searchParams } = new URL(req.url);
 
@@ -53,7 +54,7 @@ export const GET = withModulo('OPERACIONES', async (req, usuario) => {
 // ─── POST: Crear producto ────────────────────────────────
 export const POST = withModulo('OPERACIONES', async (req, usuario) => {
     // Solo owner, admin, empleado pueden crear productos
-    verificarRol(usuario, ['owner', 'admin', 'empleado', 'operador']);
+    verificarRol(usuario, ['admin_empresa', 'encargado_sucursal']);
 
     const body = await req.json();
     const { nombre, sku, descripcion, precio, stock_actual, stock_minimo, categoria } = body;
@@ -99,3 +100,5 @@ export const POST = withModulo('OPERACIONES', async (req, usuario) => {
 
     return NextResponse.json({ data }, { status: 201 });
 });
+
+

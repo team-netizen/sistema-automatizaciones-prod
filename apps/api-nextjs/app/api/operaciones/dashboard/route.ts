@@ -14,8 +14,10 @@
 import { NextResponse } from 'next/server';
 import { withModulo } from '@/middlewares/withModulo';
 import { supabaseAdmin } from '@/lib/supabaseClient';
+import { verificarRol } from '@/lib/permisos';
 
 export const GET = withModulo('OPERACIONES', async (_req, usuario) => {
+    verificarRol(usuario, ['admin_empresa']);
     const { empresa_id } = usuario;
 
     // ── KPI: Total productos ──────────────────────────────
@@ -66,3 +68,4 @@ export const GET = withModulo('OPERACIONES', async (_req, usuario) => {
         },
     });
 });
+

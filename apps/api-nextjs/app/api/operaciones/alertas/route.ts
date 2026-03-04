@@ -17,9 +17,11 @@
 import { NextResponse } from 'next/server';
 import { withModulo } from '@/middlewares/withModulo';
 import { supabaseAdmin } from '@/lib/supabaseClient';
+import { verificarRol } from '@/lib/permisos';
 
 // ─── GET: Listar alertas de la empresa ───────────────────
 export const GET = withModulo('OPERACIONES', async (req, usuario) => {
+    verificarRol(usuario, ['admin_empresa', 'encargado_sucursal']);
     const { empresa_id } = usuario;
     const { searchParams } = new URL(req.url);
 
@@ -64,3 +66,4 @@ export const GET = withModulo('OPERACIONES', async (req, usuario) => {
         },
     });
 });
+

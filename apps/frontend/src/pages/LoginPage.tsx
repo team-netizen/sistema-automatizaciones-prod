@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { AUTH_URL } from '../lib/api';
 
 interface LoginPageProps {
-    onLoginSuccess: (data: any) => void;
+    onLoginSuccess: (data: unknown) => void;
 }
 
 export function LoginPage({ onLoginSuccess }: LoginPageProps) {
@@ -32,10 +32,9 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
                 return;
             }
 
-            // Guardar token en localStorage
+            // [SECURITY FIX] Guardar solo tokens, nunca rol/perfil manipulable en cliente.
             localStorage.setItem('access_token', data.sesion.access_token);
             localStorage.setItem('refresh_token', data.sesion.refresh_token);
-            localStorage.setItem('usuario', JSON.stringify(data.usuario));
 
             onLoginSuccess(data);
         } catch {
