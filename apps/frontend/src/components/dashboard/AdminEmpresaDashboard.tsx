@@ -1,9 +1,10 @@
-﻿// @ts-nocheck
-import { Fragment, useState, useEffect } from 'react';
+// @ts-nocheck
+import { useState, useEffect } from 'react';
 import { operacionesService } from '../../modules/operaciones/services/operacionesService';
 import WooCommerceModal from '../integraciones/WooCommerceModal';
+import { ViewProductos } from './ViewProductos';
 
-// â”€â”€â”€ ICON SYSTEM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── ICON SYSTEM ──────────────────────────────────────────────────────────────
 const Ico = ({ d, size = 18, color = "currentColor", stroke = 1.8 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
     stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">
@@ -37,7 +38,7 @@ const IC = {
   pos:         "M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z",
 };
 
-// â”€â”€â”€ TOKENS DE DISEÃ‘O â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── TOKENS DE DISEÑO ─────────────────────────────────────────────────────────
 const T = {
   bg:        "#07090b",
   surface:   "#0b0f12",
@@ -54,7 +55,7 @@ const T = {
   fontDisplay: "'Syne', sans-serif",
 };
 
-// â”€â”€â”€ NAV ITEMS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── NAV ITEMS ────────────────────────────────────────────────────────────────
 const NAV = [
   { id: "dashboard",      label: "Dashboard",      icon: "home"     },
   { id: "pedidos",        label: "Pedidos",         icon: "cart"     },
@@ -68,51 +69,51 @@ const NAV = [
   { id: "reportes",       label: "Reportes",        icon: "chart"    },
 ];
 
-// â”€â”€â”€ MOCK DATA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── MOCK DATA ────────────────────────────────────────────────────────────────
 const MOCK = {
   kpis: [
     { label: "Ventas del Mes",    value: "S/ 48,320", delta: "+12.4%", up: true,  icon: "trending" },
     { label: "Pedidos Activos",   value: "37",         delta: "+5 hoy", up: true,  icon: "cart"     },
     { label: "Stock Consolidado", value: "1,284",      delta: "-3.2%",  up: false, icon: "stock"    },
-    { label: "Alertas Activas",   value: "2",          delta: "crÃ­tico",up: false, icon: "bell"     },
+    { label: "Alertas Activas",   value: "2",          delta: "crítico",up: false, icon: "bell"     },
   ],
   pedidos: [
     { id:"PED-0041", canal:"WooCommerce",  cliente:"Carlos Mendoza", total:"S/ 1,250", estado:"pendiente",  sucursal:"Miraflores",  tiempo:"5min" },
-    { id:"PED-0040", canal:"Mercado Libre",cliente:"Ana Torres",     total:"S/ 450",   estado:"confirmado", sucursal:"AlmacÃ©n",     tiempo:"12min"},
-    { id:"PED-0039", canal:"WhatsApp",     cliente:"Luis GarcÃ­a",    total:"S/ 890",   estado:"pendiente",  sucursal:"San Isidro",  tiempo:"18min"},
-    { id:"PED-0038", canal:"Shopify",      cliente:"MarÃ­a Quispe",   total:"S/ 320",   estado:"confirmado", sucursal:"Miraflores",  tiempo:"25min"},
-    { id:"PED-0037", canal:"WooCommerce",  cliente:"Jorge Ramos",    total:"S/ 1,700", estado:"cancelado",  sucursal:"AlmacÃ©n",     tiempo:"1h"  },
+    { id:"PED-0040", canal:"Mercado Libre",cliente:"Ana Torres",     total:"S/ 450",   estado:"confirmado", sucursal:"Almacén",     tiempo:"12min"},
+    { id:"PED-0039", canal:"WhatsApp",     cliente:"Luis García",    total:"S/ 890",   estado:"pendiente",  sucursal:"San Isidro",  tiempo:"18min"},
+    { id:"PED-0038", canal:"Shopify",      cliente:"María Quispe",   total:"S/ 320",   estado:"confirmado", sucursal:"Miraflores",  tiempo:"25min"},
+    { id:"PED-0037", canal:"WooCommerce",  cliente:"Jorge Ramos",    total:"S/ 1,700", estado:"cancelado",  sucursal:"Almacén",     tiempo:"1h"  },
   ],
   sucursales: [
-    { nombre:"AlmacÃ©n Central",  tipo:"almacen", stock:840, pedidos:0,  estado:"activa", sync:"2min" },
+    { nombre:"Almacén Central",  tipo:"almacen", stock:840, pedidos:0,  estado:"activa", sync:"2min" },
     { nombre:"Tienda Miraflores",tipo:"tienda",  stock:244, pedidos:18, estado:"activa", sync:"1min" },
     { nombre:"Tienda San Isidro",tipo:"tienda",  stock:200, pedidos:19, estado:"activa", sync:"5min" },
   ],
   transferencias: [
-    { guia:"TRF-00003", origen:"AlmacÃ©n Central", destino:"Tienda Miraflores", items:3, estado:"en_transito", fecha:"Hoy 09:30" },
-    { guia:"TRF-00002", origen:"AlmacÃ©n Central", destino:"Tienda San Isidro", items:5, estado:"recibido",    fecha:"Ayer 16:00"},
-    { guia:"TRF-00001", origen:"Tienda Miraflores",destino:"AlmacÃ©n Central",  items:2, estado:"recibido",    fecha:"Lun 11:00" },
+    { guia:"TRF-00003", origen:"Almacén Central", destino:"Tienda Miraflores", items:3, estado:"en_transito", fecha:"Hoy 09:30" },
+    { guia:"TRF-00002", origen:"Almacén Central", destino:"Tienda San Isidro", items:5, estado:"recibido",    fecha:"Ayer 16:00"},
+    { guia:"TRF-00001", origen:"Tienda Miraflores",destino:"Almacén Central",  items:2, estado:"recibido",    fecha:"Lun 11:00" },
   ],
   integraciones: [
-    { nombre:"WooCommerce",   icono:"ðŸ›’", estado:"activo",  sync:"3min", pedidos:14, color:"#a78bfa" },
-    { nombre:"Mercado Libre", icono:"ðŸ›ï¸", estado:"activo",  sync:"1min", pedidos:19, color:"#fbbf24" },
-    { nombre:"Shopify",       icono:"ðŸª", estado:"activo",  sync:"2min", pedidos:4,  color:"#34d399" },
-    { nombre:"WhatsApp",      icono:"ðŸ’¬", estado:"manual",  sync:"Manual",pedidos:4, color:"#4ade80" },
+    { nombre:"WooCommerce",   icono:"🛒", estado:"activo",  sync:"3min", pedidos:14, color:"#a78bfa" },
+    { nombre:"Mercado Libre", icono:"🛍️", estado:"activo",  sync:"1min", pedidos:19, color:"#fbbf24" },
+    { nombre:"Shopify",       icono:"🏪", estado:"activo",  sync:"2min", pedidos:4,  color:"#34d399" },
+    { nombre:"WhatsApp",      icono:"💬", estado:"manual",  sync:"Manual",pedidos:4, color:"#4ade80" },
   ],
   usuarios: [
     { nombre:"Rosa Mamani",   email:"rosa@empresa.com",  rol:"encargado_sucursal", sucursal:"Miraflores",  activo:true  },
     { nombre:"Pedro Huanca",  email:"pedro@empresa.com", rol:"encargado_sucursal", sucursal:"San Isidro",  activo:true  },
     { nombre:"Lucia Flores",  email:"lucia@empresa.com", rol:"vendedor",           sucursal:"Miraflores",  activo:true  },
-    { nombre:"Marco Quispe",  email:"marco@empresa.com", rol:"vendedor",           sucursal:"AlmacÃ©n",     activo:false },
+    { nombre:"Marco Quispe",  email:"marco@empresa.com", rol:"vendedor",           sucursal:"Almacén",     activo:false },
   ],
   alertas: [
-    { tipo:"stock_critico",   mensaje:"CÃ¡mara Digital 4K â€” stock 2 unidades (mÃ­n: 5)", nivel:"critico",  tiempo:"Hace 10min", sucursal:"AlmacÃ©n"     },
-    { tipo:"pedido_sin_asignar", mensaje:"PED-0041 sin sucursal asignada hace 5min",   nivel:"warning",  tiempo:"Hace 5min",  sucursal:"â€”"           },
-    { tipo:"canal_sync",      mensaje:"WhatsApp no sincronizado â€” requiere revisiÃ³n",  nivel:"info",     tiempo:"Hace 1h",    sucursal:"â€”"           },
+    { tipo:"stock_critico",   mensaje:"Cámara Digital 4K — stock 2 unidades (mín: 5)", nivel:"critico",  tiempo:"Hace 10min", sucursal:"Almacén"     },
+    { tipo:"pedido_sin_asignar", mensaje:"PED-0041 sin sucursal asignada hace 5min",   nivel:"warning",  tiempo:"Hace 5min",  sucursal:"—"           },
+    { tipo:"canal_sync",      mensaje:"WhatsApp no sincronizado — requiere revisión",  nivel:"info",     tiempo:"Hace 1h",    sucursal:"—"           },
   ],
 };
 
-// â”€â”€â”€ BADGES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── BADGES ──────────────────────────────────────────────────────────────────
 const Badge = ({ estado }) => {
   const M = {
     pendiente:   ["#f59e0b","#1e1400"],
@@ -137,7 +138,7 @@ const Badge = ({ estado }) => {
 
 const CanalTag = ({ canal }) => {
   const M = { "WooCommerce":["#a78bfa","#130f2a"], "Mercado Libre":["#fbbf24","#1a1400"],
-    "WhatsApp":["#4ade80","#0a1a0e"], "Shopify":["#34d399","#051a12"], "FÃ­sico":["#94a3b8","#111"] };
+    "WhatsApp":["#4ade80","#0a1a0e"], "Shopify":["#34d399","#051a12"], "Físico":["#94a3b8","#111"] };
   const [c, bg] = M[canal] || ["#94a3b8","#111"];
   return <span style={{ background:bg, color:c, padding:"2px 8px", borderRadius:5,
     fontSize:10, fontWeight:600, border:`1px solid ${c}33`, fontFamily:T.fontMono }}>{canal}</span>;
@@ -152,7 +153,7 @@ const RolTag = ({ rol }) => {
     textTransform:"uppercase" }}>{rol.replace("_"," ")}</span>;
 };
 
-// â”€â”€â”€ SECCIÃ“N HEADER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── SECCIÓN HEADER ───────────────────────────────────────────────────────────
 const SectionHeader = ({ title, action, actionLabel }) => (
   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
     padding:"13px 20px", borderBottom:`1px solid ${T.border}` }}>
@@ -164,7 +165,7 @@ const SectionHeader = ({ title, action, actionLabel }) => (
   </div>
 );
 
-// â”€â”€â”€ MAIN COMPONENT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
   const [nav, setNav]         = useState("dashboard");
   const [expanded, setExp]    = useState(false);
@@ -207,7 +208,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
       if (!encontrado) {
         next.unshift({
           nombre: "WooCommerce",
-          icono: "ðŸ›’",
+          icono: "🛒",
           estado,
           sync: estado === "activo" ? "Ahora" : "Manual",
           pedidos: 0,
@@ -347,7 +348,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
 
   const normalizePedido = (p: any) => ({
     id: p?.id ?? p?.codigo ?? "PED-0000",
-    canal: p?.canal ?? p?.canal_nombre ?? "FÃƒÂ­sico",
+    canal: p?.canal ?? p?.canal_nombre ?? "FÃ­sico",
     cliente: p?.cliente ?? p?.cliente_nombre ?? "Cliente",
     total: typeof p?.total === "number" ? `S/ ${p.total.toLocaleString()}` : (p?.total ?? "S/ 0"),
     estado: p?.estado ?? "pendiente",
@@ -375,7 +376,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
 
   const normalizeIntegracion = (c: any) => ({
     nombre: c?.canal ?? c?.nombre ?? "Canal",
-    icono: c?.icono ?? "Ã°Å¸â€â€”",
+    icono: c?.icono ?? "ðŸ”—",
     estado: c?.estado ?? "activo",
     sync: c?.sync ?? c?.ultima_sync ?? "-",
     pedidos: Number(c?.pedidos ?? 0),
@@ -395,7 +396,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     mensaje: a?.mensaje ?? a?.descripcion ?? "Alerta",
     nivel: a?.nivel ?? "info",
     tiempo: a?.tiempo ?? a?.created_at ?? "-",
-    sucursal: a?.sucursal ?? a?.sucursal_nombre ?? "Ã¢â‚¬â€",
+    sucursal: a?.sucursal ?? a?.sucursal_nombre ?? "â€”",
   });
 
   const DATA = {
@@ -432,7 +433,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     input{outline:none;}
   `;
 
-  // â”€â”€ SIDEBAR â”€â”€
+  // ── SIDEBAR ──
   const Sidebar = () => (
     <div className="sb" onMouseEnter={() => setExp(true)} onMouseLeave={() => setExp(false)}
       style={{ width:expanded?218:56, background:T.surface, borderRight:`1px solid ${T.border}`,
@@ -477,8 +478,8 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
       </nav>
       {/* Bottom */}
       <div style={{ borderTop:`1px solid ${T.border}`, padding:"6px 0" }}>
-        {[{id:"settings",label:"ConfiguraciÃ³n",icon:"settings"},
-          {id:"logout",label:"Cerrar SesiÃ³n",icon:"logout"}].map(item => (
+        {[{id:"settings",label:"Configuración",icon:"settings"},
+          {id:"logout",label:"Cerrar Sesión",icon:"logout"}].map(item => (
           <div key={item.id} className="ni"
             onClick={item.id==="logout"?onLogout:undefined}
             style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 0",
@@ -492,7 +493,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     </div>
   );
 
-  // â”€â”€ TOPBAR â”€â”€
+  // ── TOPBAR ──
   const Topbar = () => (
     <div style={{ height:56, background:T.surface, borderBottom:`1px solid ${T.border}`,
       display:"flex", alignItems:"center", justifyContent:"space-between",
@@ -502,7 +503,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
           color:T.accent, letterSpacing:"0.04em" }}>
           {NAV.find(n=>n.id===nav)?.label || "Dashboard"}
         </span>
-        <span style={{ color:T.textDim }}>â€”</span>
+        <span style={{ color:T.textDim }}>—</span>
         <span style={{ fontSize:11, color:T.textDim, fontFamily:T.fontMono }}>admin_empresa</span>
       </div>
       <div style={{ display:"flex", alignItems:"center", gap:16 }}>
@@ -539,13 +540,13 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     </div>
   );
 
-  // â”€â”€ CARD BASE â”€â”€
+  // ── CARD BASE ──
   const Card = ({ children, style={} }) => (
     <div style={{ background:T.surface, border:`1px solid ${T.border}`,
       borderRadius:10, overflow:"hidden", ...style }}>{children}</div>
   );
 
-  // â”€â”€ VISTA: DASHBOARD â”€â”€
+  // ── VISTA: DASHBOARD ──
   const ViewDashboard = () => (
     <div className="fade" style={{ display:"flex", flexDirection:"column", gap:16 }}>
       {/* KPIs */}
@@ -569,7 +570,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
         ))}
       </div>
 
-      {/* Alertas crÃ­ticas si existen */}
+      {/* Alertas críticas si existen */}
       {DATA.alertas.filter(a=>a.nivel==="critico").map((a,i) => (
         <div key={i} style={{ background:"#1a0500", border:"1px solid #ef444433",
           borderRadius:8, padding:"10px 16px", display:"flex", alignItems:"center",
@@ -584,7 +585,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
       <div style={{ display:"grid", gridTemplateColumns:"1.4fr 1fr", gap:16 }}>
         {/* Pedidos recientes */}
         <Card>
-          <SectionHeader title="Pedidos Recientes" action={() => setNav("pedidos")} actionLabel="Ver todos â†’" />
+          <SectionHeader title="Pedidos Recientes" action={() => setNav("pedidos")} actionLabel="Ver todos →" />
           <table style={{ width:"100%", borderCollapse:"collapse" }}>
             <thead>
               <tr style={{ background:T.bg }}>
@@ -614,7 +615,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
         {/* Sucursales */}
         <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
           <Card>
-            <SectionHeader title="Sucursales" action={() => setNav("sucursales")} actionLabel="Gestionar â†’" />
+            <SectionHeader title="Sucursales" action={() => setNav("sucursales")} actionLabel="Gestionar →" />
             {DATA.sucursales.map((s,i) => (
               <div key={i} className="tr" style={{ padding:"11px 20px",
                 borderTop: i>0?`1px solid ${T.border}`:"none",
@@ -622,7 +623,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
                 <div>
                   <div style={{ fontSize:12, fontWeight:600, color:T.text }}>{s.nombre}</div>
                   <div style={{ fontSize:10, color:T.textMid, fontFamily:T.fontMono }}>
-                    {s.tipo.toUpperCase()} Â· sync {s.sync}</div>
+                    {s.tipo.toUpperCase()} · sync {s.sync}</div>
                 </div>
                 <div style={{ textAlign:"right" }}>
                   <div style={{ fontSize:14, fontWeight:800, color:T.accent,
@@ -635,7 +636,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
 
           {/* Canales */}
           <Card>
-            <SectionHeader title="Canales" action={() => setNav("integraciones")} actionLabel="Configurar â†’" />
+            <SectionHeader title="Canales" action={() => setNav("integraciones")} actionLabel="Configurar →" />
             {DATA.integraciones.map((c,i) => (
               <div key={i} className="tr" style={{ padding:"9px 20px",
                 borderTop: i>0?`1px solid ${T.border}`:"none",
@@ -658,11 +659,11 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
       {/* Transferencias recientes */}
       <Card>
         <SectionHeader title="Transferencias Recientes"
-          action={() => setNav("transferencias")} actionLabel="Ver todas â†’" />
+          action={() => setNav("transferencias")} actionLabel="Ver todas →" />
         <table style={{ width:"100%", borderCollapse:"collapse" }}>
           <thead>
             <tr style={{ background:T.bg }}>
-              {["GuÃ­a","Origen â†’ Destino","Items","Estado","Fecha"].map(h => (
+              {["Guía","Origen → Destino","Items","Estado","Fecha"].map(h => (
                 <th key={h} style={{ padding:"7px 20px", textAlign:"left", fontSize:9,
                   color:T.textDim, fontWeight:700, letterSpacing:"0.09em",
                   textTransform:"uppercase", fontFamily:T.fontMono }}>{h}</th>
@@ -676,7 +677,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
                   fontFamily:T.fontMono, color:T.accent }}>{t.guia}</td>
                 <td style={{ padding:"11px 20px", fontSize:12, color:T.text }}>
                   <span style={{ color:T.textMid }}>{t.origen}</span>
-                  <span style={{ color:T.textDim, margin:"0 6px" }}>â†’</span>
+                  <span style={{ color:T.textDim, margin:"0 6px" }}>→</span>
                   <span>{t.destino}</span>
                 </td>
                 <td style={{ padding:"11px 20px", fontSize:12,
@@ -692,7 +693,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     </div>
   );
 
-  // â”€â”€ VISTA: PEDIDOS â”€â”€
+  // ── VISTA: PEDIDOS ──
   const ViewPedidos = () => {
     const filtrados = DATA.pedidos.filter(p =>
       (filterEstado === "todos" || p.estado === filterEstado) &&
@@ -764,1177 +765,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     );
   };
 
-  // —— VISTA: PRODUCTOS ——
-  const ViewProductos = () => {
-    const [productos, setProductos] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [busqueda, setBusqueda] = useState('');
-    const [expandido, setExpandido] = useState<string | null>(null);
-    const [modalNuevo, setModalNuevo] = useState(false);
-    const [modoModal, setModoModal] = useState<'crear' | 'editar'>('crear');
-    const [productoEditandoId, setProductoEditandoId] = useState<string | null>(null);
-    const [creandoProducto, setCreandoProducto] = useState(false);
-    const [errorNuevoProducto, setErrorNuevoProducto] = useState('');
-    const [eliminandoProducto, setEliminandoProducto] = useState(false);
-    const [confirmEliminar, setConfirmEliminar] = useState<{ id: string; nombre: string } | null>(null);
-    const [modalImportar, setModalImportar] = useState(false);
-    const [archivoCSV, setArchivoCSV] = useState<File | null>(null);
-    const [previewCSV, setPreviewCSV] = useState<any[]>([]);
-    const [totalCSV, setTotalCSV] = useState(0);
-    const [importandoCSV, setImportandoCSV] = useState(false);
-    const [progresoCSV, setProgresoCSV] = useState({ actual: 0, total: 0 });
-    const [resultadoImportacion, setResultadoImportacion] = useState<any | null>(null);
-    const [errorImportacion, setErrorImportacion] = useState('');
-    const [categorias, setCategorias] = useState<any[]>([]);
-    const [cargandoCategorias, setCargandoCategorias] = useState(false);
-    const [nuevoProducto, setNuevoProducto] = useState({
-      nombre: '',
-      sku: '',
-      categoria_id: null as string | null,
-      descripcion: '',
-      precio: '',
-      activo: true,
-    });
-
-    const cargarProductos = async () => {
-      setLoading(true);
-      try {
-        const res = await operacionesService.getProductos();
-        setProductos(res?.productos || []);
-      } catch {
-        setProductos([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    useEffect(() => {
-      void cargarProductos();
-    }, []);
-
-    const toggleActivo = async (productoId: string, activoActual: boolean) => {
-      try {
-        await operacionesService.toggleProductoActivo(productoId, !activoActual);
-        setProductos((prev) =>
-          prev.map((p) => (String(p?.id ?? '') === productoId ? { ...p, activo: !activoActual } : p)),
-        );
-      } catch (err) {
-        console.error('Error al cambiar estado del producto:', err);
-      }
-    };
-
-    const productosFiltrados = productos.filter((p) =>
-      String(p?.nombre ?? '').toLowerCase().includes(busqueda.toLowerCase()) ||
-      String(p?.sku ?? '').toLowerCase().includes(busqueda.toLowerCase()),
-    );
-
-    const cargarCategoriasModal = async () => {
-      setCargandoCategorias(true);
-      try {
-        const res = await operacionesService.getCategorias();
-        const rows = Array.isArray(res?.categorias) ? res.categorias : [];
-        setCategorias(rows);
-      } catch {
-        setCategorias([]);
-      } finally {
-        setCargandoCategorias(false);
-      }
-    };
-
-    const parseCsvLine = (line: string) => {
-      const out: string[] = [];
-      let current = '';
-      let inQuotes = false;
-
-      for (let i = 0; i < line.length; i += 1) {
-        const ch = line[i];
-        if (ch === '"') {
-          if (inQuotes && line[i + 1] === '"') {
-            current += '"';
-            i += 1;
-          } else {
-            inQuotes = !inQuotes;
-          }
-          continue;
-        }
-        if (ch === ',' && !inQuotes) {
-          out.push(current.trim());
-          current = '';
-          continue;
-        }
-        current += ch;
-      }
-      out.push(current.trim());
-      return out;
-    };
-
-    const procesarCsvPreview = (text: string) => {
-      const lines = text
-        .replace(/^\uFEFF/, '')
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0);
-
-      if (lines.length === 0) {
-        setPreviewCSV([]);
-        setTotalCSV(0);
-        return;
-      }
-
-      const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase());
-      const rows = lines.slice(1).map((line) => parseCsvLine(line));
-      const data = rows.map((cols) => {
-        const row: Record<string, string> = {};
-        headers.forEach((h, idx) => {
-          row[h] = cols[idx] ?? '';
-        });
-        return row;
-      });
-
-      setTotalCSV(data.length);
-      setPreviewCSV(data.slice(0, 5));
-    };
-
-    const descargarPlantillaCSV = () => {
-      const template = [
-        'nombre,sku,precio,costo,descripcion,stock_minimo',
-        'Creatina 300g ON,CREA-300G,125.00,80.00,Suplemento proteico,5',
-        'Mutant Mass 15lb,MASST-15LB,369.00,250.00,Ganador de masa,3',
-      ].join('\n');
-
-      const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'plantilla_productos.csv';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    };
-
-    const onSeleccionarArchivoCSV = async (file: File | null) => {
-      setArchivoCSV(file);
-      setResultadoImportacion(null);
-      setErrorImportacion('');
-      if (!file) {
-        setPreviewCSV([]);
-        setTotalCSV(0);
-        return;
-      }
-
-      try {
-        const text = await file.text();
-        procesarCsvPreview(text);
-      } catch {
-        setPreviewCSV([]);
-        setTotalCSV(0);
-        setErrorImportacion('No se pudo leer el archivo CSV');
-      }
-    };
-
-    const abrirModalImportar = () => {
-      setModalImportar(true);
-      setArchivoCSV(null);
-      setPreviewCSV([]);
-      setTotalCSV(0);
-      setResultadoImportacion(null);
-      setErrorImportacion('');
-      setProgresoCSV({ actual: 0, total: 0 });
-    };
-
-    const cerrarModalImportar = () => {
-      if (importandoCSV) return;
-      setModalImportar(false);
-    };
-
-    const importarProductosCSV = async () => {
-      if (!archivoCSV) {
-        setErrorImportacion('Selecciona un archivo CSV');
-        return;
-      }
-
-      setImportandoCSV(true);
-      setErrorImportacion('');
-      setResultadoImportacion(null);
-
-      const total = totalCSV > 0 ? totalCSV : 1;
-      setProgresoCSV({ actual: 0, total });
-      const timer = setInterval(() => {
-        setProgresoCSV((prev) => ({
-          total: prev.total,
-          actual: Math.min(prev.actual + 1, Math.max(prev.total - 1, 0)),
-        }));
-      }, 150);
-
-      try {
-        const res = await operacionesService.importarProductosCSV(archivoCSV);
-        clearInterval(timer);
-        setProgresoCSV({ actual: total, total });
-        setResultadoImportacion(res);
-        await cargarProductos();
-      } catch (err: any) {
-        clearInterval(timer);
-        setErrorImportacion(err?.message || 'Error al importar CSV');
-      } finally {
-        setImportandoCSV(false);
-      }
-    };
-
-    const abrirModalNuevo = () => {
-      setErrorNuevoProducto('');
-      setModoModal('crear');
-      setProductoEditandoId(null);
-      setNuevoProducto({
-        nombre: '',
-        sku: '',
-        categoria_id: null,
-        descripcion: '',
-        precio: '',
-        activo: true,
-      });
-      void cargarCategoriasModal();
-      setModalNuevo(true);
-    };
-
-    const abrirModalEditar = (producto: any) => {
-      setErrorNuevoProducto('');
-      setModoModal('editar');
-      setProductoEditandoId(String(producto?.id ?? ''));
-      setNuevoProducto({
-        nombre: String(producto?.nombre ?? ''),
-        sku: String(producto?.sku ?? ''),
-        categoria_id: producto?.categoria_id ? String(producto.categoria_id) : null,
-        descripcion: String(producto?.descripcion ?? ''),
-        precio: String(producto?.precio ?? ''),
-        activo: Boolean(producto?.activo),
-      });
-      void cargarCategoriasModal();
-      setModalNuevo(true);
-    };
-
-    const cerrarModalNuevo = () => {
-      if (creandoProducto) return;
-      setModalNuevo(false);
-    };
-
-    const solicitarEliminarProducto = (producto: any) => {
-      setConfirmEliminar({
-        id: String(producto?.id ?? ''),
-        nombre: String(producto?.nombre ?? 'producto'),
-      });
-    };
-
-    const confirmarEliminarProducto = async () => {
-      if (!confirmEliminar?.id) return;
-      setEliminandoProducto(true);
-      try {
-        await operacionesService.eliminarProducto(confirmEliminar.id);
-        setProductos((prev) => prev.filter((p) => String(p?.id ?? '') !== confirmEliminar.id));
-        if (expandido === confirmEliminar.id) setExpandido(null);
-        setConfirmEliminar(null);
-      } catch (err) {
-        console.error('Error al eliminar producto:', err);
-      } finally {
-        setEliminandoProducto(false);
-      }
-    };
-
-    const submitNuevoProducto = async (e: any) => {
-      e.preventDefault();
-      const nombre = String(nuevoProducto.nombre ?? '').trim();
-      const sku = String(nuevoProducto.sku ?? '').trim();
-      const descripcion = String(nuevoProducto.descripcion ?? '').trim();
-      const precioText = String(nuevoProducto.precio ?? '').trim();
-      const precio = Number(precioText);
-
-      if (!nombre || !sku || !precioText) {
-        setErrorNuevoProducto('Nombre, SKU y precio son obligatorios');
-        return;
-      }
-
-      if (!Number.isFinite(precio) || precio < 0) {
-        setErrorNuevoProducto('El precio debe ser un numero valido');
-        return;
-      }
-
-      setCreandoProducto(true);
-      setErrorNuevoProducto('');
-      try {
-        const payload = {
-          nombre,
-          sku,
-          categoria_id: nuevoProducto.categoria_id || null,
-          descripcion: descripcion || null,
-          precio,
-          activo: Boolean(nuevoProducto.activo),
-        };
-
-        if (modoModal === 'editar' && productoEditandoId) {
-          await operacionesService.editarProducto(productoEditandoId, payload);
-        } else {
-          await operacionesService.crearProducto(payload);
-        }
-        setModalNuevo(false);
-        await cargarProductos();
-      } catch (err: any) {
-        setErrorNuevoProducto(
-          err?.message || (modoModal === 'editar' ? 'Error al editar producto' : 'Error al crear producto'),
-        );
-      } finally {
-        setCreandoProducto(false);
-      }
-    };
-
-    if (loading) {
-      return (
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          height: 200, color: T.textMid, fontSize: 13,
-        }}>
-          Cargando productos...
-        </div>
-      );
-    }
-
-    return (
-      <div className="fade" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div style={{ fontFamily: T.fontDisplay, fontWeight: 800, fontSize: 20, color: T.text }}>
-              Productos
-            </div>
-            <div style={{ fontSize: 11, color: T.textMid, fontFamily: T.fontMono }}>
-              {productos.length} productos registrados
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              className="btn"
-              onClick={abrirModalImportar}
-              style={{
-                background: T.surface2,
-                border: `1px solid ${T.border2}`,
-                borderRadius: 8,
-                padding: '8px 14px',
-                color: T.text,
-                fontSize: 12,
-                fontFamily: T.font,
-                fontWeight: 700,
-              }}
-            >
-              ⬆ Importar CSV
-            </button>
-            <button
-              className="btn"
-              onClick={abrirModalNuevo}
-              style={{
-                background: T.accentDim,
-                border: `1px solid ${T.accent}44`,
-                borderRadius: 8,
-                padding: '8px 14px',
-                color: T.accent,
-                fontSize: 12,
-                fontFamily: T.font,
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
-              <Ico d={IC.plus} size={14} color={T.accent} />
-              Nuevo Producto
-            </button>
-          </div>
-        </div>
-
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          background: T.surface, border: `1px solid ${T.border}`,
-          borderRadius: 8, padding: '8px 12px',
-        }}>
-          <Ico d={IC.search} size={13} color={T.textMid} />
-          <input
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar por nombre o SKU..."
-            style={{
-              background: 'none',
-              border: 'none',
-              color: T.text,
-              fontSize: 12,
-              fontFamily: T.font,
-              width: '100%',
-            }}
-          />
-        </div>
-
-        {productosFiltrados.length === 0 ? (
-          <div style={{
-            textAlign: 'center', padding: 40, color: T.textMid, fontSize: 13,
-          }}>
-            {busqueda ? `No se encontraron productos con "${busqueda}"` : 'No hay productos registrados'}
-          </div>
-        ) : (
-          <Card>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: T.bg }}>
-                  {['SKU', 'Nombre', 'Precio', 'Stock', 'Woo', 'Estado', 'Acciones'].map((h) => (
-                    <th
-                      key={h}
-                      style={{
-                        padding: '9px 16px',
-                        textAlign: h === 'Precio' || h === 'Stock' ? 'right' : 'left',
-                        fontSize: 9,
-                        color: T.textDim,
-                        fontWeight: 700,
-                        letterSpacing: '0.09em',
-                        textTransform: 'uppercase',
-                        fontFamily: T.fontMono,
-                      }}
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {productosFiltrados.map((p) => {
-                  const productoId = String(p?.id ?? '');
-                  const abierto = expandido === productoId;
-                  const stockTotal = Number(p?.stock_total || 0);
-                  const stockPorSucursal = Array.isArray(p?.stock_por_sucursal) ? p.stock_por_sucursal : [];
-                  const estaActivo = Boolean(p?.activo);
-
-                  return (
-                    <Fragment key={productoId}>
-                      <tr
-                        onClick={() => setExpandido(abierto ? null : productoId)}
-                        className="tr"
-                        style={{ cursor: 'pointer', borderBottom: `1px solid ${T.border}` }}
-                      >
-                        <td style={{ padding: '12px 16px', fontFamily: T.fontMono, color: T.accent, fontSize: 12 }}>
-                          {p?.sku || '—'}
-                        </td>
-                        <td style={{ padding: '12px 16px', color: T.text, fontWeight: 500 }}>
-                          {p?.nombre || 'Producto sin nombre'}
-                        </td>
-                        <td style={{ padding: '12px 16px', color: T.textMid, textAlign: 'right' }}>
-                          S/ {Number(p?.precio || 0).toFixed(2)}
-                        </td>
-                        <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                          <span
-                            style={{
-                              color: stockTotal > 10 ? T.accent : stockTotal > 0 ? '#f59e0b' : '#ef4444',
-                              fontWeight: 700,
-                              fontFamily: T.fontMono,
-                            }}
-                          >
-                            {stockTotal}
-                          </span>
-                        </td>
-                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                          {p?.woo_sincronizado ? (
-                            <span
-                              style={{
-                                background: T.accentDim,
-                                color: T.accent,
-                                borderRadius: 4,
-                                padding: '2px 8px',
-                                fontSize: 11,
-                              }}
-                            >
-                              sync
-                            </span>
-                          ) : (
-                            <span
-                              style={{
-                                background: `${T.textMid}18`,
-                                color: T.textMid,
-                                borderRadius: 4,
-                                padding: '2px 8px',
-                                fontSize: 11,
-                              }}
-                            >
-                              —
-                            </span>
-                          )}
-                        </td>
-                        <td onClick={(e) => e.stopPropagation()} style={{ padding: '12px 16px' }}>
-                          <button
-                            onClick={() => toggleActivo(productoId, estaActivo)}
-                            style={{
-                              background: estaActivo ? T.accentDim : '#ef444418',
-                              color: estaActivo ? T.accent : '#ef4444',
-                              border: 'none',
-                              borderRadius: 4,
-                              padding: '2px 10px',
-                              fontSize: 11,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            {estaActivo ? 'Activo' : 'Inactivo'}
-                          </button>
-                        </td>
-                        <td onClick={(e) => e.stopPropagation()} style={{ padding: '12px 16px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                abrirModalEditar(p);
-                              }}
-                              style={{
-                                background: T.accentDim,
-                                color: T.accent,
-                                border: `1px solid ${T.accent}33`,
-                                borderRadius: 4,
-                                padding: '2px 8px',
-                                fontSize: 11,
-                                cursor: 'pointer',
-                              }}
-                            >
-                              Editar
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                solicitarEliminarProducto(p);
-                              }}
-                              style={{
-                                background: '#ef444418',
-                                color: '#ef4444',
-                                border: '1px solid #ef444433',
-                                borderRadius: 4,
-                                padding: '2px 8px',
-                                fontSize: 11,
-                                cursor: 'pointer',
-                              }}
-                            >
-                              Eliminar
-                            </button>
-                            <span style={{ color: T.textMid, fontSize: 11 }}>{abierto ? '▲' : '▼'}</span>
-                          </div>
-                        </td>
-                      </tr>
-                      {abierto && (
-                        <tr>
-                          <td
-                            colSpan={7}
-                            style={{
-                              background: T.surface,
-                              padding: '12px 16px',
-                              borderBottom: `1px solid ${T.border}`,
-                            }}
-                          >
-                            <div style={{ fontSize: 12, color: T.textMid, marginBottom: 8 }}>
-                              Stock por sucursal
-                            </div>
-                            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                              {stockPorSucursal.map((s: any, idx: number) => (
-                                <div
-                                  key={String(s?.sucursal_id ?? idx)}
-                                  style={{
-                                    background: T.surface2,
-                                    border: `1px solid ${T.border2}`,
-                                    borderRadius: 8,
-                                    padding: '8px 16px',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: 4,
-                                  }}
-                                >
-                                  <span style={{ color: T.textMid, fontSize: 11 }}>
-                                    {s?.sucursal_nombre || 'Sucursal'}
-                                  </span>
-                                  <span
-                                    style={{
-                                      color: T.text,
-                                      fontFamily: T.fontMono,
-                                      fontSize: 18,
-                                      fontWeight: 700,
-                                    }}
-                                  >
-                                    {Number(s?.cantidad || 0)}
-                                  </span>
-                                </div>
-                              ))}
-                              {stockPorSucursal.length === 0 && (
-                                <span style={{ color: T.textMid, fontSize: 12 }}>
-                                  Sin stock en sucursales
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </Card>
-        )}
-        {modalNuevo && (
-          <div
-            onClick={cerrarModalNuevo}
-            style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(0,0,0,0.68)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 1400,
-              padding: 16,
-            }}
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                width: '100%',
-                maxWidth: 440,
-                background: T.surface,
-                border: `1px solid ${T.border}`,
-                borderRadius: 12,
-                boxShadow: '0 28px 80px rgba(0,0,0,0.45)',
-                padding: 18,
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                <div>
-                  <div style={{ fontFamily: T.fontDisplay, fontWeight: 800, fontSize: 18, color: T.text }}>
-                    {modoModal === 'editar' ? 'Editar Producto' : 'Nuevo Producto'}
-                  </div>
-                  <div style={{ fontSize: 11, color: T.textMid, fontFamily: T.fontMono }}>
-                    {modoModal === 'editar' ? 'Actualiza los datos del producto' : 'Crea un producto para tu catalogo'}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={cerrarModalNuevo}
-                  disabled={creandoProducto}
-                  style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: 8,
-                    background: T.surface2,
-                    border: `1px solid ${T.border2}`,
-                    color: T.textMid,
-                    fontSize: 16,
-                  }}
-                >
-                  X
-                </button>
-              </div>
-
-              <form onSubmit={submitNuevoProducto}>
-                <label style={{ display: 'block', fontSize: 11, color: T.textMid, marginBottom: 6 }}>
-                  Nombre del producto
-                </label>
-                <input
-                  value={nuevoProducto.nombre}
-                  onChange={(e) => setNuevoProducto((prev) => ({ ...prev, nombre: e.target.value }))}
-                  placeholder="Ej. Creatina 300g ON"
-                  disabled={creandoProducto}
-                  maxLength={160}
-                  style={{
-                    width: '100%',
-                    background: T.bg,
-                    border: `1px solid ${T.border2}`,
-                    borderRadius: 8,
-                    padding: '10px 12px',
-                    color: T.text,
-                    fontSize: 12,
-                    fontFamily: T.font,
-                    marginBottom: 12,
-                  }}
-                />
-
-                <label style={{ display: 'block', fontSize: 11, color: T.textMid, marginBottom: 6 }}>
-                  SKU
-                </label>
-                <input
-                  value={nuevoProducto.sku}
-                  onChange={(e) => setNuevoProducto((prev) => ({ ...prev, sku: e.target.value }))}
-                  placeholder="Ej. CREA-300G-ON"
-                  disabled={creandoProducto}
-                  maxLength={120}
-                  style={{
-                    width: '100%',
-                    background: T.bg,
-                    border: `1px solid ${T.border2}`,
-                    borderRadius: 8,
-                    padding: '10px 12px',
-                    color: T.text,
-                    fontSize: 12,
-                    fontFamily: T.fontMono,
-                    marginBottom: 12,
-                  }}
-                />
-
-                <label style={{ display: 'block', fontSize: 11, color: T.textMid, marginBottom: 6 }}>
-                  Categoria (opcional)
-                </label>
-                <select
-                  value={nuevoProducto.categoria_id || ''}
-                  onChange={(e) =>
-                    setNuevoProducto((prev) => ({
-                      ...prev,
-                      categoria_id: e.target.value || null,
-                    }))
-                  }
-                  disabled={creandoProducto || cargandoCategorias}
-                  style={{
-                    width: '100%',
-                    background: T.bg,
-                    border: `1px solid ${T.border2}`,
-                    borderRadius: 8,
-                    padding: '10px 12px',
-                    color: T.text,
-                    fontSize: 12,
-                    fontFamily: T.font,
-                    marginBottom: 6,
-                  }}
-                >
-                  <option value="">Sin categoria</option>
-                  {categorias.map((c: any) => (
-                    <option key={String(c?.id ?? '')} value={String(c?.id ?? '')}>
-                      {String(c?.nombre ?? 'Categoria')}
-                    </option>
-                  ))}
-                </select>
-                {cargandoCategorias && (
-                  <div style={{ fontSize: 10, color: T.textMid, marginBottom: 12 }}>
-                    Cargando categorias...
-                  </div>
-                )}
-                {!cargandoCategorias && categorias.length === 0 && (
-                  <div style={{ fontSize: 10, color: T.textMid, marginBottom: 12 }}>
-                    No hay categorias activas, se guardara sin categoria.
-                  </div>
-                )}
-
-                <label style={{ display: 'block', fontSize: 11, color: T.textMid, marginBottom: 6 }}>
-                  Descripcion (opcional)
-                </label>
-                <textarea
-                  rows={3}
-                  maxLength={500}
-                  value={nuevoProducto.descripcion}
-                  onChange={(e) =>
-                    setNuevoProducto((prev) => ({ ...prev, descripcion: e.target.value }))
-                  }
-                  placeholder="Descripcion del producto (opcional)"
-                  disabled={creandoProducto}
-                  style={{
-                    width: '100%',
-                    background: T.bg,
-                    border: `1px solid ${T.border2}`,
-                    borderRadius: 8,
-                    padding: '10px 12px',
-                    color: T.text,
-                    fontSize: 12,
-                    fontFamily: T.font,
-                    resize: 'vertical',
-                    marginBottom: 12,
-                  }}
-                />
-
-                <label style={{ display: 'block', fontSize: 11, color: T.textMid, marginBottom: 6 }}>
-                  Precio
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={nuevoProducto.precio}
-                  onChange={(e) => setNuevoProducto((prev) => ({ ...prev, precio: e.target.value }))}
-                  placeholder="0.00"
-                  disabled={creandoProducto}
-                  style={{
-                    width: '100%',
-                    background: T.bg,
-                    border: `1px solid ${T.border2}`,
-                    borderRadius: 8,
-                    padding: '10px 12px',
-                    color: T.text,
-                    fontSize: 12,
-                    fontFamily: T.fontMono,
-                    marginBottom: 12,
-                  }}
-                />
-
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    background: T.surface2,
-                    border: `1px solid ${T.border2}`,
-                    borderRadius: 8,
-                    padding: '9px 12px',
-                    marginBottom: 12,
-                  }}
-                >
-                  <span style={{ fontSize: 12, color: T.text }}>Activo</span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setNuevoProducto((prev) => ({ ...prev, activo: !prev.activo }))
-                    }
-                    disabled={creandoProducto}
-                    style={{
-                      background: nuevoProducto.activo ? T.accentDim : '#ef444418',
-                      color: nuevoProducto.activo ? T.accent : '#ef4444',
-                      border: 'none',
-                      borderRadius: 999,
-                      padding: '4px 12px',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {nuevoProducto.activo ? 'SI' : 'NO'}
-                  </button>
-                </div>
-
-                {errorNuevoProducto && (
-                  <div
-                    style={{
-                      marginBottom: 12,
-                      background: '#2a0d10',
-                      border: '1px solid #5a1a20',
-                      color: '#ff9aa5',
-                      borderRadius: 8,
-                      padding: '9px 10px',
-                      fontSize: 11,
-                      fontFamily: T.font,
-                    }}
-                  >
-                    {errorNuevoProducto}
-                  </div>
-                )}
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={cerrarModalNuevo}
-                    disabled={creandoProducto}
-                    style={{
-                      background: T.surface2,
-                      border: `1px solid ${T.border2}`,
-                      borderRadius: 8,
-                      padding: '9px 14px',
-                      color: T.textMid,
-                      fontSize: 12,
-                      fontFamily: T.font,
-                      fontWeight: 600,
-                    }}
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="btn"
-                    disabled={creandoProducto}
-                    style={{
-                      background: T.accentDim,
-                      border: `1px solid ${T.accent}44`,
-                      borderRadius: 8,
-                      padding: '9px 14px',
-                      color: T.accent,
-                      fontSize: 12,
-                      fontFamily: T.font,
-                      fontWeight: 700,
-                    }}
-                  >
-                    {creandoProducto ? (modoModal === 'editar' ? 'Guardando...' : 'Creando...') : (modoModal === 'editar' ? 'Guardar cambios' : 'Crear Producto')}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-        {confirmEliminar && (
-          <div
-            onClick={() => {
-              if (!eliminandoProducto) setConfirmEliminar(null);
-            }}
-            style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(0,0,0,0.68)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 1450,
-              padding: 16,
-            }}
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                width: '100%',
-                maxWidth: 440,
-                background: T.surface,
-                border: `1px solid ${T.border}`,
-                borderRadius: 12,
-                boxShadow: '0 28px 80px rgba(0,0,0,0.45)',
-                padding: 18,
-              }}
-            >
-              <div style={{ fontFamily: T.fontDisplay, fontWeight: 800, fontSize: 18, color: T.text, marginBottom: 8 }}>
-                Eliminar producto
-              </div>
-              <div style={{ fontSize: 12, color: T.textMid, marginBottom: 16 }}>
-                {`¿Eliminar ${confirmEliminar.nombre}? Esta acción no se puede deshacer.`}
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => setConfirmEliminar(null)}
-                  disabled={eliminandoProducto}
-                  style={{
-                    background: T.surface2,
-                    border: `1px solid ${T.border2}`,
-                    borderRadius: 8,
-                    padding: '9px 14px',
-                    color: T.textMid,
-                    fontSize: 12,
-                    fontFamily: T.font,
-                    fontWeight: 600,
-                  }}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={confirmarEliminarProducto}
-                  disabled={eliminandoProducto}
-                  style={{
-                    background: '#ef444418',
-                    border: '1px solid #ef444433',
-                    borderRadius: 8,
-                    padding: '9px 14px',
-                    color: '#ef4444',
-                    fontSize: 12,
-                    fontFamily: T.font,
-                    fontWeight: 700,
-                  }}
-                >
-                  {eliminandoProducto ? 'Eliminando...' : 'Si, eliminar'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-        {modalImportar && (
-          <div
-            onClick={cerrarModalImportar}
-            style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(0,0,0,0.68)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 1460,
-              padding: 16,
-            }}
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                width: '100%',
-                maxWidth: 640,
-                background: T.surface,
-                border: `1px solid ${T.border}`,
-                borderRadius: 12,
-                boxShadow: '0 28px 80px rgba(0,0,0,0.45)',
-                padding: 18,
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                <div>
-                  <div style={{ fontFamily: T.fontDisplay, fontWeight: 800, fontSize: 18, color: T.text }}>
-                    Importar Productos CSV
-                  </div>
-                  <div style={{ fontSize: 11, color: T.textMid, fontFamily: T.fontMono }}>
-                    Importa productos masivamente desde un archivo CSV
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={cerrarModalImportar}
-                  disabled={importandoCSV}
-                  style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: 8,
-                    background: T.surface2,
-                    border: `1px solid ${T.border2}`,
-                    color: T.textMid,
-                    fontSize: 16,
-                  }}
-                >
-                  X
-                </button>
-              </div>
-
-              <div style={{ background: T.surface2, border: `1px solid ${T.border2}`, borderRadius: 10, padding: 12, marginBottom: 12 }}>
-                <div style={{ fontSize: 12, color: T.text, marginBottom: 8, fontWeight: 700 }}>
-                  1. Descargar plantilla
-                </div>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={descargarPlantillaCSV}
-                  style={{
-                    background: T.accentDim,
-                    border: `1px solid ${T.accent}44`,
-                    borderRadius: 8,
-                    padding: '8px 12px',
-                    color: T.accent,
-                    fontSize: 12,
-                    fontFamily: T.font,
-                    fontWeight: 700,
-                  }}
-                >
-                  Descargar plantilla CSV
-                </button>
-              </div>
-
-              <div style={{ background: T.surface2, border: `1px solid ${T.border2}`, borderRadius: 10, padding: 12, marginBottom: 12 }}>
-                <div style={{ fontSize: 12, color: T.text, marginBottom: 8, fontWeight: 700 }}>
-                  2. Subir archivo
-                </div>
-                <input
-                  type="file"
-                  accept=".csv,text/csv"
-                  disabled={importandoCSV}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0] || null;
-                    void onSeleccionarArchivoCSV(file);
-                  }}
-                  style={{
-                    width: '100%',
-                    background: T.bg,
-                    border: `1px solid ${T.border2}`,
-                    borderRadius: 8,
-                    padding: '9px 10px',
-                    color: T.text,
-                    fontSize: 12,
-                    fontFamily: T.font,
-                    marginBottom: 10,
-                  }}
-                />
-                <div style={{ fontSize: 11, color: T.textMid, marginBottom: 8 }}>
-                  {`${totalCSV} productos encontrados en el archivo`}
-                </div>
-                {previewCSV.length > 0 && (
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead>
-                        <tr style={{ background: T.bg }}>
-                          {['nombre', 'sku', 'precio', 'costo', 'descripcion', 'stock_minimo'].map((h) => (
-                            <th
-                              key={h}
-                              style={{
-                                padding: '7px 8px',
-                                textAlign: 'left',
-                                fontSize: 9,
-                                color: T.textDim,
-                                fontWeight: 700,
-                                letterSpacing: '0.06em',
-                                textTransform: 'uppercase',
-                                fontFamily: T.fontMono,
-                              }}
-                            >
-                              {h}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {previewCSV.map((row, idx) => (
-                          <tr key={idx} style={{ borderTop: `1px solid ${T.border}` }}>
-                            <td style={{ padding: '7px 8px', fontSize: 11, color: T.text }}>{row.nombre || '—'}</td>
-                            <td style={{ padding: '7px 8px', fontSize: 11, color: T.accent, fontFamily: T.fontMono }}>{row.sku || '—'}</td>
-                            <td style={{ padding: '7px 8px', fontSize: 11, color: T.textMid }}>{row.precio || '—'}</td>
-                            <td style={{ padding: '7px 8px', fontSize: 11, color: T.textMid }}>{row.costo || '—'}</td>
-                            <td style={{ padding: '7px 8px', fontSize: 11, color: T.textMid }}>{row.descripcion || '—'}</td>
-                            <td style={{ padding: '7px 8px', fontSize: 11, color: T.textMid }}>{row.stock_minimo || '—'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                <div style={{ fontSize: 11, color: T.textMid }}>
-                  {importandoCSV ? `Importando... ${progresoCSV.actual}/${progresoCSV.total} productos` : ''}
-                </div>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={importarProductosCSV}
-                  disabled={!archivoCSV || importandoCSV}
-                  style={{
-                    background: T.accentDim,
-                    border: `1px solid ${T.accent}44`,
-                    borderRadius: 8,
-                    padding: '9px 14px',
-                    color: T.accent,
-                    fontSize: 12,
-                    fontFamily: T.font,
-                    fontWeight: 700,
-                  }}
-                >
-                  {importandoCSV ? 'Importando...' : 'Importar'}
-                </button>
-              </div>
-
-              {errorImportacion && (
-                <div style={{ marginTop: 12, background: '#2a0d10', border: '1px solid #5a1a20', color: '#ff9aa5', borderRadius: 8, padding: '9px 10px', fontSize: 11 }}>
-                  {errorImportacion}
-                </div>
-              )}
-
-              {resultadoImportacion && (
-                <div style={{ marginTop: 12, background: T.surface2, border: `1px solid ${T.border2}`, borderRadius: 10, padding: 12 }}>
-                  <div style={{ fontSize: 12, color: T.accent, fontWeight: 700, marginBottom: 6 }}>
-                    {`✅ ${Number(resultadoImportacion?.exitosos || 0)} productos importados exitosamente`}
-                  </div>
-                  <div style={{ fontSize: 12, color: '#f59e0b', fontWeight: 700, marginBottom: 8 }}>
-                    {`⚠️ ${Number(resultadoImportacion?.errores || 0)} productos con errores`}
-                  </div>
-                  {Array.isArray(resultadoImportacion?.detalle_errores) && resultadoImportacion.detalle_errores.length > 0 && (
-                    <div style={{ maxHeight: 160, overflowY: 'auto', borderTop: `1px solid ${T.border}`, paddingTop: 8 }}>
-                      {resultadoImportacion.detalle_errores.map((err: any, idx: number) => (
-                        <div key={idx} style={{ fontSize: 11, color: '#ff9aa5', marginBottom: 4 }}>
-                          {`Fila ${err?.fila ?? '-'} (${err?.sku ?? 'sin-sku'}): ${err?.error ?? 'Error'}`}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // â”€â”€ VISTA: SUCURSALES â”€â”€
+  // ── VISTA: SUCURSALES ──
   const ViewSucursales = () => (
     <div className="fade">
       <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:14 }}>
@@ -1972,14 +803,14 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
               ))}
             </div>
             <div style={{ marginTop:10, fontSize:10, color:T.textDim,
-              fontFamily:T.fontMono }}>ðŸ”„ Sync hace {s.sync}</div>
+              fontFamily:T.fontMono }}>🔄 Sync hace {s.sync}</div>
           </div>
         ))}
       </div>
     </div>
   );
 
-  // â”€â”€ VISTA: TRANSFERENCIAS â”€â”€
+  // ── VISTA: TRANSFERENCIAS ──
   const ViewTransferencias = () => (
     <div className="fade">
       <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:14 }}>
@@ -1993,7 +824,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
         <table style={{ width:"100%", borderCollapse:"collapse" }}>
           <thead>
             <tr style={{ background:T.bg }}>
-              {["GuÃ­a","Origen","Destino","Items","Estado","Fecha","Acciones"].map(h => (
+              {["Guía","Origen","Destino","Items","Estado","Fecha","Acciones"].map(h => (
                 <th key={h} style={{ padding:"9px 18px", textAlign:"left", fontSize:9,
                   color:T.textDim, fontWeight:700, letterSpacing:"0.09em",
                   textTransform:"uppercase", fontFamily:T.fontMono }}>{h}</th>
@@ -2027,7 +858,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     </div>
   );
 
-  // â”€â”€ VISTA: INTEGRACIONES â”€â”€
+  // ── VISTA: INTEGRACIONES ──
   const ViewIntegraciones = () => (
     <div className="fade" style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:14 }}>
       {DATA.integraciones.map((c,i) => {
@@ -2047,7 +878,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
             fontSize:16, color:T.text, marginBottom:4 }}>{c.nombre}</div>
           <div style={{ fontSize:11, color:T.textDim,
             fontFamily:T.fontMono, marginBottom:18 }}>
-            Ãšltima sync: hace {c.sync}
+            Última sync: hace {c.sync}
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:16 }}>
             <div style={{ background:T.bg, borderRadius:6, padding:10 }}>
@@ -2074,14 +905,14 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
             style={{ width:"100%", background:T.accentDim,
             border:`1px solid ${T.accent}33`, borderRadius:7, padding:8,
             color:T.accent, fontSize:11, fontFamily:T.font, fontWeight:600 }}>
-            Configurar integraciÃ³n
+            Configurar integración
           </button>
         </div>
       )})}
     </div>
   );
 
-  // â”€â”€ VISTA: USUARIOS â”€â”€
+  // ── VISTA: USUARIOS ──
   const ViewUsuarios = () => (
     <div className="fade">
       <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:14 }}>
@@ -2148,7 +979,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     </div>
   );
 
-  // â”€â”€ VISTA: ALERTAS â”€â”€
+  // ── VISTA: ALERTAS ──
   const ViewAlertas = () => (
     <div className="fade" style={{ display:"flex", flexDirection:"column", gap:10 }}>
       {DATA.alertas.map((a,i) => {
@@ -2164,7 +995,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
               <div style={{ fontSize:12, fontWeight:600, color:T.text,
                 marginBottom:3 }}>{a.mensaje}</div>
               <div style={{ fontSize:10, color:T.textMid, fontFamily:T.fontMono }}>
-                {a.sucursal !== "â€”" && `${a.sucursal} Â· `}{a.tiempo}
+                {a.sucursal !== "—" && `${a.sucursal} · `}{a.tiempo}
               </div>
             </div>
             <span style={{ background:`${c}15`, color:c, padding:"3px 10px",
@@ -2177,7 +1008,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     </div>
   );
 
-  // â”€â”€ PLACEHOLDER MÃ“DULOS â”€â”€
+  // ── PLACEHOLDER MÓDULOS ──
   const ViewPlaceholder = ({ label }) => (
     <div className="fade" style={{ display:"flex", flexDirection:"column",
       alignItems:"center", justifyContent:"center", height:300, gap:12 }}>
@@ -2187,7 +1018,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
       <div style={{ fontFamily:T.fontDisplay, fontWeight:700,
         fontSize:16, color:T.textMid }}>{label}</div>
       <div style={{ fontSize:11, color:T.textDim,
-        fontFamily:T.fontMono }}>MÃ³dulo en construcciÃ³n</div>
+        fontFamily:T.fontMono }}>Módulo en construcción</div>
     </div>
   );
 
@@ -2195,7 +1026,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     switch(nav) {
       case "dashboard":      return <ViewDashboard />;
       case "pedidos":        return <ViewPedidos />;
-      case "productos":      return <ViewProductos />;
+      case "productos":      return <ViewProductos usuario={usuario} />;
       case "sucursales":     return <ViewSucursales />;
       case "transferencias": return <ViewTransferencias />;
       case "integraciones":  return <ViewIntegraciones />;
