@@ -12,7 +12,7 @@ import { ROLES_KEY } from './roles.decorator';
 
 export type PerfilUsuario = {
   id: string;
-  empresa_id: string;
+  empresa_id: string | null;
   rol: 'super_admin' | 'admin_empresa' | 'encargado_sucursal' | 'vendedor';
   sucursal_id: string | null;
 };
@@ -99,7 +99,7 @@ function toPerfilUsuario(data: unknown): PerfilUsuario | null {
   const sucursalId = row.sucursal_id;
 
   if (typeof id !== 'string') return null;
-  if (typeof empresaId !== 'string') return null;
+  if (typeof empresaId !== 'string' && empresaId !== null) return null;
   if (typeof rol !== 'string' || !ROLES_VALIDOS.has(rol as PerfilUsuario['rol'])) return null;
   if (typeof sucursalId !== 'string' && sucursalId !== null) return null;
 

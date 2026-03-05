@@ -88,7 +88,7 @@ export class AuthService {
         }
 
         // ── 4. Validar estado de empresa ──
-        if (empresa.estado !== 'activo') {
+        if (!['activo', 'activa'].includes(empresa.estado)) {
             this.logger.warn(
                 `Login bloqueado para ${dto.email}: empresa "${empresa.nombre}" en estado "${empresa.estado}"`,
             );
