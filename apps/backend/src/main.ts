@@ -41,10 +41,13 @@ async function bootstrap() {
   const corsOrigins = [
     process.env.FRONTEND_URL,
     ...(process.env.CORS_ORIGINS?.split(',').map((value) => value.trim()) ?? []),
+    'https://sistema-automatizaciones-frontend.vercel.app',
     'https://sistema-automatizaciones-prod.vercel.app',
     'http://localhost:5173',
     'http://localhost:3000',
   ].filter((value): value is string => Boolean(value));
+
+  const vercelProjectOrigin = /^https:\/\/sistema-automatizaciones-[a-z0-9-]+\.vercel\.app$/i;
 
   app.enableCors({
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
@@ -53,7 +56,7 @@ async function bootstrap() {
         return callback(null, true);
       }
 
-      if (corsOrigins.includes(origin)) {
+      if (corsOrigins.includes(origin) || vercelProjectOrigin.test(origin)) {
         return callback(null, true);
       }
 
