@@ -43,6 +43,29 @@ export const operacionesService = {
     return response.json();
   },
 
+  importarProductosCSV: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await authFetch(`${API_URL}/operaciones/productos/importar`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      let message = 'Error al importar CSV';
+      try {
+        const error = (await response.json()) as { message?: string };
+        if (error?.message) message = error.message;
+      } catch {
+        // noop
+      }
+      throw new Error(message);
+    }
+
+    return response.json();
+  },
+
   crearProducto: async (data: {
     nombre: string;
     sku: string;

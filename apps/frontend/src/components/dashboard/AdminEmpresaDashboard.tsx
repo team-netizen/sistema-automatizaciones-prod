@@ -777,6 +777,14 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     const [errorNuevoProducto, setErrorNuevoProducto] = useState('');
     const [eliminandoProducto, setEliminandoProducto] = useState(false);
     const [confirmEliminar, setConfirmEliminar] = useState<{ id: string; nombre: string } | null>(null);
+    const [modalImportar, setModalImportar] = useState(false);
+    const [archivoCSV, setArchivoCSV] = useState<File | null>(null);
+    const [previewCSV, setPreviewCSV] = useState<any[]>([]);
+    const [totalCSV, setTotalCSV] = useState(0);
+    const [importandoCSV, setImportandoCSV] = useState(false);
+    const [progresoCSV, setProgresoCSV] = useState({ actual: 0, total: 0 });
+    const [resultadoImportacion, setResultadoImportacion] = useState<any | null>(null);
+    const [errorImportacion, setErrorImportacion] = useState('');
     const [categorias, setCategorias] = useState<any[]>([]);
     const [cargandoCategorias, setCargandoCategorias] = useState(false);
     const [nuevoProducto, setNuevoProducto] = useState({
@@ -830,6 +838,146 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
         setCategorias([]);
       } finally {
         setCargandoCategorias(false);
+      }
+    };
+
+    const parseCsvLine = (line: string) => {
+      const out: string[] = [];
+      let current = '';
+      let inQuotes = false;
+
+      for (let i = 0; i < line.length; i += 1) {
+        const ch = line[i];
+        if (ch === '"') {
+          if (inQuotes && line[i + 1] === '"') {
+            current += '"';
+            i += 1;
+          } else {
+            inQuotes = !inQuotes;
+          }
+          continue;
+        }
+        if (ch === ',' && !inQuotes) {
+          out.push(current.trim());
+          current = '';
+          continue;
+        }
+        current += ch;
+      }
+      out.push(current.trim());
+      return out;
+    };
+
+    const procesarCsvPreview = (text: string) => {
+      const lines = text
+        .replace(/^\uFEFF/, '')
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+
+      if (lines.length === 0) {
+        setPreviewCSV([]);
+        setTotalCSV(0);
+        return;
+      }
+
+      const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase());
+      const rows = lines.slice(1).map((line) => parseCsvLine(line));
+      const data = rows.map((cols) => {
+        const row: Record<string, string> = {};
+        headers.forEach((h, idx) => {
+          row[h] = cols[idx] ?? '';
+        });
+        return row;
+      });
+
+      setTotalCSV(data.length);
+      setPreviewCSV(data.slice(0, 5));
+    };
+
+    const descargarPlantillaCSV = () => {
+      const template = [
+        'nombre,sku,precio,costo,descripcion,stock_minimo',
+        'Creatina 300g ON,CREA-300G,125.00,80.00,Suplemento proteico,5',
+        'Mutant Mass 15lb,MASST-15LB,369.00,250.00,Ganador de masa,3',
+      ].join('\n');
+
+      const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'plantilla_productos.csv';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    };
+
+    const onSeleccionarArchivoCSV = async (file: File | null) => {
+      setArchivoCSV(file);
+      setResultadoImportacion(null);
+      setErrorImportacion('');
+      if (!file) {
+        setPreviewCSV([]);
+        setTotalCSV(0);
+        return;
+      }
+
+      try {
+        const text = await file.text();
+        procesarCsvPreview(text);
+      } catch {
+        setPreviewCSV([]);
+        setTotalCSV(0);
+        setErrorImportacion('No se pudo leer el archivo CSV');
+      }
+    };
+
+    const abrirModalImportar = () => {
+      setModalImportar(true);
+      setArchivoCSV(null);
+      setPreviewCSV([]);
+      setTotalCSV(0);
+      setResultadoImportacion(null);
+      setErrorImportacion('');
+      setProgresoCSV({ actual: 0, total: 0 });
+    };
+
+    const cerrarModalImportar = () => {
+      if (importandoCSV) return;
+      setModalImportar(false);
+    };
+
+    const importarProductosCSV = async () => {
+      if (!archivoCSV) {
+        setErrorImportacion('Selecciona un archivo CSV');
+        return;
+      }
+
+      setImportandoCSV(true);
+      setErrorImportacion('');
+      setResultadoImportacion(null);
+
+      const total = totalCSV > 0 ? totalCSV : 1;
+      setProgresoCSV({ actual: 0, total });
+      const timer = setInterval(() => {
+        setProgresoCSV((prev) => ({
+          total: prev.total,
+          actual: Math.min(prev.actual + 1, Math.max(prev.total - 1, 0)),
+        }));
+      }, 150);
+
+      try {
+        const res = await operacionesService.importarProductosCSV(archivoCSV);
+        clearInterval(timer);
+        setProgresoCSV({ actual: total, total });
+        setResultadoImportacion(res);
+        await cargarProductos();
+      } catch (err: any) {
+        clearInterval(timer);
+        setErrorImportacion(err?.message || 'Error al importar CSV');
+      } finally {
+        setImportandoCSV(false);
       }
     };
 
@@ -960,26 +1108,44 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
               {productos.length} productos registrados
             </div>
           </div>
-          <button
-            className="btn"
-            onClick={abrirModalNuevo}
-            style={{
-              background: T.accentDim,
-              border: `1px solid ${T.accent}44`,
-              borderRadius: 8,
-              padding: '8px 14px',
-              color: T.accent,
-              fontSize: 12,
-              fontFamily: T.font,
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <Ico d={IC.plus} size={14} color={T.accent} />
-            Nuevo Producto
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              className="btn"
+              onClick={abrirModalImportar}
+              style={{
+                background: T.surface2,
+                border: `1px solid ${T.border2}`,
+                borderRadius: 8,
+                padding: '8px 14px',
+                color: T.text,
+                fontSize: 12,
+                fontFamily: T.font,
+                fontWeight: 700,
+              }}
+            >
+              ⬆ Importar CSV
+            </button>
+            <button
+              className="btn"
+              onClick={abrirModalNuevo}
+              style={{
+                background: T.accentDim,
+                border: `1px solid ${T.accent}44`,
+                borderRadius: 8,
+                padding: '8px 14px',
+                color: T.accent,
+                fontSize: 12,
+                fontFamily: T.font,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <Ico d={IC.plus} size={14} color={T.accent} />
+              Nuevo Producto
+            </button>
+          </div>
         </div>
 
         <div style={{
@@ -1564,6 +1730,203 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
                   {eliminandoProducto ? 'Eliminando...' : 'Si, eliminar'}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+        {modalImportar && (
+          <div
+            onClick={cerrarModalImportar}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.68)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1460,
+              padding: 16,
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: '100%',
+                maxWidth: 640,
+                background: T.surface,
+                border: `1px solid ${T.border}`,
+                borderRadius: 12,
+                boxShadow: '0 28px 80px rgba(0,0,0,0.45)',
+                padding: 18,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <div>
+                  <div style={{ fontFamily: T.fontDisplay, fontWeight: 800, fontSize: 18, color: T.text }}>
+                    Importar Productos CSV
+                  </div>
+                  <div style={{ fontSize: 11, color: T.textMid, fontFamily: T.fontMono }}>
+                    Importa productos masivamente desde un archivo CSV
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={cerrarModalImportar}
+                  disabled={importandoCSV}
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 8,
+                    background: T.surface2,
+                    border: `1px solid ${T.border2}`,
+                    color: T.textMid,
+                    fontSize: 16,
+                  }}
+                >
+                  X
+                </button>
+              </div>
+
+              <div style={{ background: T.surface2, border: `1px solid ${T.border2}`, borderRadius: 10, padding: 12, marginBottom: 12 }}>
+                <div style={{ fontSize: 12, color: T.text, marginBottom: 8, fontWeight: 700 }}>
+                  1. Descargar plantilla
+                </div>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={descargarPlantillaCSV}
+                  style={{
+                    background: T.accentDim,
+                    border: `1px solid ${T.accent}44`,
+                    borderRadius: 8,
+                    padding: '8px 12px',
+                    color: T.accent,
+                    fontSize: 12,
+                    fontFamily: T.font,
+                    fontWeight: 700,
+                  }}
+                >
+                  Descargar plantilla CSV
+                </button>
+              </div>
+
+              <div style={{ background: T.surface2, border: `1px solid ${T.border2}`, borderRadius: 10, padding: 12, marginBottom: 12 }}>
+                <div style={{ fontSize: 12, color: T.text, marginBottom: 8, fontWeight: 700 }}>
+                  2. Subir archivo
+                </div>
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  disabled={importandoCSV}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    void onSeleccionarArchivoCSV(file);
+                  }}
+                  style={{
+                    width: '100%',
+                    background: T.bg,
+                    border: `1px solid ${T.border2}`,
+                    borderRadius: 8,
+                    padding: '9px 10px',
+                    color: T.text,
+                    fontSize: 12,
+                    fontFamily: T.font,
+                    marginBottom: 10,
+                  }}
+                />
+                <div style={{ fontSize: 11, color: T.textMid, marginBottom: 8 }}>
+                  {`${totalCSV} productos encontrados en el archivo`}
+                </div>
+                {previewCSV.length > 0 && (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ background: T.bg }}>
+                          {['nombre', 'sku', 'precio', 'costo', 'descripcion', 'stock_minimo'].map((h) => (
+                            <th
+                              key={h}
+                              style={{
+                                padding: '7px 8px',
+                                textAlign: 'left',
+                                fontSize: 9,
+                                color: T.textDim,
+                                fontWeight: 700,
+                                letterSpacing: '0.06em',
+                                textTransform: 'uppercase',
+                                fontFamily: T.fontMono,
+                              }}
+                            >
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {previewCSV.map((row, idx) => (
+                          <tr key={idx} style={{ borderTop: `1px solid ${T.border}` }}>
+                            <td style={{ padding: '7px 8px', fontSize: 11, color: T.text }}>{row.nombre || '—'}</td>
+                            <td style={{ padding: '7px 8px', fontSize: 11, color: T.accent, fontFamily: T.fontMono }}>{row.sku || '—'}</td>
+                            <td style={{ padding: '7px 8px', fontSize: 11, color: T.textMid }}>{row.precio || '—'}</td>
+                            <td style={{ padding: '7px 8px', fontSize: 11, color: T.textMid }}>{row.costo || '—'}</td>
+                            <td style={{ padding: '7px 8px', fontSize: 11, color: T.textMid }}>{row.descripcion || '—'}</td>
+                            <td style={{ padding: '7px 8px', fontSize: 11, color: T.textMid }}>{row.stock_minimo || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                <div style={{ fontSize: 11, color: T.textMid }}>
+                  {importandoCSV ? `Importando... ${progresoCSV.actual}/${progresoCSV.total} productos` : ''}
+                </div>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={importarProductosCSV}
+                  disabled={!archivoCSV || importandoCSV}
+                  style={{
+                    background: T.accentDim,
+                    border: `1px solid ${T.accent}44`,
+                    borderRadius: 8,
+                    padding: '9px 14px',
+                    color: T.accent,
+                    fontSize: 12,
+                    fontFamily: T.font,
+                    fontWeight: 700,
+                  }}
+                >
+                  {importandoCSV ? 'Importando...' : 'Importar'}
+                </button>
+              </div>
+
+              {errorImportacion && (
+                <div style={{ marginTop: 12, background: '#2a0d10', border: '1px solid #5a1a20', color: '#ff9aa5', borderRadius: 8, padding: '9px 10px', fontSize: 11 }}>
+                  {errorImportacion}
+                </div>
+              )}
+
+              {resultadoImportacion && (
+                <div style={{ marginTop: 12, background: T.surface2, border: `1px solid ${T.border2}`, borderRadius: 10, padding: 12 }}>
+                  <div style={{ fontSize: 12, color: T.accent, fontWeight: 700, marginBottom: 6 }}>
+                    {`✅ ${Number(resultadoImportacion?.exitosos || 0)} productos importados exitosamente`}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#f59e0b', fontWeight: 700, marginBottom: 8 }}>
+                    {`⚠️ ${Number(resultadoImportacion?.errores || 0)} productos con errores`}
+                  </div>
+                  {Array.isArray(resultadoImportacion?.detalle_errores) && resultadoImportacion.detalle_errores.length > 0 && (
+                    <div style={{ maxHeight: 160, overflowY: 'auto', borderTop: `1px solid ${T.border}`, paddingTop: 8 }}>
+                      {resultadoImportacion.detalle_errores.map((err: any, idx: number) => (
+                        <div key={idx} style={{ fontSize: 11, color: '#ff9aa5', marginBottom: 4 }}>
+                          {`Fila ${err?.fila ?? '-'} (${err?.sku ?? 'sin-sku'}): ${err?.error ?? 'Error'}`}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

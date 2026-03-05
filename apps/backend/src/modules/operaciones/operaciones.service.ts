@@ -5,6 +5,7 @@ import {
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
+import { parse } from 'csv-parse/sync';
 import { SupabaseService } from '../../shared/supabase/supabase.service';
 
 type DashboardMetricas = {
@@ -313,6 +314,92 @@ export class OperacionesService {
 
     if (error) throw new Error(error.message);
     return producto;
+  }
+
+  async importarProductosCSV(empresa_id: string, buffer: Buffer) {
+    const content = buffer.toString('utf-8').replace(/^\uFEFF/, '');
+    if (!content.trim()) {
+      throw new BadRequestException('Archivo CSV vacio');
+    }
+
+    const expectedColumns = ['nombre', 'sku', 'precio', 'costo', 'descripcion', 'stock_minimo'];
+    const firstLine = content
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line.length > 0);
+    const headers = firstLine ? firstLine.split(',').map((h) => h.trim().toLowerCase()) : [];
+    const missingColumns = expectedColumns.filter((col) => !headers.includes(col));
+    if (missingColumns.length > 0) {
+      throw new BadRequestException(`Columnas faltantes en CSV: ${missingColumns.join(', ')}`);
+    }
+
+    let rows: Array<Record<string, unknown>> = [];
+    try {
+      rows = parse(content, {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true,
+        bom: true,
+      }) as Array<Record<string, unknown>>;
+    } catch {
+      throw new BadRequestException('CSV invalido');
+    }
+
+    let exitosos = 0;
+    const detalle_errores: Array<{ fila: number; sku: string | null; error: string }> = [];
+
+    for (let idx = 0; idx < rows.length; idx += 1) {
+      const row = rows[idx] ?? {};
+      const fila = idx + 2;
+      const nombre = String(row.nombre ?? '').trim();
+      const sku = String(row.sku ?? '').trim();
+      const descripcion = String(row.descripcion ?? '').trim();
+      const precio = Number(row.precio);
+      const costo = Number(row.costo);
+      const stockMinimo = Number(row.stock_minimo);
+
+      if (!nombre || !sku || !Number.isFinite(precio)) {
+        detalle_errores.push({
+          fila,
+          sku: sku || null,
+          error: 'Fila invalida: nombre, sku y precio son obligatorios',
+        });
+        continue;
+      }
+
+      const payload = {
+        empresa_id,
+        nombre,
+        sku,
+        precio,
+        costo: Number.isFinite(costo) ? costo : 0,
+        descripcion: descripcion || null,
+        stock_minimo: Number.isFinite(stockMinimo) ? stockMinimo : 0,
+        activo: true,
+      };
+
+      const { error } = await this.supabase.getAdminClient().from('productos').insert(payload);
+      if (error) {
+        const msg = String(error.message ?? '');
+        const duplicate =
+          error.code === '23505' || msg.toLowerCase().includes('duplicate') || msg.toLowerCase().includes('unique');
+        detalle_errores.push({
+          fila,
+          sku: sku || null,
+          error: duplicate ? 'SKU duplicado' : msg || 'Error insertando producto',
+        });
+        continue;
+      }
+
+      exitosos += 1;
+    }
+
+    return {
+      exitosos,
+      errores: detalle_errores.length,
+      detalle_errores,
+      total: rows.length,
+    };
   }
 
   async actualizarProducto(empresa_id: string, id: string, data: any) {

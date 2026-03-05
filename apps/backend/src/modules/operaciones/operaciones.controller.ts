@@ -10,9 +10,12 @@ import {
   Post,
   Query,
   Req,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import type { Request } from 'express';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { EmpresaGuard } from '../../core/auth/empresa.guard';
 import { Roles } from '../../core/auth/roles.decorator';
 import { PerfilUsuario, RolesGuard } from '../../core/auth/roles.guard';
@@ -111,6 +114,19 @@ export class OperacionesController {
     const empresaId = req.perfil.empresa_id;
     if (!empresaId) throw new ForbiddenException('empresa_id requerido');
     return this.operacionesService.crearProducto(empresaId, body);
+  }
+
+  @Post('productos/importar')
+  @Roles('admin_empresa', 'super_admin')
+  @UseInterceptors(FileInterceptor('file'))
+  async importarProductosCSV(
+    @Req() req: AuthenticatedRequest,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    if (!file) throw new BadRequestException('Archivo CSV requerido');
+    return this.operacionesService.importarProductosCSV(empresaId, file.buffer);
   }
 
   @Patch('productos/:id')
