@@ -37,6 +37,15 @@ export const operacionesService = {
     return parseOrThrow(response, 'Error al obtener productos');
   },
 
+  toggleProductoActivo: async (productoId: string, activo: boolean) => {
+    const response = await authFetch(`${API_URL}/operaciones/productos/${productoId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ activo }),
+    });
+    if (!response.ok) throw new Error('Error al actualizar producto');
+    return response.json();
+  },
+
   getMovimientos: async (filters?: QueryFilters) => {
     const response = await authFetch(`${API_URL}/operaciones/movimientos${buildQueryString(filters)}`);
     return parseOrThrow(response, 'Error al obtener movimientos');

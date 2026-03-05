@@ -199,44 +199,104 @@ export class OperacionesService {
     }
   }
 
-  async getProductos(empresa_id: string, filters?: any): Promise<any[]> {
+  async getProductos(empresa_id: string, filters: Record<string, string> = {}) {
     try {
-      let query = this.supabase
+      const { data: productos, error } = await this.supabase
         .getAdminClient()
         .from('productos')
-        .select('*')
-        .eq('empresa_id', empresa_id);
+        .select(
+          `
+          id, nombre, sku, precio, activo,
+          stock_por_sucursal:stock_por_sucursal(
+            cantidad,
+            sucursal:sucursales(id, nombre)
+          )
+        `,
+        )
+        .eq('empresa_id', empresa_id)
+        .order('nombre', { ascending: true });
 
-      if (filters?.categoria) {
-        query = query.eq('categoria', String(filters.categoria));
-      }
+      if (error) throw error;
+
+      const { data: integracion } = await this.supabase
+        .getAdminClient()
+        .from('integraciones_canal')
+        .select('id')
+        .eq('empresa_id', empresa_id)
+        .eq('tipo_integracion', 'woocommerce')
+        .eq('activa', true)
+        .maybeSingle();
+
+      let rows = (productos ?? []) as Array<Record<string, unknown>>;
 
       if (filters?.search) {
-        const search = String(filters.search).trim();
+        const search = String(filters.search).trim().toLowerCase();
         if (search) {
-          const safeSearch = search
-            // [SECURITY FIX] Evita inyeccion de operadores en expresion PostgREST `or`.
-            .replace(/[%(),]/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-          if (safeSearch) {
-            query = query.or(`nombre.ilike.%${safeSearch}%,sku.ilike.%${safeSearch}%`);
-          }
+          rows = rows.filter((p) => {
+            const nombre = String(p.nombre ?? '').toLowerCase();
+            const sku = String(p.sku ?? '').toLowerCase();
+            return nombre.includes(search) || sku.includes(search);
+          });
         }
       }
 
-      const limit = this.toPositiveInt(filters?.limit, 100);
-      const page = this.toPositiveInt(filters?.page, 1);
-      const offset = (page - 1) * limit;
+      if (filters?.limit || filters?.page) {
+        const limit = this.toPositiveInt(filters?.limit, 100);
+        const page = this.toPositiveInt(filters?.page, 1);
+        const offset = (page - 1) * limit;
+        rows = rows.slice(offset, offset + limit);
+      }
 
-      const { data, error } = await query
-        .order('fecha_creacion', { ascending: false })
-        .range(offset, offset + limit - 1);
+      const resultado = rows.map((p) => {
+        const stockPorSucursalRaw = Array.isArray(p.stock_por_sucursal)
+          ? (p.stock_por_sucursal as Array<Record<string, unknown>>)
+          : [];
 
-      if (error) throw error;
-      return data ?? [];
+        const stockPorSucursal = stockPorSucursalRaw.map((s) => {
+          const sucursalRaw = Array.isArray(s.sucursal)
+            ? ((s.sucursal[0] as Record<string, unknown>) ?? null)
+            : (s.sucursal as Record<string, unknown> | null);
+          return {
+            sucursal_id: sucursalRaw ? this.readOptionalString(sucursalRaw, 'id') : null,
+            sucursal_nombre: sucursalRaw ? this.readOptionalString(sucursalRaw, 'nombre') : null,
+            cantidad: this.readNumber(s, 'cantidad'),
+          };
+        });
+
+        const stockTotal = stockPorSucursal.reduce(
+          (sum: number, s: { cantidad: number }) => sum + (s.cantidad || 0),
+          0,
+        );
+
+        return {
+          ...p,
+          stock_total: stockTotal,
+          stock_por_sucursal: stockPorSucursal,
+          woo_sincronizado: !!integracion && !!this.readOptionalString(p, 'sku'),
+        };
+      });
+
+      return { productos: resultado, total: resultado.length };
     } catch (error) {
       this.handleError('getProductos', error, 'Error al obtener productos');
+    }
+  }
+
+  async toggleProductoActivo(empresa_id: string, producto_id: string, activo: boolean) {
+    try {
+      const { data, error } = await this.supabase
+        .getAdminClient()
+        .from('productos')
+        .update({ activo })
+        .eq('id', producto_id)
+        .eq('empresa_id', empresa_id)
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
+      return data;
+    } catch (error) {
+      this.handleError('toggleProductoActivo', error, 'Error al actualizar producto');
     }
   }
 

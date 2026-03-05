@@ -1,5 +1,5 @@
 ﻿// @ts-nocheck
-import { useState, useEffect } from 'react';
+import { Fragment, useState, useEffect } from 'react';
 import { operacionesService } from '../../modules/operaciones/services/operacionesService';
 import WooCommerceModal from '../integraciones/WooCommerceModal';
 
@@ -764,6 +764,288 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     );
   };
 
+  // —— VISTA: PRODUCTOS ——
+  const ViewProductos = () => {
+    const [productos, setProductos] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [busqueda, setBusqueda] = useState('');
+    const [expandido, setExpandido] = useState<string | null>(null);
+
+    useEffect(() => {
+      let mounted = true;
+      operacionesService.getProductos()
+        .then((res) => {
+          if (!mounted) return;
+          setProductos(res?.productos || []);
+        })
+        .catch(() => {
+          if (!mounted) return;
+          setProductos([]);
+        })
+        .finally(() => {
+          if (!mounted) return;
+          setLoading(false);
+        });
+
+      return () => {
+        mounted = false;
+      };
+    }, []);
+
+    const toggleActivo = async (productoId: string, activoActual: boolean) => {
+      try {
+        await operacionesService.toggleProductoActivo(productoId, !activoActual);
+        setProductos((prev) =>
+          prev.map((p) => (String(p?.id ?? '') === productoId ? { ...p, activo: !activoActual } : p)),
+        );
+      } catch (err) {
+        console.error('Error al cambiar estado del producto:', err);
+      }
+    };
+
+    const productosFiltrados = productos.filter((p) =>
+      String(p?.nombre ?? '').toLowerCase().includes(busqueda.toLowerCase()) ||
+      String(p?.sku ?? '').toLowerCase().includes(busqueda.toLowerCase()),
+    );
+
+    if (loading) {
+      return (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          height: 200, color: T.textMid, fontSize: 13,
+        }}>
+          Cargando productos...
+        </div>
+      );
+    }
+
+    return (
+      <div className="fade" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontFamily: T.fontDisplay, fontWeight: 800, fontSize: 20, color: T.text }}>
+              Productos
+            </div>
+            <div style={{ fontSize: 11, color: T.textMid, fontFamily: T.fontMono }}>
+              {productos.length} productos registrados
+            </div>
+          </div>
+          <button
+            className="btn"
+            style={{
+              background: T.accentDim,
+              border: `1px solid ${T.accent}44`,
+              borderRadius: 8,
+              padding: '8px 14px',
+              color: T.accent,
+              fontSize: 12,
+              fontFamily: T.font,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <Ico d={IC.plus} size={14} color={T.accent} />
+            Nuevo Producto
+          </button>
+        </div>
+
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          background: T.surface, border: `1px solid ${T.border}`,
+          borderRadius: 8, padding: '8px 12px',
+        }}>
+          <Ico d={IC.search} size={13} color={T.textMid} />
+          <input
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar por nombre o SKU..."
+            style={{
+              background: 'none',
+              border: 'none',
+              color: T.text,
+              fontSize: 12,
+              fontFamily: T.font,
+              width: '100%',
+            }}
+          />
+        </div>
+
+        {productosFiltrados.length === 0 ? (
+          <div style={{
+            textAlign: 'center', padding: 40, color: T.textMid, fontSize: 13,
+          }}>
+            {busqueda ? `No se encontraron productos con "${busqueda}"` : 'No hay productos registrados'}
+          </div>
+        ) : (
+          <Card>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: T.bg }}>
+                  {['SKU', 'Nombre', 'Precio', 'Stock', 'Woo', 'Estado', ''].map((h) => (
+                    <th
+                      key={h}
+                      style={{
+                        padding: '9px 16px',
+                        textAlign: h === 'Precio' || h === 'Stock' ? 'right' : 'left',
+                        fontSize: 9,
+                        color: T.textDim,
+                        fontWeight: 700,
+                        letterSpacing: '0.09em',
+                        textTransform: 'uppercase',
+                        fontFamily: T.fontMono,
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {productosFiltrados.map((p) => {
+                  const productoId = String(p?.id ?? '');
+                  const abierto = expandido === productoId;
+                  const stockTotal = Number(p?.stock_total || 0);
+                  const stockPorSucursal = Array.isArray(p?.stock_por_sucursal) ? p.stock_por_sucursal : [];
+                  const estaActivo = Boolean(p?.activo);
+
+                  return (
+                    <Fragment key={productoId}>
+                      <tr
+                        onClick={() => setExpandido(abierto ? null : productoId)}
+                        className="tr"
+                        style={{ cursor: 'pointer', borderBottom: `1px solid ${T.border}` }}
+                      >
+                        <td style={{ padding: '12px 16px', fontFamily: T.fontMono, color: T.accent, fontSize: 12 }}>
+                          {p?.sku || '—'}
+                        </td>
+                        <td style={{ padding: '12px 16px', color: T.text, fontWeight: 500 }}>
+                          {p?.nombre || 'Producto sin nombre'}
+                        </td>
+                        <td style={{ padding: '12px 16px', color: T.textMid, textAlign: 'right' }}>
+                          S/ {Number(p?.precio || 0).toFixed(2)}
+                        </td>
+                        <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                          <span
+                            style={{
+                              color: stockTotal > 10 ? T.accent : stockTotal > 0 ? '#f59e0b' : '#ef4444',
+                              fontWeight: 700,
+                              fontFamily: T.fontMono,
+                            }}
+                          >
+                            {stockTotal}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                          {p?.woo_sincronizado ? (
+                            <span
+                              style={{
+                                background: T.accentDim,
+                                color: T.accent,
+                                borderRadius: 4,
+                                padding: '2px 8px',
+                                fontSize: 11,
+                              }}
+                            >
+                              sync
+                            </span>
+                          ) : (
+                            <span
+                              style={{
+                                background: `${T.textMid}18`,
+                                color: T.textMid,
+                                borderRadius: 4,
+                                padding: '2px 8px',
+                                fontSize: 11,
+                              }}
+                            >
+                              —
+                            </span>
+                          )}
+                        </td>
+                        <td onClick={(e) => e.stopPropagation()} style={{ padding: '12px 16px' }}>
+                          <button
+                            onClick={() => toggleActivo(productoId, estaActivo)}
+                            style={{
+                              background: estaActivo ? T.accentDim : '#ef444418',
+                              color: estaActivo ? T.accent : '#ef4444',
+                              border: 'none',
+                              borderRadius: 4,
+                              padding: '2px 10px',
+                              fontSize: 11,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {estaActivo ? 'Activo' : 'Inactivo'}
+                          </button>
+                        </td>
+                        <td style={{ padding: '12px 16px', color: T.textMid, textAlign: 'center' }}>
+                          {abierto ? '▲' : '▼'}
+                        </td>
+                      </tr>
+                      {abierto && (
+                        <tr>
+                          <td
+                            colSpan={7}
+                            style={{
+                              background: T.surface,
+                              padding: '12px 16px',
+                              borderBottom: `1px solid ${T.border}`,
+                            }}
+                          >
+                            <div style={{ fontSize: 12, color: T.textMid, marginBottom: 8 }}>
+                              Stock por sucursal
+                            </div>
+                            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                              {stockPorSucursal.map((s: any, idx: number) => (
+                                <div
+                                  key={String(s?.sucursal_id ?? idx)}
+                                  style={{
+                                    background: T.surface2,
+                                    border: `1px solid ${T.border2}`,
+                                    borderRadius: 8,
+                                    padding: '8px 16px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: 4,
+                                  }}
+                                >
+                                  <span style={{ color: T.textMid, fontSize: 11 }}>
+                                    {s?.sucursal_nombre || 'Sucursal'}
+                                  </span>
+                                  <span
+                                    style={{
+                                      color: T.text,
+                                      fontFamily: T.fontMono,
+                                      fontSize: 18,
+                                      fontWeight: 700,
+                                    }}
+                                  >
+                                    {Number(s?.cantidad || 0)}
+                                  </span>
+                                </div>
+                              ))}
+                              {stockPorSucursal.length === 0 && (
+                                <span style={{ color: T.textMid, fontSize: 12 }}>
+                                  Sin stock en sucursales
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </Card>
+        )}
+      </div>
+    );
+  };
+
   // â”€â”€ VISTA: SUCURSALES â”€â”€
   const ViewSucursales = () => (
     <div className="fade">
@@ -1025,6 +1307,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     switch(nav) {
       case "dashboard":      return <ViewDashboard />;
       case "pedidos":        return <ViewPedidos />;
+      case "productos":      return <ViewProductos />;
       case "sucursales":     return <ViewSucursales />;
       case "transferencias": return <ViewTransferencias />;
       case "integraciones":  return <ViewIntegraciones />;
