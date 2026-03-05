@@ -770,26 +770,30 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     const [loading, setLoading] = useState(true);
     const [busqueda, setBusqueda] = useState('');
     const [expandido, setExpandido] = useState<string | null>(null);
+    const [modalNuevo, setModalNuevo] = useState(false);
+    const [creandoProducto, setCreandoProducto] = useState(false);
+    const [errorNuevoProducto, setErrorNuevoProducto] = useState('');
+    const [nuevoProducto, setNuevoProducto] = useState({
+      nombre: '',
+      sku: '',
+      precio: '',
+      activo: true,
+    });
+
+    const cargarProductos = async () => {
+      setLoading(true);
+      try {
+        const res = await operacionesService.getProductos();
+        setProductos(res?.productos || []);
+      } catch {
+        setProductos([]);
+      } finally {
+        setLoading(false);
+      }
+    };
 
     useEffect(() => {
-      let mounted = true;
-      operacionesService.getProductos()
-        .then((res) => {
-          if (!mounted) return;
-          setProductos(res?.productos || []);
-        })
-        .catch(() => {
-          if (!mounted) return;
-          setProductos([]);
-        })
-        .finally(() => {
-          if (!mounted) return;
-          setLoading(false);
-        });
-
-      return () => {
-        mounted = false;
-      };
+      void cargarProductos();
     }, []);
 
     const toggleActivo = async (productoId: string, activoActual: boolean) => {
@@ -807,6 +811,57 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
       String(p?.nombre ?? '').toLowerCase().includes(busqueda.toLowerCase()) ||
       String(p?.sku ?? '').toLowerCase().includes(busqueda.toLowerCase()),
     );
+
+    const abrirModalNuevo = () => {
+      setErrorNuevoProducto('');
+      setNuevoProducto({
+        nombre: '',
+        sku: '',
+        precio: '',
+        activo: true,
+      });
+      setModalNuevo(true);
+    };
+
+    const cerrarModalNuevo = () => {
+      if (creandoProducto) return;
+      setModalNuevo(false);
+    };
+
+    const submitNuevoProducto = async (e: any) => {
+      e.preventDefault();
+      const nombre = String(nuevoProducto.nombre ?? '').trim();
+      const sku = String(nuevoProducto.sku ?? '').trim();
+      const precioText = String(nuevoProducto.precio ?? '').trim();
+      const precio = Number(precioText);
+
+      if (!nombre || !sku || !precioText) {
+        setErrorNuevoProducto('Nombre, SKU y precio son obligatorios');
+        return;
+      }
+
+      if (!Number.isFinite(precio) || precio < 0) {
+        setErrorNuevoProducto('El precio debe ser un numero valido');
+        return;
+      }
+
+      setCreandoProducto(true);
+      setErrorNuevoProducto('');
+      try {
+        await operacionesService.crearProducto({
+          nombre,
+          sku,
+          precio,
+          activo: Boolean(nuevoProducto.activo),
+        });
+        setModalNuevo(false);
+        await cargarProductos();
+      } catch (err: any) {
+        setErrorNuevoProducto(err?.message || 'Error al crear producto');
+      } finally {
+        setCreandoProducto(false);
+      }
+    };
 
     if (loading) {
       return (
@@ -832,6 +887,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
           </div>
           <button
             className="btn"
+            onClick={abrirModalNuevo}
             style={{
               background: T.accentDim,
               border: `1px solid ${T.accent}44`,
@@ -1041,6 +1097,221 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
               </tbody>
             </table>
           </Card>
+        )}
+        {modalNuevo && (
+          <div
+            onClick={cerrarModalNuevo}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.68)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1400,
+              padding: 16,
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: '100%',
+                maxWidth: 440,
+                background: T.surface,
+                border: `1px solid ${T.border}`,
+                borderRadius: 12,
+                boxShadow: '0 28px 80px rgba(0,0,0,0.45)',
+                padding: 18,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <div>
+                  <div style={{ fontFamily: T.fontDisplay, fontWeight: 800, fontSize: 18, color: T.text }}>
+                    Nuevo Producto
+                  </div>
+                  <div style={{ fontSize: 11, color: T.textMid, fontFamily: T.fontMono }}>
+                    Crea un producto para tu catalogo
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={cerrarModalNuevo}
+                  disabled={creandoProducto}
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 8,
+                    background: T.surface2,
+                    border: `1px solid ${T.border2}`,
+                    color: T.textMid,
+                    fontSize: 16,
+                  }}
+                >
+                  X
+                </button>
+              </div>
+
+              <form onSubmit={submitNuevoProducto}>
+                <label style={{ display: 'block', fontSize: 11, color: T.textMid, marginBottom: 6 }}>
+                  Nombre del producto
+                </label>
+                <input
+                  value={nuevoProducto.nombre}
+                  onChange={(e) => setNuevoProducto((prev) => ({ ...prev, nombre: e.target.value }))}
+                  placeholder="Ej. Creatina 300g ON"
+                  disabled={creandoProducto}
+                  maxLength={160}
+                  style={{
+                    width: '100%',
+                    background: T.bg,
+                    border: `1px solid ${T.border2}`,
+                    borderRadius: 8,
+                    padding: '10px 12px',
+                    color: T.text,
+                    fontSize: 12,
+                    fontFamily: T.font,
+                    marginBottom: 12,
+                  }}
+                />
+
+                <label style={{ display: 'block', fontSize: 11, color: T.textMid, marginBottom: 6 }}>
+                  SKU
+                </label>
+                <input
+                  value={nuevoProducto.sku}
+                  onChange={(e) => setNuevoProducto((prev) => ({ ...prev, sku: e.target.value }))}
+                  placeholder="Ej. CREA-300G-ON"
+                  disabled={creandoProducto}
+                  maxLength={120}
+                  style={{
+                    width: '100%',
+                    background: T.bg,
+                    border: `1px solid ${T.border2}`,
+                    borderRadius: 8,
+                    padding: '10px 12px',
+                    color: T.text,
+                    fontSize: 12,
+                    fontFamily: T.fontMono,
+                    marginBottom: 12,
+                  }}
+                />
+
+                <label style={{ display: 'block', fontSize: 11, color: T.textMid, marginBottom: 6 }}>
+                  Precio
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={nuevoProducto.precio}
+                  onChange={(e) => setNuevoProducto((prev) => ({ ...prev, precio: e.target.value }))}
+                  placeholder="0.00"
+                  disabled={creandoProducto}
+                  style={{
+                    width: '100%',
+                    background: T.bg,
+                    border: `1px solid ${T.border2}`,
+                    borderRadius: 8,
+                    padding: '10px 12px',
+                    color: T.text,
+                    fontSize: 12,
+                    fontFamily: T.fontMono,
+                    marginBottom: 12,
+                  }}
+                />
+
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    background: T.surface2,
+                    border: `1px solid ${T.border2}`,
+                    borderRadius: 8,
+                    padding: '9px 12px',
+                    marginBottom: 12,
+                  }}
+                >
+                  <span style={{ fontSize: 12, color: T.text }}>Activo</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setNuevoProducto((prev) => ({ ...prev, activo: !prev.activo }))
+                    }
+                    disabled={creandoProducto}
+                    style={{
+                      background: nuevoProducto.activo ? T.accentDim : '#ef444418',
+                      color: nuevoProducto.activo ? T.accent : '#ef4444',
+                      border: 'none',
+                      borderRadius: 999,
+                      padding: '4px 12px',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {nuevoProducto.activo ? 'SI' : 'NO'}
+                  </button>
+                </div>
+
+                {errorNuevoProducto && (
+                  <div
+                    style={{
+                      marginBottom: 12,
+                      background: '#2a0d10',
+                      border: '1px solid #5a1a20',
+                      color: '#ff9aa5',
+                      borderRadius: 8,
+                      padding: '9px 10px',
+                      fontSize: 11,
+                      fontFamily: T.font,
+                    }}
+                  >
+                    {errorNuevoProducto}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={cerrarModalNuevo}
+                    disabled={creandoProducto}
+                    style={{
+                      background: T.surface2,
+                      border: `1px solid ${T.border2}`,
+                      borderRadius: 8,
+                      padding: '9px 14px',
+                      color: T.textMid,
+                      fontSize: 12,
+                      fontFamily: T.font,
+                      fontWeight: 600,
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn"
+                    disabled={creandoProducto}
+                    style={{
+                      background: T.accentDim,
+                      border: `1px solid ${T.accent}44`,
+                      borderRadius: 8,
+                      padding: '9px 14px',
+                      color: T.accent,
+                      fontSize: 12,
+                      fontFamily: T.font,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {creandoProducto ? 'Creando...' : 'Crear Producto'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         )}
       </div>
     );

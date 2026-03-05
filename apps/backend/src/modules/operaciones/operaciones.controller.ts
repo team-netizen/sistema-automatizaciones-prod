@@ -85,6 +85,17 @@ export class OperacionesController {
     return this.operacionesService.getProductos(empresaId, filters);
   }
 
+  @Post('productos')
+  @Roles('admin_empresa', 'super_admin')
+  async crearProducto(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: { nombre: string; sku: string; precio: number; activo: boolean },
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    return this.operacionesService.crearProducto(empresaId, body);
+  }
+
   @Patch('productos/:id')
   @Roles('admin_empresa', 'super_admin')
   async toggleProductoActivo(

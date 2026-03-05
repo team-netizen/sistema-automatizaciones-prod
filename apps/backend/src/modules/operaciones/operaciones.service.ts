@@ -282,6 +282,18 @@ export class OperacionesService {
     }
   }
 
+  async crearProducto(empresa_id: string, data: any) {
+    const { data: producto, error } = await this.supabase
+      .getAdminClient()
+      .from('productos')
+      .insert({ ...data, empresa_id })
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
+    return producto;
+  }
+
   async toggleProductoActivo(empresa_id: string, producto_id: string, activo: boolean) {
     try {
       const { data, error } = await this.supabase

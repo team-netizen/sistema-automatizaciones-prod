@@ -37,6 +37,29 @@ export const operacionesService = {
     return parseOrThrow(response, 'Error al obtener productos');
   },
 
+  crearProducto: async (data: {
+    nombre: string;
+    sku: string;
+    precio: number;
+    activo: boolean;
+  }) => {
+    const response = await authFetch(`${API_URL}/operaciones/productos`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      let message = 'Error al crear producto';
+      try {
+        const error = (await response.json()) as { message?: string };
+        if (error?.message) message = error.message;
+      } catch {
+        // noop
+      }
+      throw new Error(message);
+    }
+    return response.json();
+  },
+
   toggleProductoActivo: async (productoId: string, activo: boolean) => {
     const response = await authFetch(`${API_URL}/operaciones/productos/${productoId}`, {
       method: 'PATCH',
