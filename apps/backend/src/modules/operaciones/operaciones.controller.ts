@@ -72,6 +72,14 @@ export class OperacionesController {
     return this.operacionesService.crearSucursal(empresaId, body);
   }
 
+  @Get('categorias')
+  @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
+  getCategorias(@Req() req: AuthenticatedRequest) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) return { categorias: [] };
+    return this.operacionesService.getCategorias(empresaId);
+  }
+
   @Get('productos')
   @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
   getProductos(
@@ -89,7 +97,15 @@ export class OperacionesController {
   @Roles('admin_empresa', 'super_admin')
   async crearProducto(
     @Req() req: AuthenticatedRequest,
-    @Body() body: { nombre: string; sku: string; precio: number; activo: boolean },
+    @Body()
+    body: {
+      nombre: string;
+      sku: string;
+      precio: number;
+      activo: boolean;
+      categoria_id?: string | null;
+      descripcion?: string | null;
+    },
   ) {
     const empresaId = req.perfil.empresa_id;
     if (!empresaId) throw new ForbiddenException('empresa_id requerido');

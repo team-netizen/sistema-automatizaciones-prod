@@ -773,9 +773,13 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     const [modalNuevo, setModalNuevo] = useState(false);
     const [creandoProducto, setCreandoProducto] = useState(false);
     const [errorNuevoProducto, setErrorNuevoProducto] = useState('');
+    const [categorias, setCategorias] = useState<any[]>([]);
+    const [cargandoCategorias, setCargandoCategorias] = useState(false);
     const [nuevoProducto, setNuevoProducto] = useState({
       nombre: '',
       sku: '',
+      categoria_id: null as string | null,
+      descripcion: '',
       precio: '',
       activo: true,
     });
@@ -812,14 +816,30 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
       String(p?.sku ?? '').toLowerCase().includes(busqueda.toLowerCase()),
     );
 
+    const cargarCategoriasModal = async () => {
+      setCargandoCategorias(true);
+      try {
+        const res = await operacionesService.getCategorias();
+        const rows = Array.isArray(res?.categorias) ? res.categorias : [];
+        setCategorias(rows);
+      } catch {
+        setCategorias([]);
+      } finally {
+        setCargandoCategorias(false);
+      }
+    };
+
     const abrirModalNuevo = () => {
       setErrorNuevoProducto('');
       setNuevoProducto({
         nombre: '',
         sku: '',
+        categoria_id: null,
+        descripcion: '',
         precio: '',
         activo: true,
       });
+      void cargarCategoriasModal();
       setModalNuevo(true);
     };
 
@@ -832,6 +852,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
       e.preventDefault();
       const nombre = String(nuevoProducto.nombre ?? '').trim();
       const sku = String(nuevoProducto.sku ?? '').trim();
+      const descripcion = String(nuevoProducto.descripcion ?? '').trim();
       const precioText = String(nuevoProducto.precio ?? '').trim();
       const precio = Number(precioText);
 
@@ -851,6 +872,8 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
         await operacionesService.crearProducto({
           nombre,
           sku,
+          categoria_id: nuevoProducto.categoria_id || null,
+          descripcion: descripcion || null,
           precio,
           activo: Boolean(nuevoProducto.activo),
         });
@@ -1193,6 +1216,74 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
                     color: T.text,
                     fontSize: 12,
                     fontFamily: T.fontMono,
+                    marginBottom: 12,
+                  }}
+                />
+
+                <label style={{ display: 'block', fontSize: 11, color: T.textMid, marginBottom: 6 }}>
+                  Categoria (opcional)
+                </label>
+                <select
+                  value={nuevoProducto.categoria_id || ''}
+                  onChange={(e) =>
+                    setNuevoProducto((prev) => ({
+                      ...prev,
+                      categoria_id: e.target.value || null,
+                    }))
+                  }
+                  disabled={creandoProducto || cargandoCategorias}
+                  style={{
+                    width: '100%',
+                    background: T.bg,
+                    border: `1px solid ${T.border2}`,
+                    borderRadius: 8,
+                    padding: '10px 12px',
+                    color: T.text,
+                    fontSize: 12,
+                    fontFamily: T.font,
+                    marginBottom: 6,
+                  }}
+                >
+                  <option value="">Sin categoria</option>
+                  {categorias.map((c: any) => (
+                    <option key={String(c?.id ?? '')} value={String(c?.id ?? '')}>
+                      {String(c?.nombre ?? 'Categoria')}
+                    </option>
+                  ))}
+                </select>
+                {cargandoCategorias && (
+                  <div style={{ fontSize: 10, color: T.textMid, marginBottom: 12 }}>
+                    Cargando categorias...
+                  </div>
+                )}
+                {!cargandoCategorias && categorias.length === 0 && (
+                  <div style={{ fontSize: 10, color: T.textMid, marginBottom: 12 }}>
+                    No hay categorias activas, se guardara sin categoria.
+                  </div>
+                )}
+
+                <label style={{ display: 'block', fontSize: 11, color: T.textMid, marginBottom: 6 }}>
+                  Descripcion (opcional)
+                </label>
+                <textarea
+                  rows={3}
+                  maxLength={500}
+                  value={nuevoProducto.descripcion}
+                  onChange={(e) =>
+                    setNuevoProducto((prev) => ({ ...prev, descripcion: e.target.value }))
+                  }
+                  placeholder="Descripcion del producto (opcional)"
+                  disabled={creandoProducto}
+                  style={{
+                    width: '100%',
+                    background: T.bg,
+                    border: `1px solid ${T.border2}`,
+                    borderRadius: 8,
+                    padding: '10px 12px',
+                    color: T.text,
+                    fontSize: 12,
+                    fontFamily: T.font,
+                    resize: 'vertical',
                     marginBottom: 12,
                   }}
                 />

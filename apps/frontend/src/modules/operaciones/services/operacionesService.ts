@@ -37,11 +37,19 @@ export const operacionesService = {
     return parseOrThrow(response, 'Error al obtener productos');
   },
 
+  getCategorias: async () => {
+    const response = await authFetch(`${API_URL}/operaciones/categorias`);
+    if (!response.ok) return { categorias: [] };
+    return response.json();
+  },
+
   crearProducto: async (data: {
     nombre: string;
     sku: string;
     precio: number;
     activo: boolean;
+    categoria_id?: string | null;
+    descripcion?: string | null;
   }) => {
     const response = await authFetch(`${API_URL}/operaciones/productos`, {
       method: 'POST',

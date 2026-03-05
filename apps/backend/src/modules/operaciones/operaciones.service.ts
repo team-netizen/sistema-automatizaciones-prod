@@ -282,11 +282,32 @@ export class OperacionesService {
     }
   }
 
+  async getCategorias(empresa_id: string) {
+    const { data, error } = await this.supabase
+      .getAdminClient()
+      .from('categorias')
+      .select('id, nombre')
+      .eq('empresa_id', empresa_id)
+      .eq('activo', true)
+      .order('nombre', { ascending: true });
+
+    if (error) return { categorias: [] };
+    return { categorias: data || [] };
+  }
+
   async crearProducto(empresa_id: string, data: any) {
     const { data: producto, error } = await this.supabase
       .getAdminClient()
       .from('productos')
-      .insert({ ...data, empresa_id })
+      .insert({
+        empresa_id,
+        nombre: data?.nombre,
+        sku: data?.sku,
+        precio: data?.precio,
+        activo: typeof data?.activo === 'boolean' ? data.activo : true,
+        categoria_id: data?.categoria_id || null,
+        descripcion: data?.descripcion || null,
+      })
       .select()
       .single();
 
