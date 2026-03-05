@@ -62,6 +62,18 @@ export const operacionesService = {
     return parseOrThrow(response, 'Error al obtener sucursales');
   },
 
+  crearSucursal: async (data: {
+    nombre: string;
+    tipo?: string;
+    estado?: string;
+  }) => {
+    const response = await authFetch(`${API_URL}/operaciones/sucursales`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return parseOrThrow(response, 'Error al crear sucursal');
+  },
+
   getTransferencias: async (filters?: QueryFilters) => {
     const response = await authFetch(`${API_URL}/operaciones/transferencias${buildQueryString(filters)}`);
     return parseOrThrow(response, 'Error al obtener transferencias');

@@ -22,6 +22,12 @@ type TransferenciaPayload = {
   items: Array<{ producto_id: string; cantidad_enviada: number }>;
 };
 
+type SucursalPayload = {
+  nombre: string;
+  tipo?: string;
+  estado?: string;
+};
+
 type TransferenciaEstado = 'en_transito' | 'recibido' | 'cancelado';
 
 @Injectable()
@@ -134,6 +140,62 @@ export class OperacionesService {
       return data ?? [];
     } catch (error) {
       this.handleError('getSucursales', error, 'Error al obtener sucursales');
+    }
+  }
+
+  async crearSucursal(empresa_id: string, data: SucursalPayload): Promise<any> {
+    try {
+      const nombre = String(data?.nombre ?? '').trim();
+      if (!nombre) {
+        throw new BadRequestException('El nombre de la sucursal es obligatorio');
+      }
+
+      if (nombre.length > 120) {
+        throw new BadRequestException('El nombre de la sucursal excede el maximo permitido');
+      }
+
+      const tipoEntrada = String(data?.tipo ?? 'tienda').trim().toLowerCase();
+      const tipo = tipoEntrada === 'almacen' || tipoEntrada === 'almacén' ? 'almacen' : 'tienda';
+
+      const estadoEntrada = String(data?.estado ?? 'activa').trim().toLowerCase();
+      const activa = ['activo', 'activa', 'true', '1'].includes(estadoEntrada);
+      const estado = activa ? 'activa' : 'inactiva';
+
+      const payloads: Array<Record<string, unknown>> = [
+        { empresa_id, nombre, tipo, estado, activa },
+        { empresa_id, nombre, tipo, estado },
+        { empresa_id, nombre, tipo, activa },
+        { empresa_id, nombre, estado },
+        { empresa_id, nombre, activa },
+        { empresa_id, nombre },
+      ];
+
+      let lastError: { message?: string } | null = null;
+      for (const payload of payloads) {
+        const { data: insertData, error } = await this.supabase
+          .getAdminClient()
+          .from('sucursales')
+          .insert(payload)
+          .select('*');
+
+        if (!error) {
+          if (Array.isArray(insertData)) return insertData[0] ?? payload;
+          return insertData ?? payload;
+        }
+
+        if (this.isRecoverableColumnError(error)) {
+          lastError = error;
+          continue;
+        }
+
+        throw error;
+      }
+
+      throw new InternalServerErrorException(
+        `No se pudo crear sucursal: ${lastError?.message ?? 'schema incompatible'}`,
+      );
+    } catch (error) {
+      this.handleError('crearSucursal', error, 'Error al crear sucursal');
     }
   }
 

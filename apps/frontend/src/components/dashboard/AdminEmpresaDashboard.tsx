@@ -180,6 +180,11 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
   const [search, setSearch]   = useState("");
   const [filterEstado, setFilterEstado] = useState("todos");
   const [modalWoo, setModalWoo] = useState(false);
+  const [modalSucursal, setModalSucursal] = useState(false);
+  const [nuevaSucursalNombre, setNuevaSucursalNombre] = useState("");
+  const [nuevaSucursalTipo, setNuevaSucursalTipo] = useState("tienda");
+  const [creandoSucursal, setCreandoSucursal] = useState(false);
+  const [errorNuevaSucursal, setErrorNuevaSucursal] = useState("");
 
   const actualizarEstadoCardWoo = (estado: "activo" | "manual") => {
     setIntegraciones((prev) => {
@@ -214,21 +219,59 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     });
   };
 
+  const toRows = (payload: any, keys: string[]) => {
+    if (Array.isArray(payload)) return payload;
+    if (!payload || typeof payload !== "object") return [];
+    for (const key of keys) {
+      if (Array.isArray(payload[key])) return payload[key];
+    }
+    return [];
+  };
+
+  const abrirModalNuevaSucursal = () => {
+    setErrorNuevaSucursal("");
+    setNuevaSucursalNombre("");
+    setNuevaSucursalTipo("tienda");
+    setModalSucursal(true);
+  };
+
+  const recargarSucursales = async () => {
+    const data = await operacionesService.getSucursales();
+    const rows = toRows(data, ["sucursales", "data", "items"]);
+    setSucursales(rows);
+  };
+
+  const crearNuevaSucursal = async (e: any) => {
+    e.preventDefault();
+    const nombre = String(nuevaSucursalNombre ?? "").trim();
+    if (!nombre) {
+      setErrorNuevaSucursal("El nombre de la sucursal es obligatorio");
+      return;
+    }
+
+    setCreandoSucursal(true);
+    setErrorNuevaSucursal("");
+    try {
+      await operacionesService.crearSucursal({
+        nombre,
+        tipo: nuevaSucursalTipo,
+        estado: "activa",
+      });
+      await recargarSucursales();
+      setModalSucursal(false);
+    } catch (error: any) {
+      setErrorNuevaSucursal(error?.message || "No se pudo crear la sucursal");
+    } finally {
+      setCreandoSucursal(false);
+    }
+  };
+
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 60000);
     return () => clearInterval(t);
   }, []);
 
   useEffect(() => {
-    const toRows = (payload: any, keys: string[]) => {
-      if (Array.isArray(payload)) return payload;
-      if (!payload || typeof payload !== "object") return [];
-      for (const key of keys) {
-        if (Array.isArray(payload[key])) return payload[key];
-      }
-      return [];
-    };
-
     const loadAll = async () => {
       setLoading(true);
       try {
@@ -725,7 +768,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
   const ViewSucursales = () => (
     <div className="fade">
       <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:14 }}>
-        <button className="btn" style={{ background:T.accentDim,
+        <button className="btn" onClick={abrirModalNuevaSucursal} style={{ background:T.accentDim,
           border:`1px solid ${T.accent}44`, borderRadius:8, padding:"8px 16px",
           color:T.accent, fontSize:12, fontFamily:T.font, fontWeight:700,
           display:"flex", alignItems:"center", gap:6 }}>
@@ -1022,6 +1065,164 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
             actualizarEstadoCardWoo("manual");
           }}
         />
+      )}
+      {modalSucursal && (
+        <div
+          onClick={() => {
+            if (!creandoSucursal) setModalSucursal(false);
+          }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.65)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1200,
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: 460,
+              background: T.surface,
+              border: `1px solid ${T.border}`,
+              borderRadius: 12,
+              boxShadow: "0 30px 90px rgba(0,0,0,0.45)",
+              padding: 18,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div>
+                <div style={{ fontFamily: T.fontDisplay, fontWeight: 800, fontSize: 18, color: T.text }}>
+                  Nueva Sucursal
+                </div>
+                <div style={{ fontSize: 11, color: T.textMid, fontFamily: T.fontMono }}>
+                  Crea una sucursal para tu empresa
+                </div>
+              </div>
+              <button
+                className="btn"
+                onClick={() => !creandoSucursal && setModalSucursal(false)}
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 8,
+                  background: T.surface2,
+                  border: `1px solid ${T.border2}`,
+                  color: T.textMid,
+                  fontSize: 16,
+                }}
+              >
+                X
+              </button>
+            </div>
+
+            <form onSubmit={crearNuevaSucursal}>
+              <label style={{ display: "block", fontSize: 11, color: T.textMid, marginBottom: 6 }}>
+                Nombre
+              </label>
+              <input
+                value={nuevaSucursalNombre}
+                onChange={(e) => setNuevaSucursalNombre(e.target.value)}
+                placeholder="Ej. Tienda Miraflores"
+                maxLength={120}
+                disabled={creandoSucursal}
+                style={{
+                  width: "100%",
+                  background: T.bg,
+                  border: `1px solid ${T.border2}`,
+                  borderRadius: 8,
+                  padding: "10px 12px",
+                  color: T.text,
+                  fontSize: 12,
+                  fontFamily: T.font,
+                  marginBottom: 12,
+                }}
+              />
+
+              <label style={{ display: "block", fontSize: 11, color: T.textMid, marginBottom: 6 }}>
+                Tipo
+              </label>
+              <select
+                value={nuevaSucursalTipo}
+                onChange={(e) => setNuevaSucursalTipo(e.target.value)}
+                disabled={creandoSucursal}
+                style={{
+                  width: "100%",
+                  background: T.bg,
+                  border: `1px solid ${T.border2}`,
+                  borderRadius: 8,
+                  padding: "10px 12px",
+                  color: T.text,
+                  fontSize: 12,
+                  fontFamily: T.font,
+                  marginBottom: 12,
+                }}
+              >
+                <option value="tienda">Tienda</option>
+                <option value="almacen">Almacen</option>
+              </select>
+
+              {errorNuevaSucursal && (
+                <div
+                  style={{
+                    marginBottom: 12,
+                    background: "#2a0d10",
+                    border: "1px solid #5a1a20",
+                    color: "#ff9aa5",
+                    borderRadius: 8,
+                    padding: "9px 10px",
+                    fontSize: 11,
+                    fontFamily: T.font,
+                  }}
+                >
+                  {errorNuevaSucursal}
+                </div>
+              )}
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => !creandoSucursal && setModalSucursal(false)}
+                  disabled={creandoSucursal}
+                  style={{
+                    background: T.surface2,
+                    border: `1px solid ${T.border2}`,
+                    borderRadius: 8,
+                    padding: "9px 14px",
+                    color: T.textMid,
+                    fontSize: 12,
+                    fontFamily: T.font,
+                    fontWeight: 600,
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn"
+                  disabled={creandoSucursal}
+                  style={{
+                    background: T.accentDim,
+                    border: `1px solid ${T.accent}44`,
+                    borderRadius: 8,
+                    padding: "9px 14px",
+                    color: T.accent,
+                    fontSize: 12,
+                    fontFamily: T.font,
+                    fontWeight: 700,
+                  }}
+                >
+                  {creandoSucursal ? "Creando..." : "Crear Sucursal"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </>
   );

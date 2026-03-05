@@ -58,6 +58,20 @@ export class OperacionesController {
     return this.operacionesService.getSucursales(empresaId);
   }
 
+  @Post('sucursales')
+  @Roles('admin_empresa', 'super_admin')
+  crearSucursal(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: { nombre: string; tipo?: string; estado?: string },
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) {
+      throw new ForbiddenException('super_admin debe especificar empresa_id');
+    }
+
+    return this.operacionesService.crearSucursal(empresaId, body);
+  }
+
   @Get('productos')
   @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
   getProductos(
