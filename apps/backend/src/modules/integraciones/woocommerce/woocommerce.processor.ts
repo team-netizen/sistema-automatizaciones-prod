@@ -68,7 +68,7 @@ export class WooCommerceProcessor extends WorkerHost {
       return;
     }
 
-    const estado = resultado.fallidos > 0 ? 'warning' : 'exitoso';
+    const estado = resultado.fallidos > 0 ? 'parcial' : 'exitoso';
     const resumen = `${tipo} finalizado: exitosos=${resultado.exitosos}, fallidos=${resultado.fallidos}`;
     const detalle = resultado.errores.length > 0 ? `${resumen} | ${resultado.errores.join(' | ')}` : resumen;
 

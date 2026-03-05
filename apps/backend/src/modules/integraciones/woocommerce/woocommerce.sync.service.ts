@@ -1073,9 +1073,9 @@ export class WooCommerceSyncService {
     return resolved;
   }
 
-  private mapNivelToEstado(nivel: 'info' | 'warning' | 'error'): 'exitoso' | 'warning' | 'fallido' {
-    if (nivel === 'error') return 'fallido';
-    if (nivel === 'warning') return 'warning';
+  private mapNivelToEstado(nivel: 'info' | 'warning' | 'error'): 'exitoso' | 'parcial' | 'error' {
+    if (nivel === 'error') return 'error';
+    if (nivel === 'warning') return 'parcial';
     return 'exitoso';
   }
 
