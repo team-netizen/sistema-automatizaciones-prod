@@ -431,6 +431,15 @@ export class OperacionesService {
   }
 
   async eliminarProducto(empresa_id: string, producto_id: string) {
+    const { error: stockError } = await this.supabase
+      .getAdminClient()
+      .from('stock_por_sucursal')
+      .delete()
+      .eq('producto_id', producto_id)
+      .eq('empresa_id', empresa_id);
+
+    if (stockError) throw new Error(stockError.message);
+
     const { error } = await this.supabase
       .getAdminClient()
       .from('productos')
