@@ -73,6 +73,7 @@ export const operacionesService = {
     activo: boolean;
     categoria_id?: string | null;
     descripcion?: string | null;
+    stock_por_sucursal?: Array<{ sucursal_id: string; cantidad: number }>;
   }) => {
     const response = await authFetch(`${API_URL}/operaciones/productos`, {
       method: 'POST',

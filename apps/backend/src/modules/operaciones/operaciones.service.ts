@@ -313,6 +313,29 @@ export class OperacionesService {
       .single();
 
     if (error) throw new Error(error.message);
+
+    const stockItems = Array.isArray(data?.stock_por_sucursal)
+      ? data.stock_por_sucursal.filter((s: any) => Number(s?.cantidad) > 0)
+      : [];
+
+    if (stockItems.length > 0) {
+      const inserts = stockItems.map((s: any) => ({
+        empresa_id,
+        producto_id: producto.id,
+        sucursal_id: s.sucursal_id,
+        cantidad: Number(s.cantidad),
+      }));
+
+      const { error: stockError } = await this.supabase
+        .getAdminClient()
+        .from('stock_por_sucursal')
+        .insert(inserts);
+
+      if (stockError) {
+        console.error('Error insertando stock inicial:', stockError.message);
+      }
+    }
+
     return producto;
   }
 
