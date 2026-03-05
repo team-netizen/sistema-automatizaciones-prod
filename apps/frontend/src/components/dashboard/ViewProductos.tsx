@@ -172,17 +172,42 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
   };
 
   const exportarProductosCSV = () => {
-    const headers = 'nombre,sku,precio,costo,stock_total,estado';
-    const filas = productos.map((p) =>
-      [
-        p?.nombre || '',
+    const sucursalesUnicas: string[] = [];
+    productos.forEach((p) => {
+      (p?.stock_por_sucursal || []).forEach((s: any) => {
+        if (s?.sucursal_nombre && !sucursalesUnicas.includes(s.sucursal_nombre)) {
+          sucursalesUnicas.push(s.sucursal_nombre);
+        }
+      });
+    });
+
+    const headers = [
+      'nombre',
+      'sku',
+      'precio',
+      'stock_total',
+      ...sucursalesUnicas,
+      'estado',
+    ].join(',');
+
+    const filas = productos.map((p) => {
+      const stockPorSucursal: Record<string, number> = {};
+      (p?.stock_por_sucursal || []).forEach((s: any) => {
+        if (s?.sucursal_nombre) {
+          stockPorSucursal[s.sucursal_nombre] = s.cantidad || 0;
+        }
+      });
+
+      return [
+        `"${p?.nombre || ''}"`,
         p?.sku || '',
         p?.precio || 0,
-        p?.costo || '',
         p?.stock_total || 0,
+        ...sucursalesUnicas.map((nombre) => stockPorSucursal[nombre] || 0),
         p?.activo ? 'activo' : 'inactivo',
-      ].join(','),
-    );
+      ].join(',');
+    });
+
     const csv = [headers, ...filas].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
