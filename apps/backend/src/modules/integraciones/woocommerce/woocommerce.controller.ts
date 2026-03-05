@@ -141,7 +141,7 @@ export class WooCommerceController {
       const { error } = await this.supabase
         .getAdminClient()
         .from('integraciones_canal')
-        .update({ activo: false })
+        .update({ activa: false })
         .eq('id', integracion.id);
 
       if (error) {
@@ -199,8 +199,8 @@ export class WooCommerceController {
     ]);
 
     return {
-      activo: Boolean(integracion?.activo),
-      ultima_sync: integracion?.ultima_sync ?? null,
+      activo: Boolean(integracion?.activa),
+      ultima_sync: integracion?.ultima_sincronizacion ?? null,
       productos_sync,
       errores_recientes,
     };
@@ -249,7 +249,8 @@ export class WooCommerceController {
         .from('integraciones_canal')
         .update({
           credenciales,
-          activo: true,
+          activa: true,
+          tipo_integracion: 'woocommerce',
           canal_id: canalId ?? existente.canal_id ?? null,
         })
         .eq('id', existente.id);
@@ -265,24 +266,26 @@ export class WooCommerceController {
     const payloads: Array<Record<string, unknown>> = [
       {
         empresa_id,
-        canal: 'woocommerce',
+        tipo_integracion: 'woocommerce',
         canal_id: canalId,
         credenciales,
-        activo: true,
-        ultima_sync: null,
+        activa: true,
+        ultima_sincronizacion: null,
       },
       {
         empresa_id,
+        tipo_integracion: 'woocommerce',
         canal_id: canalId,
         credenciales,
-        activo: true,
-        ultima_sync: null,
+        activa: true,
+        ultima_sincronizacion: null,
       },
       {
         empresa_id,
+        tipo_integracion: 'woocommerce',
         credenciales,
-        activo: true,
-        ultima_sync: null,
+        activa: true,
+        ultima_sincronizacion: null,
       },
     ];
 
@@ -332,16 +335,18 @@ export class WooCommerceController {
   private async obtenerIntegracionWoo(empresa_id: string): Promise<{
     id: string;
     canal_id: string | null;
-    activo: boolean;
-    ultima_sync: string | null;
+    activa: boolean;
+    ultima_sincronizacion: string | null;
     credenciales?: WooCredenciales | null;
   } | null> {
     const direct = await this.supabase
       .getAdminClient()
       .from('integraciones_canal')
-      .select('id, empresa_id, canal_id, canal, activo, ultima_sync, credenciales')
+      .select(
+        'id, empresa_id, canal_id, tipo_integracion, activa, ultima_sincronizacion, credenciales',
+      )
       .eq('empresa_id', empresa_id)
-      .eq('canal', 'woocommerce')
+      .eq('tipo_integracion', 'woocommerce')
       .order('id', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -353,7 +358,7 @@ export class WooCommerceController {
     const all = await this.supabase
       .getAdminClient()
       .from('integraciones_canal')
-      .select('id, empresa_id, canal_id, activo, ultima_sync, credenciales')
+      .select('id, empresa_id, canal_id, activa, ultima_sincronizacion, credenciales')
       .eq('empresa_id', empresa_id);
 
     if (all.error) {
@@ -411,8 +416,8 @@ export class WooCommerceController {
   private toIntegracion(row: Record<string, unknown>): {
     id: string;
     canal_id: string | null;
-    activo: boolean;
-    ultima_sync: string | null;
+    activa: boolean;
+    ultima_sincronizacion: string | null;
     credenciales?: WooCredenciales | null;
   } | null {
     const id = this.readString(row.id);
@@ -432,8 +437,8 @@ export class WooCommerceController {
     return {
       id,
       canal_id: this.readString(row.canal_id),
-      activo: Boolean(row.activo),
-      ultima_sync: this.readString(row.ultima_sync),
+      activa: Boolean(row.activa),
+      ultima_sincronizacion: this.readString(row.ultima_sincronizacion),
       credenciales,
     };
   }
