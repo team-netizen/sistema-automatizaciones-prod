@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: sistema-automatizaciones-backend
+    runtime: node
+    rootDir: apps/backend
+    buildCommand: npm install && npm run build
+    startCommand: npm run start:prod
+    envVars:
+      - key: NODE_ENV
+        value: production
