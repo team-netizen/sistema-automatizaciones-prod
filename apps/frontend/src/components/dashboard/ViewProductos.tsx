@@ -184,6 +184,7 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
     const headers = [
       'nombre',
       'sku',
+      'categoria',
       'precio',
       'stock_total',
       ...sucursalesUnicas,
@@ -191,6 +192,11 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
     ].join(',');
 
     const filas = productos.map((p) => {
+      const categoriaNombre = p?.categoria?.nombre
+        || categorias.find((c: any) => String(c?.id ?? '') === String(p?.categoria_id ?? ''))?.nombre
+        || p?.categoria_id
+        || 'Sin categoria';
+
       const stockPorSucursal: Record<string, number> = {};
       (p?.stock_por_sucursal || []).forEach((s: any) => {
         if (s?.sucursal_nombre) {
@@ -201,6 +207,7 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
       return [
         `"${p?.nombre || ''}"`,
         p?.sku || '',
+        `"${categoriaNombre}"`,
         p?.precio || 0,
         p?.stock_total || 0,
         ...sucursalesUnicas.map((nombre) => stockPorSucursal[nombre] || 0),
