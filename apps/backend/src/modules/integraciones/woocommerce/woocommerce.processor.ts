@@ -12,6 +12,7 @@ type WooSyncJobData = {
 @Injectable()
 export class WooCommerceProcessor extends WorkerHost {
   private readonly logger = new Logger(WooCommerceProcessor.name);
+  private readonly integracionIdCache = new Map<string, string>();
 
   constructor(
     private readonly wooSyncService: WooCommerceSyncService,
@@ -59,63 +60,55 @@ export class WooCommerceProcessor extends WorkerHost {
     empresa_id: string,
     resultado: SyncResult,
   ): Promise<void> {
-    const nivel = resultado.fallidos > 0 ? 'warning' : 'info';
-    const mensaje = `${tipo} finalizado: exitosos=${resultado.exitosos}, fallidos=${resultado.fallidos}`;
-
-    const variantes: Array<Record<string, unknown>> = [
-      {
-        empresa_id,
-        canal_nombre: 'woocommerce',
-        tipo,
-        nivel,
-        mensaje,
-        metadata: {
-          ...resultado,
-          fuente: 'woocommerce.processor',
-        },
-        fecha_sync: new Date().toISOString(),
-      },
-      {
-        empresa_id,
-        tipo_sync: tipo,
-        estado: nivel,
-        detalle: mensaje,
-        data: {
-          ...resultado,
-          fuente: 'woocommerce.processor',
-        },
-      },
-      {
-        empresa_id,
-        mensaje: `[${tipo}] ${mensaje}`,
-      },
-    ];
-
-    let lastError: { message?: string } | null = null;
-    for (const payload of variantes) {
-      const { error } = await this.supabase.getAdminClient().from('sync_log').insert(payload);
-      if (!error) return;
-      lastError = error;
-      if (this.isRecoverableColumnError(error)) continue;
-
-      this.logger.warn(`[sync_log] Error no recuperable al insertar ${tipo}: ${error.message}`);
+    const integracion_id = await this.resolveIntegracionId(empresa_id);
+    if (!integracion_id) {
+      this.logger.warn(
+        `[sync_log] No se pudo registrar ${tipo} para empresa ${empresa_id}: integración WooCommerce no encontrada`,
+      );
       return;
     }
 
+    const estado = resultado.fallidos > 0 ? 'warning' : 'exitoso';
+    const resumen = `${tipo} finalizado: exitosos=${resultado.exitosos}, fallidos=${resultado.fallidos}`;
+    const detalle = resultado.errores.length > 0 ? `${resumen} | ${resultado.errores.join(' | ')}` : resumen;
+
+    const payload = {
+      empresa_id,
+      integracion_id,
+      producto_id: null,
+      stock_enviado: null,
+      estado,
+      detalle_error: detalle.slice(0, 1000),
+      fecha_sync: new Date().toISOString(),
+    };
+
+    const { error } = await this.supabase.getAdminClient().from('sync_log').insert(payload);
+    if (!error) return;
+
     this.logger.warn(
-      `[sync_log] No se pudo registrar ${tipo} para empresa ${empresa_id}: ${lastError?.message ?? 'error desconocido'}`,
+      `[sync_log] No se pudo registrar ${tipo} para empresa ${empresa_id}: ${error.message}`,
     );
   }
 
-  private isRecoverableColumnError(error: { code?: string; message?: string } | null | undefined): boolean {
-    const code = String(error?.code ?? '');
-    const message = String(error?.message ?? '').toLowerCase();
-    return (
-      code === '42703' ||
-      code === 'PGRST204' ||
-      message.includes('column') ||
-      message.includes('schema cache') ||
-      message.includes('does not exist')
-    );
+  private async resolveIntegracionId(empresa_id: string): Promise<string | null> {
+    const cached = this.integracionIdCache.get(empresa_id);
+    if (cached) return cached;
+
+    const { data, error } = await this.supabase
+      .getAdminClient()
+      .from('integraciones_canal')
+      .select('id')
+      .eq('empresa_id', empresa_id)
+      .eq('tipo_integracion', 'woocommerce')
+      .eq('activa', true)
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data) return null;
+
+    const id = String((data as Record<string, unknown>).id ?? '').trim();
+    if (!id) return null;
+    this.integracionIdCache.set(empresa_id, id);
+    return id;
   }
 }

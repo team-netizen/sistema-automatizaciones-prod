@@ -37,6 +37,7 @@ type ResultadoPedido = {
 @Injectable()
 export class WooCommerceSyncService {
   private readonly logger = new Logger(WooCommerceSyncService.name);
+  private readonly integracionIdCache = new Map<string, string>();
 
   constructor(
     private readonly supabase: SupabaseService,
@@ -46,9 +47,11 @@ export class WooCommerceSyncService {
   async sincronizarStockHaciaWoo(empresa_id: string): Promise<SyncResult> {
     const started = Date.now();
     const result: SyncResult = { exitosos: 0, fallidos: 0, errores: [], duracion_ms: 0 };
+    let integracion_id: string | null = null;
 
     try {
       const integracion = await this.getIntegracionWooActiva(empresa_id);
+      integracion_id = integracion.id;
       const stock = await this.obtenerStockConsolidadoPorSku(empresa_id);
 
       const settled = await Promise.allSettled(
@@ -75,12 +78,18 @@ export class WooCommerceSyncService {
       await this.actualizarUltimaSync(integracion.id);
       result.duracion_ms = Date.now() - started;
 
-      await this.registrarSyncLog(empresa_id, 'sync-stock', result.fallidos > 0 ? 'warning' : 'info', {
-        exitosos: result.exitosos,
-        fallidos: result.fallidos,
-        errores: result.errores,
-        duracion_ms: result.duracion_ms,
-      });
+      await this.registrarSyncLog(
+        empresa_id,
+        'sync-stock',
+        result.fallidos > 0 ? 'warning' : 'info',
+        {
+          exitosos: result.exitosos,
+          fallidos: result.fallidos,
+          errores: result.errores,
+          duracion_ms: result.duracion_ms,
+        },
+        integracion_id,
+      );
 
       return result;
     } catch (error) {
@@ -88,10 +97,16 @@ export class WooCommerceSyncService {
       result.errores.push(this.toErrorMessage(error, 'Fallo general en sync de stock'));
       result.duracion_ms = Date.now() - started;
 
-      await this.registrarSyncLog(empresa_id, 'sync-stock', 'error', {
-        errores: result.errores,
-        duracion_ms: result.duracion_ms,
-      });
+      await this.registrarSyncLog(
+        empresa_id,
+        'sync-stock',
+        'error',
+        {
+          errores: result.errores,
+          duracion_ms: result.duracion_ms,
+        },
+        integracion_id,
+      );
 
       return result;
     }
@@ -100,9 +115,11 @@ export class WooCommerceSyncService {
   async sincronizarPedidosDesdeWoo(empresa_id: string): Promise<SyncResult> {
     const started = Date.now();
     const result: SyncResult = { exitosos: 0, fallidos: 0, errores: [], duracion_ms: 0 };
+    let integracion_id: string | null = null;
 
     try {
       const integracion = await this.getIntegracionWooActiva(empresa_id);
+      integracion_id = integracion.id;
       const desde = this.parseUltimaSync(integracion.ultima_sincronizacion);
       const pedidos = await this.wooClient.getPedidosNuevos(integracion.credenciales, desde);
 
@@ -120,13 +137,19 @@ export class WooCommerceSyncService {
       await this.actualizarUltimaSync(integracion.id);
       result.duracion_ms = Date.now() - started;
 
-      await this.registrarSyncLog(empresa_id, 'sync-pedidos', result.fallidos > 0 ? 'warning' : 'info', {
-        pedidos: pedidos.length,
-        exitosos: result.exitosos,
-        fallidos: result.fallidos,
-        errores: result.errores,
-        duracion_ms: result.duracion_ms,
-      });
+      await this.registrarSyncLog(
+        empresa_id,
+        'sync-pedidos',
+        result.fallidos > 0 ? 'warning' : 'info',
+        {
+          pedidos: pedidos.length,
+          exitosos: result.exitosos,
+          fallidos: result.fallidos,
+          errores: result.errores,
+          duracion_ms: result.duracion_ms,
+        },
+        integracion_id,
+      );
 
       return result;
     } catch (error) {
@@ -134,10 +157,16 @@ export class WooCommerceSyncService {
       result.errores.push(this.toErrorMessage(error, 'Fallo general en sync de pedidos'));
       result.duracion_ms = Date.now() - started;
 
-      await this.registrarSyncLog(empresa_id, 'sync-pedidos', 'error', {
-        errores: result.errores,
-        duracion_ms: result.duracion_ms,
-      });
+      await this.registrarSyncLog(
+        empresa_id,
+        'sync-pedidos',
+        'error',
+        {
+          errores: result.errores,
+          duracion_ms: result.duracion_ms,
+        },
+        integracion_id,
+      );
 
       return result;
     }
@@ -159,9 +188,11 @@ export class WooCommerceSyncService {
   async syncInicial(empresa_id: string): Promise<SyncResult> {
     const started = Date.now();
     const result: SyncResult = { exitosos: 0, fallidos: 0, errores: [], duracion_ms: 0 };
+    let integracion_id: string | null = null;
 
     try {
       const integracion = await this.getIntegracionWooActiva(empresa_id);
+      integracion_id = integracion.id;
       const productosWoo = await this.obtenerTodosLosProductos(integracion.credenciales);
 
       const settled = await Promise.allSettled(
@@ -171,11 +202,17 @@ export class WooCommerceSyncService {
             const interno = await this.buscarProductoInternoPorSku(empresa_id, productoWoo.sku);
             if (!interno) {
               const mensaje = `SKU ${productoWoo.sku} no encontrado internamente`;
-              await this.registrarSyncLog(empresa_id, 'sync-inicial', 'warning', {
-                mensaje,
-                sku: productoWoo.sku,
-                woo_product_id: productoWoo.id,
-              });
+              await this.registrarSyncLog(
+                empresa_id,
+                'sync-inicial',
+                'warning',
+                {
+                  mensaje,
+                  sku: productoWoo.sku,
+                  woo_product_id: productoWoo.id,
+                },
+                integracion_id,
+              );
               return { exitoso: false, mensaje };
             }
 
@@ -226,13 +263,19 @@ export class WooCommerceSyncService {
       await this.actualizarUltimaSync(integracion.id);
       result.duracion_ms = Date.now() - started;
 
-      await this.registrarSyncLog(empresa_id, 'sync-inicial', result.fallidos > 0 ? 'warning' : 'info', {
-        productos_woo: productosWoo.length,
-        exitosos: result.exitosos,
-        fallidos: result.fallidos,
-        errores: result.errores,
-        duracion_ms: result.duracion_ms,
-      });
+      await this.registrarSyncLog(
+        empresa_id,
+        'sync-inicial',
+        result.fallidos > 0 ? 'warning' : 'info',
+        {
+          productos_woo: productosWoo.length,
+          exitosos: result.exitosos,
+          fallidos: result.fallidos,
+          errores: result.errores,
+          duracion_ms: result.duracion_ms,
+        },
+        integracion_id,
+      );
 
       return result;
     } catch (error) {
@@ -240,10 +283,16 @@ export class WooCommerceSyncService {
       result.errores.push(this.toErrorMessage(error, 'Fallo general en sync inicial'));
       result.duracion_ms = Date.now() - started;
 
-      await this.registrarSyncLog(empresa_id, 'sync-inicial', 'error', {
-        errores: result.errores,
-        duracion_ms: result.duracion_ms,
-      });
+      await this.registrarSyncLog(
+        empresa_id,
+        'sync-inicial',
+        'error',
+        {
+          errores: result.errores,
+          duracion_ms: result.duracion_ms,
+        },
+        integracion_id,
+      );
 
       return result;
     }
@@ -263,7 +312,7 @@ export class WooCommerceSyncService {
 
       const sucursalId = await this.getSucursalParaPedido(empresa_id, wooPedido);
       const canalId = await this.resolverCanalId(empresa_id, integracion.canal_id);
-      const items = await this.mapearItemsPedido(empresa_id, wooPedido);
+      const items = await this.mapearItemsPedido(empresa_id, wooPedido, integracion.id);
 
       if (items.length === 0) {
         return { exitoso: false, mensaje: `Pedido Woo ${wooOrderId} sin items válidos` };
@@ -286,24 +335,41 @@ export class WooCommerceSyncService {
       }
 
       const skus = [...new Set(items.map((item) => item.sku_producto))];
-      const syncErrores = await this.syncSkusConsolidados(empresa_id, integracion.credenciales, skus);
+      const syncErrores = await this.syncSkusConsolidados(
+        empresa_id,
+        integracion.credenciales,
+        skus,
+        integracion.id,
+      );
       errores.push(...syncErrores);
 
       if (errores.length > 0) {
-        await this.registrarSyncLog(empresa_id, 'pedido-woo', 'warning', {
-          woo_order_id: wooOrderId,
-          pedido_id: pedidoId,
-          errores,
-        });
+        await this.registrarSyncLog(
+          empresa_id,
+          'pedido-woo',
+          'warning',
+          {
+            woo_order_id: wooOrderId,
+            pedido_id: pedidoId,
+            errores,
+          },
+          integracion.id,
+        );
       }
 
       return { exitoso: true };
     } catch (error) {
       const mensaje = this.toErrorMessage(error, `Error procesando pedido Woo ${wooOrderId}`);
-      await this.registrarSyncLog(empresa_id, 'pedido-woo', 'error', {
-        woo_order_id: wooOrderId,
-        mensaje,
-      });
+      await this.registrarSyncLog(
+        empresa_id,
+        'pedido-woo',
+        'error',
+        {
+          woo_order_id: wooOrderId,
+          mensaje,
+        },
+        integracion.id,
+      );
       return { exitoso: false, mensaje };
     }
   }
@@ -329,6 +395,7 @@ export class WooCommerceSyncService {
     empresa_id: string,
     credenciales: WooCredenciales,
     skus: string[],
+    integracion_id: string | null = null,
   ): Promise<string[]> {
     if (skus.length === 0) return [];
 
@@ -339,7 +406,13 @@ export class WooCommerceSyncService {
         const productoWoo = await this.wooClient.getProductoBySku(credenciales, sku);
         if (!productoWoo) {
           const msg = `SKU ${sku} no existe en WooCommerce`;
-          await this.registrarSyncLog(empresa_id, 'sync-pedidos', 'warning', { sku, mensaje: msg });
+          await this.registrarSyncLog(
+            empresa_id,
+            'sync-pedidos',
+            'warning',
+            { sku, mensaje: msg },
+            integracion_id,
+          );
           return msg;
         }
 
@@ -402,7 +475,10 @@ export class WooCommerceSyncService {
       throw new InternalServerErrorException('Credenciales Woo inválidas en integración activa');
     }
 
-    if (parsed.length === 1) return parsed[0];
+    if (parsed.length === 1) {
+      this.integracionIdCache.set(empresa_id, parsed[0].id);
+      return parsed[0];
+    }
 
     const canalIds = parsed.map((item) => item.canal_id).filter((id): id is string => Boolean(id));
     if (canalIds.length > 0) {
@@ -426,10 +502,14 @@ export class WooCommerceSyncService {
           return (map.get(item.canal_id) ?? '').includes('woo');
         });
 
-        if (wooByCanal) return wooByCanal;
+        if (wooByCanal) {
+          this.integracionIdCache.set(empresa_id, wooByCanal.id);
+          return wooByCanal;
+        }
       }
     }
 
+    this.integracionIdCache.set(empresa_id, parsed[0].id);
     return parsed[0];
   }
 
@@ -602,7 +682,11 @@ export class WooCommerceSyncService {
     return id && skuFound ? { id, sku: skuFound } : null;
   }
 
-  private async mapearItemsPedido(empresa_id: string, wooPedido: WooPedido): Promise<PedidoItemInterno[]> {
+  private async mapearItemsPedido(
+    empresa_id: string,
+    wooPedido: WooPedido,
+    integracion_id: string | null = null,
+  ): Promise<PedidoItemInterno[]> {
     const items: PedidoItemInterno[] = [];
 
     for (const line of wooPedido.line_items ?? []) {
@@ -612,11 +696,17 @@ export class WooCommerceSyncService {
 
       const producto = await this.buscarProductoInternoPorSku(empresa_id, sku);
       if (!producto) {
-        await this.registrarSyncLog(empresa_id, 'sync-pedidos', 'warning', {
-          woo_order_id: wooPedido.id,
-          sku,
-          mensaje: `SKU ${sku} no existe internamente`,
-        });
+        await this.registrarSyncLog(
+          empresa_id,
+          'sync-pedidos',
+          'warning',
+          {
+            woo_order_id: wooPedido.id,
+            sku,
+            mensaje: `SKU ${sku} no existe internamente`,
+          },
+          integracion_id,
+        );
         continue;
       }
 
@@ -926,41 +1016,99 @@ export class WooCommerceSyncService {
     tipo: string,
     nivel: 'info' | 'warning' | 'error',
     metadata: Record<string, unknown>,
+    integracion_id: string | null = null,
   ): Promise<void> {
-    const mensaje = String(metadata.mensaje ?? `${tipo} (${nivel})`);
-    const variants: Array<Record<string, unknown>> = [
-      {
-        empresa_id,
-        tipo,
-        nivel,
-        mensaje,
-        metadata,
-        canal_nombre: 'woocommerce',
-        fecha_sync: new Date().toISOString(),
-      },
-      {
-        empresa_id,
-        tipo_sync: tipo,
-        estado: nivel,
-        detalle: mensaje,
-        data: metadata,
-      },
-      {
-        empresa_id,
-        mensaje: `[${tipo}] ${mensaje}`,
-      },
-    ];
-
-    let lastError: { message?: string } | null = null;
-    for (const payload of variants) {
-      const { error } = await this.supabase.getAdminClient().from('sync_log').insert(payload);
-      if (!error) return;
-      lastError = error;
+    const resolvedIntegracionId = await this.resolveIntegracionId(empresa_id, integracion_id);
+    if (!resolvedIntegracionId) {
+      this.logger.warn(
+        `[sync_log] No se pudo registrar ${tipo} para empresa ${empresa_id}: integración WooCommerce no encontrada`,
+      );
+      return;
     }
 
+    const payload = {
+      empresa_id,
+      integracion_id: resolvedIntegracionId,
+      producto_id: this.extractProductoId(metadata),
+      stock_enviado: this.extractStockEnviado(metadata),
+      estado: this.mapNivelToEstado(nivel),
+      detalle_error: this.buildDetalleSyncLog(tipo, metadata),
+      fecha_sync: new Date().toISOString(),
+    };
+
+    const { error } = await this.supabase.getAdminClient().from('sync_log').insert(payload);
+    if (!error) return;
+
     this.logger.warn(
-      `[sync_log] No se pudo registrar ${tipo} para empresa ${empresa_id}: ${lastError?.message ?? 'error desconocido'}`,
+      `[sync_log] No se pudo registrar ${tipo} para empresa ${empresa_id}: ${error.message}`,
     );
+  }
+
+  private async resolveIntegracionId(
+    empresa_id: string,
+    integracion_id: string | null,
+  ): Promise<string | null> {
+    if (integracion_id) {
+      this.integracionIdCache.set(empresa_id, integracion_id);
+      return integracion_id;
+    }
+
+    const cached = this.integracionIdCache.get(empresa_id);
+    if (cached) return cached;
+
+    const { data, error } = await this.supabase
+      .getAdminClient()
+      .from('integraciones_canal')
+      .select('id')
+      .eq('empresa_id', empresa_id)
+      .eq('tipo_integracion', 'woocommerce')
+      .eq('activa', true)
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data) return null;
+
+    const resolved = this.readString((data as Record<string, unknown>).id);
+    if (resolved) this.integracionIdCache.set(empresa_id, resolved);
+    return resolved;
+  }
+
+  private mapNivelToEstado(nivel: 'info' | 'warning' | 'error'): 'exitoso' | 'warning' | 'fallido' {
+    if (nivel === 'error') return 'fallido';
+    if (nivel === 'warning') return 'warning';
+    return 'exitoso';
+  }
+
+  private extractProductoId(metadata: Record<string, unknown>): string | null {
+    return this.readString(metadata.producto_id);
+  }
+
+  private extractStockEnviado(metadata: Record<string, unknown>): number | null {
+    const candidates = [metadata.stock_enviado, metadata.cantidad, metadata.total];
+    for (const value of candidates) {
+      const n = Number(value);
+      if (Number.isFinite(n)) return n;
+    }
+    return null;
+  }
+
+  private buildDetalleSyncLog(tipo: string, metadata: Record<string, unknown>): string | null {
+    const mensaje = this.readString(metadata.mensaje);
+    if (mensaje) return `[${tipo}] ${mensaje}`;
+
+    if (Array.isArray(metadata.errores) && metadata.errores.length > 0) {
+      const errores = metadata.errores
+        .map((item) => this.readString(item))
+        .filter((item): item is string => Boolean(item));
+      if (errores.length > 0) {
+        return `[${tipo}] ${errores.join(' | ')}`.slice(0, 1000);
+      }
+    }
+
+    const sku = this.readString(metadata.sku);
+    if (sku) return `[${tipo}] SKU ${sku}`;
+
+    return `[${tipo}] ejecución`;
   }
 
   private toErrorMessage(error: unknown, fallback: string): string {
