@@ -99,5 +99,50 @@ export const operacionesService = {
     });
     return parseOrThrow(response, 'Error al actualizar estado de transferencia');
   },
-};
 
+  conectarWooCommerce: async (data: {
+    url: string;
+    consumer_key: string;
+    consumer_secret: string;
+  }) => {
+    const response = await authFetch(`${API_URL}/integraciones/woocommerce/conectar`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      let message = 'Error al conectar WooCommerce';
+      try {
+        const error = (await response.json()) as { message?: string };
+        if (error?.message) message = error.message;
+      } catch {
+        // noop
+      }
+      throw new Error(message);
+    }
+
+    return response.json();
+  },
+
+  desconectarWooCommerce: async () => {
+    const response = await authFetch(`${API_URL}/integraciones/woocommerce/desconectar`, {
+      method: 'POST',
+    });
+    if (!response.ok) throw new Error('Error al desconectar');
+    return response.json();
+  },
+
+  forzarSyncWooCommerce: async () => {
+    const response = await authFetch(`${API_URL}/integraciones/woocommerce/sync`, {
+      method: 'POST',
+    });
+    if (!response.ok) throw new Error('Error al sincronizar');
+    return response.json();
+  },
+
+  getEstadoWooCommerce: async () => {
+    const response = await authFetch(`${API_URL}/integraciones/woocommerce/estado`);
+    if (!response.ok) return null;
+    return response.json();
+  },
+};
