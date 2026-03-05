@@ -187,6 +187,30 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
     URL.revokeObjectURL(url);
   };
 
+  const exportarProductosCSV = () => {
+    const headers = 'nombre,sku,precio,costo,stock_total,estado';
+    const filas = productos.map((p) =>
+      [
+        p?.nombre || '',
+        p?.sku || '',
+        p?.precio || 0,
+        p?.costo || '',
+        p?.stock_total || 0,
+        p?.activo ? 'activo' : 'inactivo',
+      ].join(','),
+    );
+    const csv = [headers, ...filas].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `productos_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const onSeleccionarArchivoCSV = async (file: File | null) => {
     setArchivoCSV(file);
     setResultadoImportacion(null);
@@ -383,6 +407,22 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            className="btn"
+            onClick={exportarProductosCSV}
+            style={{
+              background: T.surface2,
+              border: `1px solid ${T.border2}`,
+              borderRadius: 8,
+              padding: '8px 14px',
+              color: T.text,
+              fontSize: 12,
+              fontFamily: T.font,
+              fontWeight: 700,
+            }}
+          >
+            Exportar CSV
+          </button>
           <button
             className="btn"
             onClick={abrirModalImportar}
@@ -587,7 +627,30 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
                           >
                             Eliminar
                           </button>
-                          <span style={{ color: T.textMid, fontSize: 11 }}>{abierto ? '?' : '?'}</span>
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: T.textMid,
+                              width: 12,
+                              height: 12,
+                            }}
+                          >
+                            <svg
+                              width="10"
+                              height="10"
+                              viewBox="0 0 10 10"
+                              fill="none"
+                              xmlns="http://www.w3.org/2000/svg"
+                              style={{
+                                transform: abierto ? 'rotate(180deg)' : 'rotate(0deg)',
+                                transition: 'transform 0.2s',
+                              }}
+                            >
+                              <path d="M2 3.5L5 6.5L8 3.5" stroke={T.textMid} strokeWidth="1.5" />
+                            </svg>
+                          </span>
                         </div>
                       </td>
                     </tr>
