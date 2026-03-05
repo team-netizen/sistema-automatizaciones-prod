@@ -61,6 +61,8 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
   const [errorImportacion, setErrorImportacion] = useState('');
   const [categorias, setCategorias] = useState<any[]>([]);
   const [cargandoCategorias, setCargandoCategorias] = useState(false);
+  const [sucursales, setSucursales] = useState<any[]>([]);
+  const [stockInicial, setStockInicial] = useState<Record<string, number>>({});
   const [nuevoProducto, setNuevoProducto] = useState({
     nombre: '',
     sku: '',
@@ -193,6 +195,29 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
     URL.revokeObjectURL(url);
   };
 
+  const cargarSucursalesModal = async () => {
+    try {
+      const res = await operacionesService.getSucursales();
+      const rows = Array.isArray(res?.sucursales)
+        ? res.sucursales
+        : Array.isArray(res)
+          ? res
+          : [];
+      setSucursales(rows);
+
+      const stockInit: Record<string, number> = {};
+      rows.forEach((s: any) => {
+        const sucursalId = String(s?.id ?? '');
+        if (!sucursalId) return;
+        stockInit[sucursalId] = 0;
+      });
+      setStockInicial(stockInit);
+    } catch {
+      setSucursales([]);
+      setStockInicial({});
+    }
+  };
+
   const onSeleccionarArchivoCSV = async (file: File | null) => {
     setArchivoCSV(file);
     setResultadoImportacion(null);
@@ -273,7 +298,10 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
       precio: '',
       activo: true,
     });
+    setSucursales([]);
+    setStockInicial({});
     void cargarCategoriasModal();
+    void cargarSucursalesModal();
     setModalNuevo(true);
   };
 
@@ -353,7 +381,20 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
       if (modoModal === 'editar' && productoEditandoId) {
         await operacionesService.editarProducto(productoEditandoId, payload);
       } else {
-        await operacionesService.crearProducto(payload);
+        const stockPorSucursal = Object.entries(stockInicial)
+          .map(([sucursal_id, cantidad]) => ({ sucursal_id, cantidad: Number(cantidad || 0) }))
+          .filter((s) => s.cantidad > 0);
+
+        await operacionesService.crearProducto({
+          ...payload,
+          stock_por_sucursal: stockPorSucursal,
+        } as any);
+
+        try {
+          await operacionesService.forzarSyncWooCommerce();
+        } catch (syncError) {
+          console.error('No se pudo forzar sincronizacion WooCommerce:', syncError);
+        }
       }
       setModalNuevo(false);
       await cargarProductos();
@@ -894,6 +935,64 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
                   marginBottom: 12,
                 }}
               />
+
+              {modoModal === 'crear' && (
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ fontSize: 12, color: T.textMid, marginBottom: 8, display: 'block' }}>
+                    Stock inicial por sucursal
+                  </label>
+                  {sucursales.map((s: any) => {
+                    const sucursalId = String(s?.id ?? '');
+                    if (!sucursalId) return null;
+
+                    return (
+                      <div
+                        key={sucursalId}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '8px 12px',
+                          background: T.surface2,
+                          border: `1px solid ${T.border}`,
+                          borderRadius: 8,
+                          marginBottom: 6,
+                        }}
+                      >
+                        <span style={{ fontSize: 12, color: T.text }}>{String(s?.nombre ?? 'Sucursal')}</span>
+                        <input
+                          type="number"
+                          min="0"
+                          disabled={creandoProducto}
+                          value={stockInicial[sucursalId] || 0}
+                          onChange={(e) =>
+                            setStockInicial((prev) => ({
+                              ...prev,
+                              [sucursalId]: Math.max(0, parseInt(e.target.value, 10) || 0),
+                            }))
+                          }
+                          style={{
+                            width: 80,
+                            background: T.bg,
+                            border: `1px solid ${T.border2}`,
+                            borderRadius: 6,
+                            padding: '4px 8px',
+                            color: T.text,
+                            fontSize: 13,
+                            textAlign: 'right',
+                            fontFamily: T.fontMono,
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+                  {sucursales.length === 0 && (
+                    <div style={{ fontSize: 11, color: T.textMid }}>
+                      No hay sucursales disponibles.
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div
                 style={{
