@@ -1,4 +1,12 @@
-import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import {
+  BadGatewayException,
+  BadRequestException,
+  GatewayTimeoutException,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import axios, { type AxiosError, type AxiosInstance } from 'axios';
 
 export type WooCredenciales = {
@@ -337,10 +345,40 @@ export class WooCommerceClient {
 
     const axiosError = error as AxiosError<{ message?: string }>;
     const status = axiosError?.response?.status;
+    const code = String(axiosError?.code ?? '');
     const apiMessage = axiosError?.response?.data?.message;
     const message = apiMessage ?? axiosError?.message ?? 'Error desconocido';
 
-    this.logger.error(`[${contexto}] status=${status ?? 'n/a'} message=${message}`);
-    throw new InternalServerErrorException(`Error de WooCommerce en ${contexto}`);
+    this.logger.error(
+      `[${contexto}] status=${status ?? 'n/a'} code=${code || 'n/a'} message=${message}`,
+    );
+
+    if (code === 'ECONNABORTED') {
+      throw new GatewayTimeoutException('Timeout al conectar con WooCommerce');
+    }
+
+    if (['ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED', 'EHOSTUNREACH', 'ECONNRESET'].includes(code)) {
+      throw new ServiceUnavailableException(
+        'No se pudo conectar con WooCommerce. Verifica URL, DNS y conectividad de la tienda.',
+      );
+    }
+
+    if (status === 401 || status === 403) {
+      throw new BadRequestException(
+        'Credenciales WooCommerce inválidas o sin permisos (usa Read/Write).',
+      );
+    }
+
+    if (status === 404) {
+      throw new BadRequestException(
+        'No se encontró la API REST de WooCommerce en esa URL (/wp-json/wc/v3).',
+      );
+    }
+
+    if (status && status >= 500) {
+      throw new BadGatewayException(`WooCommerce devolvió error ${status}`);
+    }
+
+    throw new InternalServerErrorException(`Error de WooCommerce en ${contexto}: ${message}`);
   }
 }

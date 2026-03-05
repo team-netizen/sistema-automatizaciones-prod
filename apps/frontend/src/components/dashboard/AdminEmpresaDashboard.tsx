@@ -367,7 +367,6 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
   };
 
   const css = `
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap');
     *{box-sizing:border-box;margin:0;padding:0;}
     ::-webkit-scrollbar{width:3px;height:3px;}
     ::-webkit-scrollbar-track{background:${T.bg};}

@@ -6,12 +6,14 @@ import {
   Get,
   Headers,
   HttpCode,
+  HttpException,
   HttpStatus,
   InternalServerErrorException,
   Logger,
   Param,
   Post,
   Req,
+  ServiceUnavailableException,
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
@@ -108,19 +110,39 @@ export class WooCommerceController {
     const empresa_id = this.requireEmpresaId(req);
     const credenciales = this.validarCredencialesEntrada(body);
 
-    await this.wooClient.getProductos(credenciales, 1);
-    await this.guardarIntegracionWoo(empresa_id, credenciales);
+    try {
+      await this.wooClient.getProductos(credenciales, 1);
+      await this.guardarIntegracionWoo(empresa_id, credenciales);
 
-    await this.wooQueue.add(
-      'sync-inicial',
-      { empresa_id },
-      {
-        jobId: `woocommerce:${empresa_id}:sync-inicial:${Date.now()}`,
-        removeOnComplete: true,
-      },
-    );
+      await this.wooQueue.add(
+        'sync-inicial',
+        { empresa_id },
+        {
+          jobId: `woocommerce:${empresa_id}:sync-inicial:${Date.now()}`,
+          removeOnComplete: true,
+        },
+      );
 
-    await this.wooScheduler.registrarJobsParaEmpresa(empresa_id);
+      await this.wooScheduler.registrarJobsParaEmpresa(empresa_id);
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      if (this.isRedisError(error)) {
+        this.logger.error(
+          `[conectar] Redis/BullMQ no disponible empresa=${empresa_id}: ${this.toErrorMessage(error)}`,
+        );
+        throw new ServiceUnavailableException(
+          'Redis/BullMQ no disponible. Revisa REDIS_URL en Render e intenta nuevamente.',
+        );
+      }
+
+      this.logger.error(
+        `[conectar] Error conectando WooCommerce empresa=${empresa_id}: ${this.toErrorMessage(error)}`,
+      );
+      throw new InternalServerErrorException('No se pudo completar la conexión con WooCommerce');
+    }
 
     return {
       ok: true,
@@ -632,5 +654,17 @@ export class WooCommerceController {
       if (message) return message;
     }
     return 'error desconocido';
+  }
+
+  private isRedisError(error: unknown): boolean {
+    const message = this.toErrorMessage(error).toLowerCase();
+    return (
+      message.includes('redis') ||
+      message.includes('ioredis') ||
+      message.includes('econnrefused') ||
+      message.includes('connection is closed') ||
+      message.includes('max retries per request') ||
+      message.includes('timed out')
+    );
   }
 }
