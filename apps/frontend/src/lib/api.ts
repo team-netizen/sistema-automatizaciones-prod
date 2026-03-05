@@ -26,8 +26,8 @@ const getBase = (url: string) => {
 };
 
 export const BASE_URL = getBase(API_URL);
-export const AUTH_URL = BASE_URL ? `${BASE_URL}/auth` : '/auth';
-export const NOTIFICACIONES_URL = BASE_URL ? `${BASE_URL}/notificaciones` : '/notificaciones';
+export const AUTH_URL = API_URL ? `${API_URL}/auth` : '/api/auth';
+export const NOTIFICACIONES_URL = API_URL ? `${API_URL}/notificaciones` : '/api/notificaciones';
 
 const ACCESS_TOKEN_KEY = 'access_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';

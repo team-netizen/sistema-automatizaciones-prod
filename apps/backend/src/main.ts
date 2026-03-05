@@ -41,6 +41,7 @@ async function bootstrap() {
   const corsOrigins = [
     process.env.FRONTEND_URL,
     ...(process.env.CORS_ORIGINS?.split(',').map((value) => value.trim()) ?? []),
+    'https://sistema-automatizaciones-prod.vercel.app',
     'http://localhost:5173',
     'http://localhost:3000',
   ].filter((value): value is string => Boolean(value));
