@@ -41,7 +41,7 @@ export class WooCommerceScheduler implements OnModuleInit {
       'sync-stock',
       { empresa_id },
       {
-        jobId: `woocommerce:${empresa_id}:sync-stock`,
+        jobId: `woocommerce-${empresa_id}-sync-stock`,
         repeat: { every: TEN_MINUTES_MS },
         removeOnComplete: true,
       },
@@ -51,7 +51,7 @@ export class WooCommerceScheduler implements OnModuleInit {
       'sync-pedidos',
       { empresa_id },
       {
-        jobId: `woocommerce:${empresa_id}:sync-pedidos`,
+        jobId: `woocommerce-${empresa_id}-sync-pedidos`,
         repeat: { every: TEN_MINUTES_MS },
         removeOnComplete: true,
       },
@@ -63,7 +63,7 @@ export class WooCommerceScheduler implements OnModuleInit {
 
     for (const job of repeatables) {
       const jobId = String(job.id ?? '');
-      if (!jobId.includes(`woocommerce:${empresa_id}:`)) continue;
+      if (!jobId.includes(`woocommerce-${empresa_id}-`)) continue;
       await this.woocommerceQueue.removeRepeatableByKey(job.key);
     }
   }

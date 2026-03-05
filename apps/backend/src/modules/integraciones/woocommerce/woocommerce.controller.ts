@@ -118,7 +118,7 @@ export class WooCommerceController {
         'sync-inicial',
         { empresa_id },
         {
-          jobId: `woocommerce:${empresa_id}:sync-inicial:${Date.now()}`,
+          jobId: `woocommerce-${empresa_id}-sync-inicial-${Date.now()}`,
           removeOnComplete: true,
         },
       );
@@ -188,7 +188,7 @@ export class WooCommerceController {
         'sync-stock',
         { empresa_id },
         {
-          jobId: `woocommerce:${empresa_id}:sync-stock:manual:${Date.now()}`,
+          jobId: `woocommerce-${empresa_id}-sync-stock-manual-${Date.now()}`,
           removeOnComplete: true,
         },
       ),
@@ -196,7 +196,7 @@ export class WooCommerceController {
         'sync-pedidos',
         { empresa_id },
         {
-          jobId: `woocommerce:${empresa_id}:sync-pedidos:manual:${Date.now()}`,
+          jobId: `woocommerce-${empresa_id}-sync-pedidos-manual-${Date.now()}`,
           removeOnComplete: true,
         },
       ),
