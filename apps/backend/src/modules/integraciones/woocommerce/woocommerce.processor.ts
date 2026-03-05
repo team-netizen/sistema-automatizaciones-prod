@@ -91,16 +91,20 @@ export class WooCommerceProcessor extends WorkerHost {
       },
     ];
 
+    let lastError: { message?: string } | null = null;
     for (const payload of variantes) {
       const { error } = await this.supabase.getAdminClient().from('sync_log').insert(payload);
       if (!error) return;
+      lastError = error;
       if (this.isRecoverableColumnError(error)) continue;
 
       this.logger.warn(`[sync_log] Error no recuperable al insertar ${tipo}: ${error.message}`);
       return;
     }
 
-    this.logger.warn(`[sync_log] No se pudo registrar ${tipo} para empresa ${empresa_id}`);
+    this.logger.warn(
+      `[sync_log] No se pudo registrar ${tipo} para empresa ${empresa_id}: ${lastError?.message ?? 'error desconocido'}`,
+    );
   }
 
   private isRecoverableColumnError(error: { code?: string; message?: string } | null | undefined): boolean {

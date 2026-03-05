@@ -951,12 +951,16 @@ export class WooCommerceSyncService {
       },
     ];
 
+    let lastError: { message?: string } | null = null;
     for (const payload of variants) {
       const { error } = await this.supabase.getAdminClient().from('sync_log').insert(payload);
       if (!error) return;
+      lastError = error;
     }
 
-    this.logger.warn(`[sync_log] No se pudo registrar ${tipo} para empresa ${empresa_id}`);
+    this.logger.warn(
+      `[sync_log] No se pudo registrar ${tipo} para empresa ${empresa_id}: ${lastError?.message ?? 'error desconocido'}`,
+    );
   }
 
   private toErrorMessage(error: unknown, fallback: string): string {
