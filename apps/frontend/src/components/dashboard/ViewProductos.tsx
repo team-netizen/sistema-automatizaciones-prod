@@ -169,24 +169,6 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
     setPreviewCSV(data.slice(0, 5));
   };
 
-  const descargarPlantillaCSV = () => {
-    const template = [
-      'nombre,sku,precio,costo,descripcion,stock_minimo',
-      'Creatina 300g ON,CREA-300G,125.00,80.00,Suplemento proteico,5',
-      'Mutant Mass 15lb,MASST-15LB,369.00,250.00,Ganador de masa,3',
-    ].join('\n');
-
-    const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'plantilla_productos.csv';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
   const exportarProductosCSV = () => {
     const headers = 'nombre,sku,precio,costo,stock_total,estado';
     const filas = productos.map((p) =>
@@ -437,7 +419,7 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
               fontWeight: 700,
             }}
           >
-            ? Importar CSV
+            Importar CSV
           </button>
           <button
             className="btn"
@@ -1126,30 +1108,7 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
 
             <div style={{ background: T.surface2, border: `1px solid ${T.border2}`, borderRadius: 10, padding: 12, marginBottom: 12 }}>
               <div style={{ fontSize: 12, color: T.text, marginBottom: 8, fontWeight: 700 }}>
-                1. Descargar plantilla
-              </div>
-              <button
-                type="button"
-                className="btn"
-                onClick={descargarPlantillaCSV}
-                style={{
-                  background: T.accentDim,
-                  border: `1px solid ${T.accent}44`,
-                  borderRadius: 8,
-                  padding: '8px 12px',
-                  color: T.accent,
-                  fontSize: 12,
-                  fontFamily: T.font,
-                  fontWeight: 700,
-                }}
-              >
-                Descargar plantilla CSV
-              </button>
-            </div>
-
-            <div style={{ background: T.surface2, border: `1px solid ${T.border2}`, borderRadius: 10, padding: 12, marginBottom: 12 }}>
-              <div style={{ fontSize: 12, color: T.text, marginBottom: 8, fontWeight: 700 }}>
-                2. Subir archivo
+                Subir archivo
               </div>
               <input
                 type="file"
