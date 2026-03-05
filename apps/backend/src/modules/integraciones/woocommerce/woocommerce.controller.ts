@@ -59,7 +59,7 @@ export class WooCommerceController {
   constructor(
     private readonly wooClient: WooCommerceClient,
     private readonly wooSyncService: WooCommerceSyncService,
-    private readonly wooScheduler: WooCommerceScheduler,
+    private readonly scheduler: WooCommerceScheduler,
     private readonly supabase: SupabaseService,
     @InjectQueue('woocommerce-sync')
     private readonly wooQueue: Queue<WooSyncJobData>,
@@ -123,7 +123,7 @@ export class WooCommerceController {
         },
       );
 
-      await this.wooScheduler.registrarJobsParaEmpresa(empresa_id);
+      await this.scheduler.registrarJobsParaEmpresa(empresa_id);
     } catch (error) {
       if (error instanceof HttpException) {
         throw error;
@@ -173,7 +173,7 @@ export class WooCommerceController {
       }
     }
 
-    await this.wooScheduler.eliminarJobsParaEmpresa(empresa_id);
+    await this.scheduler.eliminarJobsParaEmpresa(empresa_id);
     return { ok: true, empresa_id, activo: false };
   }
 
