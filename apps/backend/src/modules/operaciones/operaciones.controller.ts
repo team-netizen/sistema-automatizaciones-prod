@@ -97,6 +97,19 @@ export class OperacionesController {
     return this.operacionesService.getPedidos(empresaId, filters);
   }
 
+  @Get('alertas')
+  @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
+  getAlertas(
+    @Req() req: AuthenticatedRequest,
+    @Query() filters: Record<string, string>,
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) {
+      throw new ForbiddenException('super_admin debe especificar empresa_id');
+    }
+    return this.operacionesService.getAlertas(empresaId, filters);
+  }
+
   @Get('transferencias')
   @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
   getTransferencias(

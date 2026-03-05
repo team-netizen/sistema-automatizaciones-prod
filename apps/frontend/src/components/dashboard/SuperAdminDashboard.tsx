@@ -89,7 +89,7 @@ export function SuperAdminDashboard({ usuario, onLogout }: SuperAdminDashboardPr
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
-    const t = setInterval(() => setTime(new Date()), 1000);
+    const t = setInterval(() => setTime(new Date()), 60000);
     return () => clearInterval(t);
   }, []);
 
@@ -217,7 +217,7 @@ export function SuperAdminDashboard({ usuario, onLogout }: SuperAdminDashboardPr
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <Icon path={I.bell} color="#3d3d6b" />
               <span style={{ fontSize: 11, color: '#2d2d5a' }}>
-                {time.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                {time.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}
               </span>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontSize: 11 }}>{usuario?.email ?? 'superadmin'}</div>
@@ -363,3 +363,4 @@ export function SuperAdminDashboard({ usuario, onLogout }: SuperAdminDashboardPr
     </>
   );
 }
+

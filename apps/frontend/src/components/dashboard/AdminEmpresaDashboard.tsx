@@ -180,7 +180,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
   const [filterEstado, setFilterEstado] = useState("todos");
 
   useEffect(() => {
-    const t = setInterval(() => setTime(new Date()), 1000);
+    const t = setInterval(() => setTime(new Date()), 60000);
     return () => clearInterval(t);
   }, []);
 
@@ -436,7 +436,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
           <span style={{ fontSize:10, color:T.accent, fontFamily:T.fontMono }}>Sync activo</span>
         </div>
         <span style={{ fontFamily:T.fontMono, fontSize:11, color:T.textDim }}>
-          {time.toLocaleTimeString("es-PE",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}
+          {time.toLocaleTimeString("es-PE",{hour:"2-digit",minute:"2-digit"})}
         </span>
         <div style={{ position:"relative", cursor:"pointer" }}>
           <Ico d={IC.bell} size={17} color={T.textMid} />
@@ -973,4 +973,5 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
 };
 
 export default AdminEmpresaDashboard;
+
 

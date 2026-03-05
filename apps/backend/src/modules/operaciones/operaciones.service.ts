@@ -238,6 +238,44 @@ export class OperacionesService {
     }
   }
 
+  async getAlertas(empresa_id: string, filters?: any): Promise<any[]> {
+    try {
+      const limit = this.toPositiveInt(filters?.limit, 100);
+      const page = this.toPositiveInt(filters?.page, 1);
+      const offset = (page - 1) * limit;
+
+      let query = this.supabase
+        .getAdminClient()
+        .from('alertas_generadas')
+        .select('*')
+        .eq('empresa_id', empresa_id);
+
+      if (filters?.nivel) {
+        query = query.eq('nivel', String(filters.nivel));
+      }
+
+      if (filters?.leida !== undefined) {
+        const leida = String(filters.leida).toLowerCase() === 'true';
+        query = query.eq('leida', leida);
+      }
+
+      let response = await query
+        .order('fecha_generada', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (response.error && this.isRecoverableColumnError(response.error)) {
+        response = await query
+          .order('created_at', { ascending: false })
+          .range(offset, offset + limit - 1);
+      }
+
+      if (response.error) throw response.error;
+      return response.data ?? [];
+    } catch (error) {
+      this.handleError('getAlertas', error, 'Error al obtener alertas');
+    }
+  }
+
   async getTransferencias(empresa_id: string, filters?: any): Promise<any[]> {
     try {
       let query = this.supabase
