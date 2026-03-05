@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+﻿import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { SupabaseService } from '../../../shared/supabase/supabase.service';
 import {
   WooCommerceClient,
@@ -17,7 +17,7 @@ export type SyncResult = {
 type IntegracionWoo = {
   id: string;
   canal_id: string | null;
-  ultima_sync: string | null;
+  ultima_sincronizacion: string | null;
   credenciales: WooCredenciales;
 };
 
@@ -103,7 +103,7 @@ export class WooCommerceSyncService {
 
     try {
       const integracion = await this.getIntegracionWooActiva(empresa_id);
-      const desde = this.parseUltimaSync(integracion.ultima_sync);
+      const desde = this.parseUltimaSync(integracion.ultima_sincronizacion);
       const pedidos = await this.wooClient.getPedidosNuevos(integracion.credenciales, desde);
 
       for (const pedido of pedidos) {
@@ -266,7 +266,7 @@ export class WooCommerceSyncService {
       const items = await this.mapearItemsPedido(empresa_id, wooPedido);
 
       if (items.length === 0) {
-        return { exitoso: false, mensaje: `Pedido Woo ${wooOrderId} sin items v�lidos` };
+        return { exitoso: false, mensaje: `Pedido Woo ${wooOrderId} sin items válidos` };
       }
 
       const pedidoId = await this.crearPedido(empresa_id, sucursalId, canalId, wooPedido);
@@ -369,17 +369,18 @@ export class WooCommerceSyncService {
     const { data, error } = await this.supabase
       .getAdminClient()
       .from('integraciones_canal')
-      .select('id, empresa_id, canal_id, credenciales, activo, ultima_sync')
+      .select('id, empresa_id, canal_id, credenciales, activa, tipo_integracion, ultima_sincronizacion')
       .eq('empresa_id', empresa_id)
-      .eq('activo', true);
+      .eq('activa', true)
+      .eq('tipo_integracion', 'woocommerce');
 
     if (error) {
-      throw new InternalServerErrorException(`Error obteniendo integraci�n Woo: ${error.message}`);
+      throw new InternalServerErrorException(`Error obteniendo integración Woo: ${error.message}`);
     }
 
     const rows = (data ?? []) as Array<Record<string, unknown>>;
     if (rows.length === 0) {
-      throw new InternalServerErrorException('No existe integraci�n WooCommerce activa');
+      throw new InternalServerErrorException('No existe integración WooCommerce activa');
     }
 
     const parsed = rows
@@ -391,14 +392,14 @@ export class WooCommerceSyncService {
         return {
           id,
           canal_id: this.readString(row.canal_id),
-          ultima_sync: this.readString(row.ultima_sync),
+          ultima_sincronizacion: this.readString(row.ultima_sincronizacion),
           credenciales: cred,
         } as IntegracionWoo;
       })
       .filter((item): item is IntegracionWoo => item !== null);
 
     if (parsed.length === 0) {
-      throw new InternalServerErrorException('Credenciales Woo inv�lidas en integraci�n activa');
+      throw new InternalServerErrorException('Credenciales Woo inválidas en integración activa');
     }
 
     if (parsed.length === 1) return parsed[0];
@@ -906,7 +907,7 @@ export class WooCommerceSyncService {
     const { error } = await this.supabase
       .getAdminClient()
       .from('integraciones_canal')
-      .update({ ultima_sync: new Date().toISOString() })
+      .update({ ultima_sincronizacion: new Date().toISOString() })
       .eq('id', integracion_id);
 
     if (error) {
@@ -986,3 +987,4 @@ export class WooCommerceSyncService {
     return Number.isFinite(n) ? n : null;
   }
 }
+

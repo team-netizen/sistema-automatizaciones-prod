@@ -69,31 +69,18 @@ export class WooCommerceScheduler implements OnModuleInit {
   }
 
   private async obtenerEmpresasWooActivas(): Promise<string[]> {
-    const direct = await this.supabase
+    const query = await this.supabase
       .getAdminClient()
       .from('integraciones_canal')
-      .select('empresa_id, canal, activo')
-      .eq('activo', true)
-      .eq('canal', 'woocommerce');
+      .select('empresa_id, canal_id, credenciales, activa, tipo_integracion')
+      .eq('activa', true)
+      .eq('tipo_integracion', 'woocommerce');
 
-    if (!direct.error && direct.data) {
-      const empresas = (direct.data as Array<Record<string, unknown>>)
-        .map((row) => this.readString(row.empresa_id))
-        .filter((id): id is string => Boolean(id));
-      return [...new Set(empresas)];
+    if (query.error) {
+      throw new Error(`Error consultando integraciones activas: ${query.error.message}`);
     }
 
-    const fallback = await this.supabase
-      .getAdminClient()
-      .from('integraciones_canal')
-      .select('empresa_id, canal_id, credenciales, activo')
-      .eq('activo', true);
-
-    if (fallback.error) {
-      throw new Error(`Error consultando integraciones activas: ${fallback.error.message}`);
-    }
-
-    const rows = (fallback.data ?? []) as Array<Record<string, unknown>>;
+    const rows = (query.data ?? []) as Array<Record<string, unknown>>;
     if (rows.length === 0) return [];
 
     const canalIds = rows
