@@ -476,6 +476,19 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: T.bg }}>
+                <th
+                  style={{
+                    padding: '9px 8px',
+                    width: 24,
+                    textAlign: 'center',
+                    fontSize: 9,
+                    color: T.textDim,
+                    fontWeight: 700,
+                    letterSpacing: '0.09em',
+                    textTransform: 'uppercase',
+                    fontFamily: T.fontMono,
+                  }}
+                />
                 {['SKU', 'Nombre', 'Precio', 'Stock', 'Woo', 'Estado', 'Acciones'].map((h) => (
                   <th
                     key={h}
@@ -506,10 +519,31 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
                 return (
                   <Fragment key={productoId}>
                     <tr
-                      onClick={() => setExpandido(abierto ? null : productoId)}
                       className="tr"
-                      style={{ cursor: 'pointer', borderBottom: `1px solid ${T.border}` }}
+                      style={{ borderBottom: `1px solid ${T.border}` }}
                     >
+                      <td
+                        onClick={() => setExpandido(abierto ? null : productoId)}
+                        style={{
+                          padding: '12px 8px',
+                          cursor: 'pointer',
+                          width: 24,
+                          textAlign: 'center',
+                        }}
+                      >
+                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                          <path
+                            d="M2 3.5L5 6.5L8 3.5"
+                            stroke={T.textMid}
+                            strokeWidth="1.5"
+                            style={{
+                              transform: abierto ? 'rotate(180deg)' : 'rotate(0deg)',
+                              transition: 'transform 0.2s',
+                              display: 'block',
+                            }}
+                          />
+                        </svg>
+                      </td>
                       <td style={{ padding: '12px 16px', fontFamily: T.fontMono, color: T.accent, fontSize: 12 }}>
                         {p?.sku || '�'}
                       </td>
@@ -609,37 +643,13 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
                           >
                             Eliminar
                           </button>
-                          <span
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: T.textMid,
-                              width: 12,
-                              height: 12,
-                            }}
-                          >
-                            <svg
-                              width="10"
-                              height="10"
-                              viewBox="0 0 10 10"
-                              fill="none"
-                              xmlns="http://www.w3.org/2000/svg"
-                              style={{
-                                transform: abierto ? 'rotate(180deg)' : 'rotate(0deg)',
-                                transition: 'transform 0.2s',
-                              }}
-                            >
-                              <path d="M2 3.5L5 6.5L8 3.5" stroke={T.textMid} strokeWidth="1.5" />
-                            </svg>
-                          </span>
                         </div>
                       </td>
                     </tr>
                     {abierto && (
                       <tr>
                         <td
-                          colSpan={7}
+                          colSpan={8}
                           style={{
                             background: T.surface,
                             padding: '12px 16px',
