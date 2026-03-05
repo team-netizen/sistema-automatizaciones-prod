@@ -31,19 +31,31 @@ export class OperacionesController {
   @Get('dashboard')
   @Roles('admin_empresa', 'super_admin')
   getDashboard(@Req() req: AuthenticatedRequest) {
-    return this.operacionesService.getDashboardMetrics(req.perfil.empresa_id);
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) {
+      throw new ForbiddenException('super_admin debe especificar empresa_id');
+    }
+    return this.operacionesService.getDashboardMetrics(empresaId);
   }
 
   @Get('productos/criticos')
   @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
   getProductosCriticos(@Req() req: AuthenticatedRequest) {
-    return this.operacionesService.getProductosCriticos(req.perfil.empresa_id);
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) {
+      throw new ForbiddenException('super_admin debe especificar empresa_id');
+    }
+    return this.operacionesService.getProductosCriticos(empresaId);
   }
 
   @Get('sucursales')
   @Roles('admin_empresa', 'super_admin')
   getSucursales(@Req() req: AuthenticatedRequest) {
-    return this.operacionesService.getSucursales(req.perfil.empresa_id);
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) {
+      throw new ForbiddenException('super_admin debe especificar empresa_id');
+    }
+    return this.operacionesService.getSucursales(empresaId);
   }
 
   @Get('productos')
@@ -52,7 +64,11 @@ export class OperacionesController {
     @Req() req: AuthenticatedRequest,
     @Query() filters: Record<string, string>,
   ) {
-    return this.operacionesService.getProductos(req.perfil.empresa_id, filters);
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) {
+      throw new ForbiddenException('super_admin debe especificar empresa_id');
+    }
+    return this.operacionesService.getProductos(empresaId, filters);
   }
 
   @Get('pedidos')
@@ -61,6 +77,10 @@ export class OperacionesController {
     @Req() req: AuthenticatedRequest,
     @Query() filters: Record<string, string>,
   ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) {
+      throw new ForbiddenException('super_admin debe especificar empresa_id');
+    }
     if (req.perfil.rol === 'encargado_sucursal' && req.perfil.sucursal_id) {
       const requestedSucursal = filters?.sucursal_id;
       if (requestedSucursal && requestedSucursal !== req.perfil.sucursal_id) {
@@ -68,13 +88,13 @@ export class OperacionesController {
           'Encargado de sucursal no puede consultar pedidos de otra sucursal',
         );
       }
-      return this.operacionesService.getPedidos(req.perfil.empresa_id, {
+      return this.operacionesService.getPedidos(empresaId, {
         ...filters,
         sucursal_id: req.perfil.sucursal_id,
       });
     }
 
-    return this.operacionesService.getPedidos(req.perfil.empresa_id, filters);
+    return this.operacionesService.getPedidos(empresaId, filters);
   }
 
   @Get('transferencias')
@@ -83,6 +103,10 @@ export class OperacionesController {
     @Req() req: AuthenticatedRequest,
     @Query() filters: Record<string, string>,
   ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) {
+      throw new ForbiddenException('super_admin debe especificar empresa_id');
+    }
     if (req.perfil.rol === 'encargado_sucursal' && req.perfil.sucursal_id) {
       const requestedOrigen = filters?.sucursal_origen_id;
       const requestedDestino = filters?.sucursal_destino_id;
@@ -96,7 +120,7 @@ export class OperacionesController {
         );
       }
 
-      return this.operacionesService.getTransferencias(req.perfil.empresa_id, {
+      return this.operacionesService.getTransferencias(empresaId, {
         ...filters,
         sucursal_origen_id: req.perfil.sucursal_id,
         sucursal_destino_id: req.perfil.sucursal_id,
@@ -104,7 +128,7 @@ export class OperacionesController {
       });
     }
 
-    return this.operacionesService.getTransferencias(req.perfil.empresa_id, filters);
+    return this.operacionesService.getTransferencias(empresaId, filters);
   }
 
   @Post('transferencias')
@@ -118,6 +142,10 @@ export class OperacionesController {
       items: Array<{ producto_id: string; cantidad_enviada: number }>;
     },
   ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) {
+      throw new ForbiddenException('super_admin debe especificar empresa_id');
+    }
     // [SECURITY FIX] No confiar en creado_por del cliente; usar identidad autenticada.
     const payload = {
       ...body,
@@ -136,7 +164,7 @@ export class OperacionesController {
       }
     }
 
-    return this.operacionesService.crearTransferencia(req.perfil.empresa_id, payload);
+    return this.operacionesService.crearTransferencia(empresaId, payload);
   }
 
   @Patch('transferencias/:id/estado')
@@ -146,12 +174,16 @@ export class OperacionesController {
     @Param('id') id: string,
     @Body() body: { estado: TransferenciaEstado },
   ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) {
+      throw new ForbiddenException('super_admin debe especificar empresa_id');
+    }
     if (!body?.estado) {
       throw new BadRequestException('El estado es obligatorio');
     }
 
     return this.operacionesService.actualizarEstadoTransferencia(
-      req.perfil.empresa_id,
+      empresaId,
       id,
       body.estado,
     );
@@ -163,6 +195,10 @@ export class OperacionesController {
     @Req() req: AuthenticatedRequest,
     @Query('sucursal_id') sucursal_id?: string,
   ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) {
+      throw new ForbiddenException('super_admin debe especificar empresa_id');
+    }
     if (req.perfil.rol === 'encargado_sucursal' && req.perfil.sucursal_id) {
       if (sucursal_id && sucursal_id !== req.perfil.sucursal_id) {
         throw new ForbiddenException(
@@ -171,20 +207,21 @@ export class OperacionesController {
       }
 
       return this.operacionesService.getStockPorSucursal(
-        req.perfil.empresa_id,
+        empresaId,
         req.perfil.sucursal_id,
       );
     }
 
-    return this.operacionesService.getStockPorSucursal(
-      req.perfil.empresa_id,
-      sucursal_id,
-    );
+    return this.operacionesService.getStockPorSucursal(empresaId, sucursal_id);
   }
 
   @Get('integraciones')
   @Roles('admin_empresa', 'super_admin')
   getIntegraciones(@Req() req: AuthenticatedRequest) {
-    return this.operacionesService.getIntegraciones(req.perfil.empresa_id);
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) {
+      throw new ForbiddenException('super_admin debe especificar empresa_id');
+    }
+    return this.operacionesService.getIntegraciones(empresaId);
   }
 }
