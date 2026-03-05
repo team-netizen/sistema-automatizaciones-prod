@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Param,
@@ -114,14 +115,25 @@ export class OperacionesController {
 
   @Patch('productos/:id')
   @Roles('admin_empresa', 'super_admin')
-  async toggleProductoActivo(
+  async actualizarProducto(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
-    @Body() body: { activo: boolean },
+    @Body() body: Record<string, unknown>,
   ) {
     const empresaId = req.perfil.empresa_id;
     if (!empresaId) throw new ForbiddenException('empresa_id requerido');
-    return this.operacionesService.toggleProductoActivo(empresaId, id, body.activo);
+    return this.operacionesService.actualizarProducto(empresaId, id, body);
+  }
+
+  @Delete('productos/:id')
+  @Roles('admin_empresa', 'super_admin')
+  async eliminarProducto(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    return this.operacionesService.eliminarProducto(empresaId, id);
   }
 
   @Get('pedidos')

@@ -206,7 +206,7 @@ export class OperacionesService {
         .from('productos')
         .select(
           `
-          id, nombre, sku, precio, activo,
+          id, nombre, sku, precio, activo, categoria_id, descripcion,
           stock_por_sucursal:stock_por_sucursal(
             cantidad,
             sucursal:sucursales(id, nombre)
@@ -315,22 +315,48 @@ export class OperacionesService {
     return producto;
   }
 
-  async toggleProductoActivo(empresa_id: string, producto_id: string, activo: boolean) {
-    try {
-      const { data, error } = await this.supabase
-        .getAdminClient()
-        .from('productos')
-        .update({ activo })
-        .eq('id', producto_id)
-        .eq('empresa_id', empresa_id)
-        .select()
-        .single();
+  async actualizarProducto(empresa_id: string, id: string, data: any) {
+    const payload: Record<string, unknown> = {};
+    if (data?.nombre !== undefined) payload.nombre = data.nombre;
+    if (data?.sku !== undefined) payload.sku = data.sku;
+    if (data?.precio !== undefined) payload.precio = data.precio;
+    if (data?.costo !== undefined) payload.costo = data.costo;
+    if (data?.descripcion !== undefined) payload.descripcion = data.descripcion;
+    if (data?.stock_minimo !== undefined) payload.stock_minimo = data.stock_minimo;
+    if (data?.activo !== undefined) payload.activo = data.activo;
+    if (data?.categoria_id !== undefined) payload.categoria_id = data.categoria_id;
 
-      if (error) throw new Error(error.message);
-      return data;
-    } catch (error) {
-      this.handleError('toggleProductoActivo', error, 'Error al actualizar producto');
+    if (Object.keys(payload).length === 0) {
+      throw new BadRequestException('No hay campos para actualizar');
     }
+
+    const { data: producto, error } = await this.supabase
+      .getAdminClient()
+      .from('productos')
+      .update(payload)
+      .eq('id', id)
+      .eq('empresa_id', empresa_id)
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
+    return producto;
+  }
+
+  async eliminarProducto(empresa_id: string, producto_id: string) {
+    const { error } = await this.supabase
+      .getAdminClient()
+      .from('productos')
+      .delete()
+      .eq('id', producto_id)
+      .eq('empresa_id', empresa_id);
+
+    if (error) throw new Error(error.message);
+    return { success: true };
+  }
+
+  async toggleProductoActivo(empresa_id: string, producto_id: string, activo: boolean) {
+    return this.actualizarProducto(empresa_id, producto_id, { activo });
   }
 
   async getPedidos(empresa_id: string, filters?: any): Promise<any[]> {

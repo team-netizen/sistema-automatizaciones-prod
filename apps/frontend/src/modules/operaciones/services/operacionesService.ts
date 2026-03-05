@@ -68,6 +68,32 @@ export const operacionesService = {
     return response.json();
   },
 
+  editarProducto: async (id: string, data: any) => {
+    const response = await authFetch(`${API_URL}/operaciones/productos/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      let message = 'Error al editar producto';
+      try {
+        const error = (await response.json()) as { message?: string };
+        if (error?.message) message = error.message;
+      } catch {
+        // noop
+      }
+      throw new Error(message);
+    }
+    return response.json();
+  },
+
+  eliminarProducto: async (id: string) => {
+    const response = await authFetch(`${API_URL}/operaciones/productos/${id}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) throw new Error('Error al eliminar producto');
+    return response.json();
+  },
+
   toggleProductoActivo: async (productoId: string, activo: boolean) => {
     const response = await authFetch(`${API_URL}/operaciones/productos/${productoId}`, {
       method: 'PATCH',

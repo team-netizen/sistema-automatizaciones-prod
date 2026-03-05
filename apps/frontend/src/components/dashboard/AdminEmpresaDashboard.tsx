@@ -771,8 +771,12 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     const [busqueda, setBusqueda] = useState('');
     const [expandido, setExpandido] = useState<string | null>(null);
     const [modalNuevo, setModalNuevo] = useState(false);
+    const [modoModal, setModoModal] = useState<'crear' | 'editar'>('crear');
+    const [productoEditandoId, setProductoEditandoId] = useState<string | null>(null);
     const [creandoProducto, setCreandoProducto] = useState(false);
     const [errorNuevoProducto, setErrorNuevoProducto] = useState('');
+    const [eliminandoProducto, setEliminandoProducto] = useState(false);
+    const [confirmEliminar, setConfirmEliminar] = useState<{ id: string; nombre: string } | null>(null);
     const [categorias, setCategorias] = useState<any[]>([]);
     const [cargandoCategorias, setCargandoCategorias] = useState(false);
     const [nuevoProducto, setNuevoProducto] = useState({
@@ -831,6 +835,8 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
 
     const abrirModalNuevo = () => {
       setErrorNuevoProducto('');
+      setModoModal('crear');
+      setProductoEditandoId(null);
       setNuevoProducto({
         nombre: '',
         sku: '',
@@ -843,9 +849,47 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
       setModalNuevo(true);
     };
 
+    const abrirModalEditar = (producto: any) => {
+      setErrorNuevoProducto('');
+      setModoModal('editar');
+      setProductoEditandoId(String(producto?.id ?? ''));
+      setNuevoProducto({
+        nombre: String(producto?.nombre ?? ''),
+        sku: String(producto?.sku ?? ''),
+        categoria_id: producto?.categoria_id ? String(producto.categoria_id) : null,
+        descripcion: String(producto?.descripcion ?? ''),
+        precio: String(producto?.precio ?? ''),
+        activo: Boolean(producto?.activo),
+      });
+      void cargarCategoriasModal();
+      setModalNuevo(true);
+    };
+
     const cerrarModalNuevo = () => {
       if (creandoProducto) return;
       setModalNuevo(false);
+    };
+
+    const solicitarEliminarProducto = (producto: any) => {
+      setConfirmEliminar({
+        id: String(producto?.id ?? ''),
+        nombre: String(producto?.nombre ?? 'producto'),
+      });
+    };
+
+    const confirmarEliminarProducto = async () => {
+      if (!confirmEliminar?.id) return;
+      setEliminandoProducto(true);
+      try {
+        await operacionesService.eliminarProducto(confirmEliminar.id);
+        setProductos((prev) => prev.filter((p) => String(p?.id ?? '') !== confirmEliminar.id));
+        if (expandido === confirmEliminar.id) setExpandido(null);
+        setConfirmEliminar(null);
+      } catch (err) {
+        console.error('Error al eliminar producto:', err);
+      } finally {
+        setEliminandoProducto(false);
+      }
     };
 
     const submitNuevoProducto = async (e: any) => {
@@ -869,18 +913,26 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
       setCreandoProducto(true);
       setErrorNuevoProducto('');
       try {
-        await operacionesService.crearProducto({
+        const payload = {
           nombre,
           sku,
           categoria_id: nuevoProducto.categoria_id || null,
           descripcion: descripcion || null,
           precio,
           activo: Boolean(nuevoProducto.activo),
-        });
+        };
+
+        if (modoModal === 'editar' && productoEditandoId) {
+          await operacionesService.editarProducto(productoEditandoId, payload);
+        } else {
+          await operacionesService.crearProducto(payload);
+        }
         setModalNuevo(false);
         await cargarProductos();
       } catch (err: any) {
-        setErrorNuevoProducto(err?.message || 'Error al crear producto');
+        setErrorNuevoProducto(
+          err?.message || (modoModal === 'editar' ? 'Error al editar producto' : 'Error al crear producto'),
+        );
       } finally {
         setCreandoProducto(false);
       }
@@ -962,7 +1014,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: T.bg }}>
-                  {['SKU', 'Nombre', 'Precio', 'Stock', 'Woo', 'Estado', ''].map((h) => (
+                  {['SKU', 'Nombre', 'Precio', 'Stock', 'Woo', 'Estado', 'Acciones'].map((h) => (
                     <th
                       key={h}
                       style={{
@@ -1059,8 +1111,44 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
                             {estaActivo ? 'Activo' : 'Inactivo'}
                           </button>
                         </td>
-                        <td style={{ padding: '12px 16px', color: T.textMid, textAlign: 'center' }}>
-                          {abierto ? '▲' : '▼'}
+                        <td onClick={(e) => e.stopPropagation()} style={{ padding: '12px 16px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                abrirModalEditar(p);
+                              }}
+                              style={{
+                                background: T.accentDim,
+                                color: T.accent,
+                                border: `1px solid ${T.accent}33`,
+                                borderRadius: 4,
+                                padding: '2px 8px',
+                                fontSize: 11,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Editar
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                solicitarEliminarProducto(p);
+                              }}
+                              style={{
+                                background: '#ef444418',
+                                color: '#ef4444',
+                                border: '1px solid #ef444433',
+                                borderRadius: 4,
+                                padding: '2px 8px',
+                                fontSize: 11,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Eliminar
+                            </button>
+                            <span style={{ color: T.textMid, fontSize: 11 }}>{abierto ? '▲' : '▼'}</span>
+                          </div>
                         </td>
                       </tr>
                       {abierto && (
@@ -1150,10 +1238,10 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                 <div>
                   <div style={{ fontFamily: T.fontDisplay, fontWeight: 800, fontSize: 18, color: T.text }}>
-                    Nuevo Producto
+                    {modoModal === 'editar' ? 'Editar Producto' : 'Nuevo Producto'}
                   </div>
                   <div style={{ fontSize: 11, color: T.textMid, fontFamily: T.fontMono }}>
-                    Crea un producto para tu catalogo
+                    {modoModal === 'editar' ? 'Actualiza los datos del producto' : 'Crea un producto para tu catalogo'}
                   </div>
                 </div>
                 <button
@@ -1397,10 +1485,85 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
                       fontWeight: 700,
                     }}
                   >
-                    {creandoProducto ? 'Creando...' : 'Crear Producto'}
+                    {creandoProducto ? (modoModal === 'editar' ? 'Guardando...' : 'Creando...') : (modoModal === 'editar' ? 'Guardar cambios' : 'Crear Producto')}
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+        {confirmEliminar && (
+          <div
+            onClick={() => {
+              if (!eliminandoProducto) setConfirmEliminar(null);
+            }}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.68)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1450,
+              padding: 16,
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: '100%',
+                maxWidth: 440,
+                background: T.surface,
+                border: `1px solid ${T.border}`,
+                borderRadius: 12,
+                boxShadow: '0 28px 80px rgba(0,0,0,0.45)',
+                padding: 18,
+              }}
+            >
+              <div style={{ fontFamily: T.fontDisplay, fontWeight: 800, fontSize: 18, color: T.text, marginBottom: 8 }}>
+                Eliminar producto
+              </div>
+              <div style={{ fontSize: 12, color: T.textMid, marginBottom: 16 }}>
+                {`¿Eliminar ${confirmEliminar.nombre}? Esta acción no se puede deshacer.`}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setConfirmEliminar(null)}
+                  disabled={eliminandoProducto}
+                  style={{
+                    background: T.surface2,
+                    border: `1px solid ${T.border2}`,
+                    borderRadius: 8,
+                    padding: '9px 14px',
+                    color: T.textMid,
+                    fontSize: 12,
+                    fontFamily: T.font,
+                    fontWeight: 600,
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={confirmarEliminarProducto}
+                  disabled={eliminandoProducto}
+                  style={{
+                    background: '#ef444418',
+                    border: '1px solid #ef444433',
+                    borderRadius: 8,
+                    padding: '9px 14px',
+                    color: '#ef4444',
+                    fontSize: 12,
+                    fontFamily: T.font,
+                    fontWeight: 700,
+                  }}
+                >
+                  {eliminandoProducto ? 'Eliminando...' : 'Si, eliminar'}
+                </button>
+              </div>
             </div>
           </div>
         )}
