@@ -188,21 +188,7 @@ function App() {
   }
 
   if (usuario?.rol === 'encargado_sucursal') {
-    return (
-      <DashboardLayout
-        onLogout={handleLogout}
-        usuario={usuario}
-        activeView={activeView}
-        onNavigate={(view) => {
-          const parsedView = toActiveView(view);
-          setActiveView(parsedView);
-        }}
-      >
-        <OperacionesLayout rol={usuario?.rol} activeSubView={activeOperacionesSubView} onNavigate={setActiveOperacionesSubView}>
-          {renderOperacionesPage()}
-        </OperacionesLayout>
-      </DashboardLayout>
-    );
+    return <AdminEmpresaDashboard usuario={usuario} onLogout={handleLogout} />;
   }
 
   if (usuario?.rol === 'vendedor') {
