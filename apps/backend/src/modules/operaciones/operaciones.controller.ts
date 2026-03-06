@@ -394,7 +394,6 @@ export class OperacionesController {
     return this.operacionesService.crearUsuario(empresaId, body);
   }
 
-  @Patch('usuarios/reset-password')
   @Post('usuarios/reset-password')
   @Roles('admin_empresa', 'super_admin')
   resetPassword(
