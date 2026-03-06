@@ -145,7 +145,7 @@ export class OperacionesService {
     }
 
     return (data || []).map((s: any) => {
-      const stockItems = s.stock || [];
+      const stockItems = Array.isArray(s?.stock) ? s.stock : [];
       const total_unidades = stockItems.reduce(
         (sum: number, item: any) => sum + (item.cantidad || 0),
         0,
@@ -155,8 +155,13 @@ export class OperacionesService {
       ).size;
 
       return {
-        ...s,
-        stock: undefined,
+        id: s?.id,
+        nombre: s?.nombre,
+        tipo: s?.tipo || 'tienda',
+        estado: s?.estado || 'activa',
+        direccion: s?.direccion || null,
+        telefono: s?.telefono || null,
+        ultima_sync: s?.ultima_sync || null,
         total_unidades,
         productos_activos,
       };
