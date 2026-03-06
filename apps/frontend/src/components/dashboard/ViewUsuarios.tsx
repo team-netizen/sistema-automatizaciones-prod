@@ -74,6 +74,14 @@ export const ViewUsuarios = ({ usuario }: ViewUsuariosProps) => {
   const [resetEnviado, setResetEnviado] = useState(false);
 
   const esAdminEmpresa = usuario?.rol === 'admin_empresa' || usuario?.rol === 'super_admin';
+  const esAdminEmpresaNoSuper = usuario?.rol === 'admin_empresa';
+  const rolesDisponibles = useMemo(
+    () =>
+      esAdminEmpresaNoSuper
+        ? roles.filter((rol) => rol.id !== 'admin_empresa')
+        : roles,
+    [esAdminEmpresaNoSuper],
+  );
 
   const cargarUsuarios = async () => {
     const data = await operacionesService.getUsuarios();
@@ -366,50 +374,54 @@ export const ViewUsuarios = ({ usuario }: ViewUsuariosProps) => {
                     {u.fecha_creacion ? new Date(u.fecha_creacion).toLocaleDateString('es-PE') : '—'}
                   </td>
                   <td style={{ padding: '11px 14px' }}>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      <button
-                        type="button"
-                        disabled={!esAdminEmpresa}
-                        onClick={() => abrirEditar(u)}
-                        style={{
-                          ...btnBase,
-                          background: '#3b82f620',
-                          border: '1px solid #3b82f640',
-                          color: '#3b82f6',
-                          opacity: esAdminEmpresa ? 1 : 0.4,
-                        }}
-                      >
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        disabled={!esAdminEmpresa}
-                        onClick={() => setResetEmail(u.email)}
-                        style={{
-                          ...btnBase,
-                          background: '#f59e0b20',
-                          border: '1px solid #f59e0b40',
-                          color: '#f59e0b',
-                          opacity: esAdminEmpresa ? 1 : 0.4,
-                        }}
-                      >
-                        Reset
-                      </button>
-                      <button
-                        type="button"
-                        disabled={!esAdminEmpresa}
-                        onClick={() => setConfirmToggle(u)}
-                        style={{
-                          ...btnBase,
-                          background: u.activo ? '#ef444420' : '#00e87b20',
-                          border: u.activo ? '1px solid #ef444440' : '1px solid #00e87b40',
-                          color: u.activo ? '#ef4444' : '#00e87b',
-                          opacity: esAdminEmpresa ? 1 : 0.4,
-                        }}
-                      >
-                        {u.activo ? 'Desactivar' : 'Activar'}
-                      </button>
-                    </div>
+                    {u.id === usuario?.id ? (
+                      <span style={{ fontSize: 11, color: T.textDim, fontFamily: T.fontMono }}>—</span>
+                    ) : (
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          disabled={!esAdminEmpresa}
+                          onClick={() => abrirEditar(u)}
+                          style={{
+                            ...btnBase,
+                            background: '#3b82f620',
+                            border: '1px solid #3b82f640',
+                            color: '#3b82f6',
+                            opacity: esAdminEmpresa ? 1 : 0.4,
+                          }}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!esAdminEmpresa}
+                          onClick={() => setResetEmail(u.email)}
+                          style={{
+                            ...btnBase,
+                            background: '#f59e0b20',
+                            border: '1px solid #f59e0b40',
+                            color: '#f59e0b',
+                            opacity: esAdminEmpresa ? 1 : 0.4,
+                          }}
+                        >
+                          Reset
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!esAdminEmpresa}
+                          onClick={() => setConfirmToggle(u)}
+                          style={{
+                            ...btnBase,
+                            background: u.activo ? '#ef444420' : '#00e87b20',
+                            border: u.activo ? '1px solid #ef444440' : '1px solid #00e87b40',
+                            color: u.activo ? '#ef4444' : '#00e87b',
+                            opacity: esAdminEmpresa ? 1 : 0.4,
+                          }}
+                        >
+                          {u.activo ? 'Desactivar' : 'Activar'}
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -506,7 +518,7 @@ export const ViewUsuarios = ({ usuario }: ViewUsuariosProps) => {
                   }
                   style={inputStyle}
                 >
-                  {roles.map((rol) => (
+                  {rolesDisponibles.map((rol) => (
                     <option key={rol.id} value={rol.id}>
                       {rol.label}
                     </option>
