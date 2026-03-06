@@ -133,7 +133,8 @@ export class OperacionesService {
       .from('sucursales')
       .select(
         `
-        id, nombre, tipo, estado, direccion, telefono,
+        id, nombre, tipo, direccion, activa,
+        latitud, longitud,
         stock:stock_por_sucursal(cantidad, producto_id)
       `,
       )
@@ -159,9 +160,10 @@ export class OperacionesService {
         id: s.id,
         nombre: s.nombre,
         tipo: s.tipo || 'tienda',
-        estado: s.estado || 'activa',
+        activa: s.activa ?? true,
         direccion: s.direccion || null,
-        telefono: s.telefono || null,
+        latitud: s.latitud || null,
+        longitud: s.longitud || null,
         total_unidades,
         productos_activos,
       };
