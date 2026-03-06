@@ -385,7 +385,7 @@ export const ViewTransferencias = ({ usuario }: ViewTransferenciasProps) => {
                       <span style={{ color: T.textMid }}>
                         {getSucursalNombre(t?.sucursal_origen_id, t?.sucursal_origen)}
                       </span>
-                      <span style={{ color: T.textDim, margin: '0 6px' }}>-></span>
+                      <span style={{ color: T.textDim, margin: '0 6px' }}>-&gt;</span>
                       <span style={{ color: T.text }}>
                         {getSucursalNombre(t?.sucursal_destino_id, t?.sucursal_destino)}
                       </span>
@@ -711,7 +711,7 @@ export const ViewTransferencias = ({ usuario }: ViewTransferenciasProps) => {
                   transferenciaSeleccionada?.sucursal_origen_id,
                   transferenciaSeleccionada?.sucursal_origen,
                 )}{' '}
-                ->{' '}
+                -&gt;{' '}
                 {getSucursalNombre(
                   transferenciaSeleccionada?.sucursal_destino_id,
                   transferenciaSeleccionada?.sucursal_destino,
