@@ -43,6 +43,7 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
   const [productos, setProductos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState('');
+  const [filtroCategoria, setFiltroCategoria] = useState<string>('todas');
   const [expandido, setExpandido] = useState<string | null>(null);
   const [modalNuevo, setModalNuevo] = useState(false);
   const [modoModal, setModoModal] = useState<'crear' | 'editar'>('crear');
@@ -110,10 +111,21 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
     }
   };
 
-  const productosFiltrados = productos.filter((p) =>
-    String(p?.nombre ?? '').toLowerCase().includes(busqueda.toLowerCase()) ||
-    String(p?.sku ?? '').toLowerCase().includes(busqueda.toLowerCase()),
-  );
+  const productosFiltrados = productos.filter((p) => {
+    const coincideBusqueda =
+      String(p?.nombre ?? '').toLowerCase().includes(busqueda.toLowerCase()) ||
+      String(p?.sku ?? '').toLowerCase().includes(busqueda.toLowerCase());
+
+    const categoriaId = String(p?.categoria_id ?? '');
+    const coincideCategoria =
+      filtroCategoria === 'todas'
+        ? true
+        : filtroCategoria === 'sin_categoria'
+          ? !categoriaId
+          : categoriaId === filtroCategoria;
+
+    return coincideBusqueda && coincideCategoria;
+  });
 
   const cargarCategoriasModal = async () => {
     setCargandoCategorias(true);
@@ -150,6 +162,10 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
       setLoadingCats(false);
     }
   };
+
+  useEffect(() => {
+    void cargarCategoriasModal();
+  }, []);
 
   useEffect(() => {
     if (pestanaActiva === 'categorias') {
@@ -649,25 +665,50 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
 
       {pestanaActiva === 'productos' ? (
         <>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            background: T.surface, border: `1px solid ${T.border}`,
-            borderRadius: 8, padding: '8px 12px',
-          }}>
-            <Ico d={IC.search} size={13} color={T.textMid} />
-            <input
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar por nombre o SKU..."
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              background: T.surface, border: `1px solid ${T.border}`,
+              borderRadius: 8, padding: '8px 12px', flex: 1,
+            }}>
+              <Ico d={IC.search} size={13} color={T.textMid} />
+              <input
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar por nombre o SKU..."
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: T.text,
+                  fontSize: 12,
+                  fontFamily: T.font,
+                  width: '100%',
+                }}
+              />
+            </div>
+            <select
+              value={filtroCategoria}
+              onChange={(e) => setFiltroCategoria(e.target.value)}
               style={{
-                background: 'none',
-                border: 'none',
-                color: T.text,
+                background: T.surface2,
+                border: `1px solid ${T.border2}`,
+                borderRadius: 8,
+                padding: '8px 12px',
+                color: filtroCategoria === 'todas' ? T.textMid : T.text,
                 fontSize: 12,
                 fontFamily: T.font,
-                width: '100%',
+                cursor: 'pointer',
+                minWidth: 160,
               }}
-            />
+            >
+              <option value="todas">Todas las categorias</option>
+              <option value="sin_categoria">Sin categoria</option>
+              {categorias.map((c: any) => (
+                <option key={String(c?.id ?? '')} value={String(c?.id ?? '')}>
+                  {String(c?.nombre ?? '')}
+                </option>
+              ))}
+            </select>
           </div>
 
           {loading ? (
