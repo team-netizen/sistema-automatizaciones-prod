@@ -306,7 +306,6 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
           setPedidos(rows);
         }
         if (sucursalesRes.status === "fulfilled") {
-          console.log('SUCURSALES RAW:', JSON.stringify(sucursalesRes.value));
           const rows = toRows(sucursalesRes.value, ["sucursales", "data", "items"]);
           setSucursales(rows);
         }
@@ -363,8 +362,8 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     nombre: s?.nombre ?? "Sucursal",
     tipo: s?.tipo ?? "tienda",
     stock: Number(s?.total_unidades ?? s?.stock_total ?? s?.stock ?? 0),
-    pedidos: Number(s?.pedidos_activos ?? s?.pedidos ?? 0),
-    estado: s?.estado ?? "activa",
+    pedidos: Number(s?.productos_activos ?? s?.pedidos_activos ?? s?.pedidos ?? 0),
+    estado: s?.activa === false ? "inactiva" : "activa",
     sync: s?.sync ?? s?.ultima_sync ?? "-",
   });
 
