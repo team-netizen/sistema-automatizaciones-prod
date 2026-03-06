@@ -313,6 +313,25 @@ export class OperacionesController {
     return this.operacionesService.getStockPorSucursal(empresaId, sucursal_id);
   }
 
+  @Patch('stock/ajuste')
+  @Roles('admin_empresa', 'super_admin')
+  async ajustarStock(
+    @Req() req: AuthenticatedRequest,
+    @Body()
+    body: {
+      producto_id: string;
+      sucursal_id: string;
+      tipo: 'entrada' | 'salida';
+      cantidad: number;
+      motivo: string;
+    },
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    const usuarioId = req.perfil.id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    return this.operacionesService.ajustarStock(empresaId, usuarioId, body);
+  }
+
   @Get('integraciones')
   @Roles('admin_empresa', 'super_admin')
   getIntegraciones(@Req() req: AuthenticatedRequest) {

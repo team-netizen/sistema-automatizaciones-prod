@@ -800,7 +800,7 @@ export class OperacionesService {
     }
   }
 
-  async getStockPorSucursal(empresa_id: string, sucursal_id?: string): Promise<any[]> {
+  async getStock(empresa_id: string, sucursal_id?: string) {
     try {
       if (sucursal_id) {
         const { data: sucursal, error: sucursalError } = await this.supabase
@@ -819,33 +819,148 @@ export class OperacionesService {
 
       let query = this.supabase
         .getAdminClient()
-        .from('stock_por_sucursal')
-        .select('*')
+            .from('stock_por_sucursal')
+        .select(
+          `
+          id, cantidad, cantidad_reservada, ultima_actualizacion,
+          sucursal_id,
+          producto:productos(id, nombre, sku, stock_minimo)
+        `,
+        )
         .eq('empresa_id', empresa_id);
 
       if (sucursal_id) {
         query = query.eq('sucursal_id', sucursal_id);
       }
 
-      const { data, error } = await query.order('producto_id', { ascending: true });
-      if (error) throw error;
+      const { data, error } = await query;
+      if (error) throw new Error(error.message);
 
-      const stockRows = (data ?? []) as Array<Record<string, unknown>>;
-      const productoIds = this.uniqueIds(stockRows, 'producto_id');
-      const productosMap = await this.getProductosMap(empresa_id, productoIds);
-
-      return stockRows.map((row) => {
-        const productoId = this.readString(row, 'producto_id');
-        const producto = productoId ? productosMap.get(productoId) : null;
-
+      return (data || []).map((item: any) => {
+        const productoRaw = Array.isArray(item?.producto) ? item.producto[0] : item?.producto;
         return {
-          ...row,
-          nombre: producto?.nombre ?? null,
-          sku: producto?.sku ?? null,
+          id: item.id,
+          producto_id: productoRaw?.id,
+          producto_nombre: productoRaw?.nombre,
+          producto_sku: productoRaw?.sku,
+          stock_minimo: productoRaw?.stock_minimo || 0,
+          sucursal_id: item.sucursal_id,
+          cantidad: item.cantidad || 0,
+          cantidad_reservada: item.cantidad_reservada || 0,
+          ultima_actualizacion: item.ultima_actualizacion,
         };
       });
     } catch (error) {
-      this.handleError('getStockPorSucursal', error, 'Error al obtener stock por sucursal');
+      this.handleError('getStock', error, 'Error al obtener stock por sucursal');
+    }
+  }
+
+  async getStockPorSucursal(empresa_id: string, sucursal_id?: string): Promise<any[]> {
+    return this.getStock(empresa_id, sucursal_id);
+  }
+
+  async ajustarStock(
+    empresa_id: string,
+    usuario_id: string,
+    data: {
+      producto_id: string;
+      sucursal_id: string;
+      tipo: 'entrada' | 'salida';
+      cantidad: number;
+      motivo: string;
+    },
+  ) {
+    void usuario_id;
+    try {
+      if (!data?.producto_id || !data?.sucursal_id) {
+        throw new BadRequestException('producto_id y sucursal_id son obligatorios');
+      }
+      if (!['entrada', 'salida'].includes(String(data?.tipo))) {
+        throw new BadRequestException('Tipo de ajuste invalido');
+      }
+      if (!Number.isFinite(Number(data?.cantidad)) || Number(data.cantidad) <= 0) {
+        throw new BadRequestException('La cantidad debe ser mayor a 0');
+      }
+
+      const { data: sucursalValida, error: sucursalError } = await this.supabase
+        .getAdminClient()
+        .from('sucursales')
+        .select('id')
+        .eq('empresa_id', empresa_id)
+        .eq('id', data.sucursal_id)
+        .maybeSingle();
+      if (sucursalError || !sucursalValida) {
+        throw new BadRequestException('Sucursal no valida para la empresa autenticada');
+      }
+
+      const { data: productoValido, error: productoError } = await this.supabase
+        .getAdminClient()
+        .from('productos')
+        .select('id')
+        .eq('empresa_id', empresa_id)
+        .eq('id', data.producto_id)
+        .maybeSingle();
+      if (productoError || !productoValido) {
+        throw new BadRequestException('Producto no valido para la empresa autenticada');
+      }
+
+      const { data: stockActual, error: fetchError } = await this.supabase
+        .getAdminClient()
+        .from('stock_por_sucursal')
+        .select('id, cantidad')
+        .eq('empresa_id', empresa_id)
+        .eq('producto_id', data.producto_id)
+        .eq('sucursal_id', data.sucursal_id)
+        .maybeSingle();
+
+      if (fetchError) throw new Error(fetchError.message);
+
+      const cantidadActual = stockActual?.cantidad || 0;
+      const nuevaCantidad = data.tipo === 'entrada'
+        ? cantidadActual + data.cantidad
+        : cantidadActual - data.cantidad;
+
+      if (nuevaCantidad < 0) {
+        throw new BadRequestException(
+          `Stock insuficiente. Actual: ${cantidadActual}, solicitado: ${data.cantidad}`,
+        );
+      }
+
+      if (stockActual) {
+        const { error } = await this.supabase
+          .getAdminClient()
+          .from('stock_por_sucursal')
+          .update({
+            cantidad: nuevaCantidad,
+            ultima_actualizacion: new Date().toISOString(),
+          })
+          .eq('id', stockActual.id);
+
+        if (error) throw new Error(error.message);
+      } else {
+        const { error } = await this.supabase
+          .getAdminClient()
+          .from('stock_por_sucursal')
+          .insert({
+            empresa_id,
+            producto_id: data.producto_id,
+            sucursal_id: data.sucursal_id,
+            cantidad: data.cantidad,
+            ultima_actualizacion: new Date().toISOString(),
+          });
+
+        if (error) throw new Error(error.message);
+      }
+
+      return {
+        success: true,
+        cantidad_anterior: cantidadActual,
+        cantidad_nueva: nuevaCantidad,
+        tipo: data.tipo,
+        motivo: data.motivo,
+      };
+    } catch (error) {
+      this.handleError('ajustarStock', error, 'Error al ajustar stock');
     }
   }
 

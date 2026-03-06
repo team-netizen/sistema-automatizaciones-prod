@@ -210,6 +210,24 @@ export const operacionesService = {
     return parseOrThrow(response, 'Error al obtener stock por sucursal');
   },
 
+  ajustarStock: async (data: {
+    producto_id: string;
+    sucursal_id: string;
+    tipo: 'entrada' | 'salida';
+    cantidad: number;
+    motivo: string;
+  }) => {
+    const response = await authFetch(`${API_URL}/operaciones/stock/ajuste`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Error al ajustar stock');
+    }
+    return response.json();
+  },
+
   getIntegraciones: async () => {
     const response = await authFetch(`${API_URL}/operaciones/integraciones`);
     return parseOrThrow(response, 'Error al obtener integraciones');

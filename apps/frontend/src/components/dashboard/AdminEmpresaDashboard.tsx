@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { operacionesService } from '../../modules/operaciones/services/operacionesService';
 import WooCommerceModal from '../integraciones/WooCommerceModal';
 import { ViewProductos } from './ViewProductos';
+import { ViewStock } from './ViewStock';
 import { ViewTransferencias } from './ViewTransferencias';
 
 // â”€â”€â”€ ICON SYSTEM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -982,6 +983,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
       case "productos":      return <ViewProductos usuario={usuario} />;
       case "sucursales":     return <ViewSucursales />;
       case "transferencias": return <ViewTransferencias usuario={usuario} />;
+      case "stock":          return <ViewStock usuario={usuario} />;
       case "integraciones":  return <ViewIntegraciones />;
       case "usuarios":       return <ViewUsuarios />;
       case "alertas":        return <ViewAlertas />;
