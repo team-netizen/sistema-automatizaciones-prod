@@ -192,9 +192,15 @@ export const operacionesService = {
     return parseOrThrow(response, 'Error al crear sucursal');
   },
 
-  getTransferencias: async (filters?: QueryFilters) => {
-    const response = await authFetch(`${API_URL}/operaciones/transferencias${buildQueryString(filters)}`);
-    return parseOrThrow(response, 'Error al obtener transferencias');
+  // Obtener transferencias
+  getTransferencias: async (filtros?: { estado?: string; sucursal_id?: string }) => {
+    const params = new URLSearchParams();
+    if (filtros?.estado) params.set('estado', filtros.estado);
+    if (filtros?.sucursal_id) params.set('sucursal_id', filtros.sucursal_id);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const response = await authFetch(`${API_URL}/operaciones/transferencias${query}`);
+    if (!response.ok) throw new Error('Error al obtener transferencias');
+    return response.json();
   },
 
   getStockPorSucursal: async (sucursal_id?: string) => {
@@ -214,12 +220,48 @@ export const operacionesService = {
     return parseOrThrow(response, 'Error al obtener reservas');
   },
 
-  crearTransferencia: async (data: QueryFilters) => {
+  // Crear transferencia
+  crearTransferencia: async (data: {
+    sucursal_origen_id: string;
+    sucursal_destino_id: string;
+    notas?: string;
+    aprobacion_requerida: boolean;
+    items: Array<{ producto_id: string; cantidad_enviada: number }>;
+  }) => {
     const response = await authFetch(`${API_URL}/operaciones/transferencias`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
-    return parseOrThrow(response, 'Error al crear transferencia');
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Error al crear transferencia');
+    }
+    return response.json();
+  },
+
+  // Aprobar transferencia
+  aprobarTransferencia: async (id: string) => {
+    const response = await authFetch(`${API_URL}/operaciones/transferencias/${id}/aprobar`, {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Error al aprobar transferencia');
+    }
+    return response.json();
+  },
+
+  // Rechazar transferencia
+  rechazarTransferencia: async (id: string, motivo: string) => {
+    const response = await authFetch(`${API_URL}/operaciones/transferencias/${id}/rechazar`, {
+      method: 'POST',
+      body: JSON.stringify({ motivo }),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Error al rechazar transferencia');
+    }
+    return response.json();
   },
 
   actualizarEstadoTransferencia: async (id: string, estado: string) => {

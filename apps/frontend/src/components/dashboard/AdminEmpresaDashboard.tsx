@@ -1,10 +1,11 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 import { useState, useEffect } from 'react';
 import { operacionesService } from '../../modules/operaciones/services/operacionesService';
 import WooCommerceModal from '../integraciones/WooCommerceModal';
 import { ViewProductos } from './ViewProductos';
+import { ViewTransferencias } from './ViewTransferencias';
 
-// ─── ICON SYSTEM ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ ICON SYSTEM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const Ico = ({ d, size = 18, color = "currentColor", stroke = 1.8 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
     stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">
@@ -38,7 +39,7 @@ const IC = {
   pos:         "M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z",
 };
 
-// ─── TOKENS DE DISEÑO ─────────────────────────────────────────────────────────
+// â”€â”€â”€ TOKENS DE DISEÃ‘O â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const T = {
   bg:        "#07090b",
   surface:   "#0b0f12",
@@ -55,7 +56,7 @@ const T = {
   fontDisplay: "'Syne', sans-serif",
 };
 
-// ─── NAV ITEMS ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ NAV ITEMS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const NAV = [
   { id: "dashboard",      label: "Dashboard",      icon: "home"     },
   { id: "pedidos",        label: "Pedidos",         icon: "cart"     },
@@ -69,51 +70,51 @@ const NAV = [
   { id: "reportes",       label: "Reportes",        icon: "chart"    },
 ];
 
-// ─── MOCK DATA ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ MOCK DATA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const MOCK = {
   kpis: [
     { label: "Ventas del Mes",    value: "S/ 48,320", delta: "+12.4%", up: true,  icon: "trending" },
     { label: "Pedidos Activos",   value: "37",         delta: "+5 hoy", up: true,  icon: "cart"     },
     { label: "Stock Consolidado", value: "1,284",      delta: "-3.2%",  up: false, icon: "stock"    },
-    { label: "Alertas Activas",   value: "2",          delta: "crítico",up: false, icon: "bell"     },
+    { label: "Alertas Activas",   value: "2",          delta: "crÃ­tico",up: false, icon: "bell"     },
   ],
   pedidos: [
     { id:"PED-0041", canal:"WooCommerce",  cliente:"Carlos Mendoza", total:"S/ 1,250", estado:"pendiente",  sucursal:"Miraflores",  tiempo:"5min" },
-    { id:"PED-0040", canal:"Mercado Libre",cliente:"Ana Torres",     total:"S/ 450",   estado:"confirmado", sucursal:"Almacén",     tiempo:"12min"},
-    { id:"PED-0039", canal:"WhatsApp",     cliente:"Luis García",    total:"S/ 890",   estado:"pendiente",  sucursal:"San Isidro",  tiempo:"18min"},
-    { id:"PED-0038", canal:"Shopify",      cliente:"María Quispe",   total:"S/ 320",   estado:"confirmado", sucursal:"Miraflores",  tiempo:"25min"},
-    { id:"PED-0037", canal:"WooCommerce",  cliente:"Jorge Ramos",    total:"S/ 1,700", estado:"cancelado",  sucursal:"Almacén",     tiempo:"1h"  },
+    { id:"PED-0040", canal:"Mercado Libre",cliente:"Ana Torres",     total:"S/ 450",   estado:"confirmado", sucursal:"AlmacÃ©n",     tiempo:"12min"},
+    { id:"PED-0039", canal:"WhatsApp",     cliente:"Luis GarcÃ­a",    total:"S/ 890",   estado:"pendiente",  sucursal:"San Isidro",  tiempo:"18min"},
+    { id:"PED-0038", canal:"Shopify",      cliente:"MarÃ­a Quispe",   total:"S/ 320",   estado:"confirmado", sucursal:"Miraflores",  tiempo:"25min"},
+    { id:"PED-0037", canal:"WooCommerce",  cliente:"Jorge Ramos",    total:"S/ 1,700", estado:"cancelado",  sucursal:"AlmacÃ©n",     tiempo:"1h"  },
   ],
   sucursales: [
-    { nombre:"Almacén Central",  tipo:"almacen", stock:840, pedidos:0,  estado:"activa", sync:"2min" },
+    { nombre:"AlmacÃ©n Central",  tipo:"almacen", stock:840, pedidos:0,  estado:"activa", sync:"2min" },
     { nombre:"Tienda Miraflores",tipo:"tienda",  stock:244, pedidos:18, estado:"activa", sync:"1min" },
     { nombre:"Tienda San Isidro",tipo:"tienda",  stock:200, pedidos:19, estado:"activa", sync:"5min" },
   ],
   transferencias: [
-    { guia:"TRF-00003", origen:"Almacén Central", destino:"Tienda Miraflores", items:3, estado:"en_transito", fecha:"Hoy 09:30" },
-    { guia:"TRF-00002", origen:"Almacén Central", destino:"Tienda San Isidro", items:5, estado:"recibido",    fecha:"Ayer 16:00"},
-    { guia:"TRF-00001", origen:"Tienda Miraflores",destino:"Almacén Central",  items:2, estado:"recibido",    fecha:"Lun 11:00" },
+    { guia:"TRF-00003", origen:"AlmacÃ©n Central", destino:"Tienda Miraflores", items:3, estado:"en_transito", fecha:"Hoy 09:30" },
+    { guia:"TRF-00002", origen:"AlmacÃ©n Central", destino:"Tienda San Isidro", items:5, estado:"recibido",    fecha:"Ayer 16:00"},
+    { guia:"TRF-00001", origen:"Tienda Miraflores",destino:"AlmacÃ©n Central",  items:2, estado:"recibido",    fecha:"Lun 11:00" },
   ],
   integraciones: [
-    { nombre:"WooCommerce",   icono:"🛒", estado:"activo",  sync:"3min", pedidos:14, color:"#a78bfa" },
-    { nombre:"Mercado Libre", icono:"🛍️", estado:"activo",  sync:"1min", pedidos:19, color:"#fbbf24" },
-    { nombre:"Shopify",       icono:"🏪", estado:"activo",  sync:"2min", pedidos:4,  color:"#34d399" },
-    { nombre:"WhatsApp",      icono:"💬", estado:"manual",  sync:"Manual",pedidos:4, color:"#4ade80" },
+    { nombre:"WooCommerce",   icono:"ðŸ›’", estado:"activo",  sync:"3min", pedidos:14, color:"#a78bfa" },
+    { nombre:"Mercado Libre", icono:"ðŸ›ï¸", estado:"activo",  sync:"1min", pedidos:19, color:"#fbbf24" },
+    { nombre:"Shopify",       icono:"ðŸª", estado:"activo",  sync:"2min", pedidos:4,  color:"#34d399" },
+    { nombre:"WhatsApp",      icono:"ðŸ’¬", estado:"manual",  sync:"Manual",pedidos:4, color:"#4ade80" },
   ],
   usuarios: [
     { nombre:"Rosa Mamani",   email:"rosa@empresa.com",  rol:"encargado_sucursal", sucursal:"Miraflores",  activo:true  },
     { nombre:"Pedro Huanca",  email:"pedro@empresa.com", rol:"encargado_sucursal", sucursal:"San Isidro",  activo:true  },
     { nombre:"Lucia Flores",  email:"lucia@empresa.com", rol:"vendedor",           sucursal:"Miraflores",  activo:true  },
-    { nombre:"Marco Quispe",  email:"marco@empresa.com", rol:"vendedor",           sucursal:"Almacén",     activo:false },
+    { nombre:"Marco Quispe",  email:"marco@empresa.com", rol:"vendedor",           sucursal:"AlmacÃ©n",     activo:false },
   ],
   alertas: [
-    { tipo:"stock_critico",   mensaje:"Cámara Digital 4K — stock 2 unidades (mín: 5)", nivel:"critico",  tiempo:"Hace 10min", sucursal:"Almacén"     },
-    { tipo:"pedido_sin_asignar", mensaje:"PED-0041 sin sucursal asignada hace 5min",   nivel:"warning",  tiempo:"Hace 5min",  sucursal:"—"           },
-    { tipo:"canal_sync",      mensaje:"WhatsApp no sincronizado — requiere revisión",  nivel:"info",     tiempo:"Hace 1h",    sucursal:"—"           },
+    { tipo:"stock_critico",   mensaje:"CÃ¡mara Digital 4K â€” stock 2 unidades (mÃ­n: 5)", nivel:"critico",  tiempo:"Hace 10min", sucursal:"AlmacÃ©n"     },
+    { tipo:"pedido_sin_asignar", mensaje:"PED-0041 sin sucursal asignada hace 5min",   nivel:"warning",  tiempo:"Hace 5min",  sucursal:"â€”"           },
+    { tipo:"canal_sync",      mensaje:"WhatsApp no sincronizado â€” requiere revisiÃ³n",  nivel:"info",     tiempo:"Hace 1h",    sucursal:"â€”"           },
   ],
 };
 
-// ─── BADGES ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ BADGES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const Badge = ({ estado }) => {
   const M = {
     pendiente:   ["#f59e0b","#1e1400"],
@@ -138,7 +139,7 @@ const Badge = ({ estado }) => {
 
 const CanalTag = ({ canal }) => {
   const M = { "WooCommerce":["#a78bfa","#130f2a"], "Mercado Libre":["#fbbf24","#1a1400"],
-    "WhatsApp":["#4ade80","#0a1a0e"], "Shopify":["#34d399","#051a12"], "Físico":["#94a3b8","#111"] };
+    "WhatsApp":["#4ade80","#0a1a0e"], "Shopify":["#34d399","#051a12"], "FÃ­sico":["#94a3b8","#111"] };
   const [c, bg] = M[canal] || ["#94a3b8","#111"];
   return <span style={{ background:bg, color:c, padding:"2px 8px", borderRadius:5,
     fontSize:10, fontWeight:600, border:`1px solid ${c}33`, fontFamily:T.fontMono }}>{canal}</span>;
@@ -153,7 +154,7 @@ const RolTag = ({ rol }) => {
     textTransform:"uppercase" }}>{rol.replace("_"," ")}</span>;
 };
 
-// ─── SECCIÓN HEADER ───────────────────────────────────────────────────────────
+// â”€â”€â”€ SECCIÃ“N HEADER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const SectionHeader = ({ title, action, actionLabel }) => (
   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
     padding:"13px 20px", borderBottom:`1px solid ${T.border}` }}>
@@ -165,7 +166,7 @@ const SectionHeader = ({ title, action, actionLabel }) => (
   </div>
 );
 
-// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
+// â”€â”€â”€ MAIN COMPONENT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
   const [nav, setNav]         = useState("dashboard");
   const [expanded, setExp]    = useState(false);
@@ -208,7 +209,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
       if (!encontrado) {
         next.unshift({
           nombre: "WooCommerce",
-          icono: "🛒",
+          icono: "ðŸ›’",
           estado,
           sync: estado === "activo" ? "Ahora" : "Manual",
           pedidos: 0,
@@ -348,7 +349,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
 
   const normalizePedido = (p: any) => ({
     id: p?.id ?? p?.codigo ?? "PED-0000",
-    canal: p?.canal ?? p?.canal_nombre ?? "FÃ­sico",
+    canal: p?.canal ?? p?.canal_nombre ?? "FÃƒÂ­sico",
     cliente: p?.cliente ?? p?.cliente_nombre ?? "Cliente",
     total: typeof p?.total === "number" ? `S/ ${p.total.toLocaleString()}` : (p?.total ?? "S/ 0"),
     estado: p?.estado ?? "pendiente",
@@ -376,7 +377,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
 
   const normalizeIntegracion = (c: any) => ({
     nombre: c?.canal ?? c?.nombre ?? "Canal",
-    icono: c?.icono ?? "ðŸ”—",
+    icono: c?.icono ?? "Ã°Å¸â€â€”",
     estado: c?.estado ?? "activo",
     sync: c?.sync ?? c?.ultima_sync ?? "-",
     pedidos: Number(c?.pedidos ?? 0),
@@ -396,7 +397,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     mensaje: a?.mensaje ?? a?.descripcion ?? "Alerta",
     nivel: a?.nivel ?? "info",
     tiempo: a?.tiempo ?? a?.created_at ?? "-",
-    sucursal: a?.sucursal ?? a?.sucursal_nombre ?? "â€”",
+    sucursal: a?.sucursal ?? a?.sucursal_nombre ?? "Ã¢â‚¬â€",
   });
 
   const DATA = {
@@ -433,7 +434,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     input{outline:none;}
   `;
 
-  // ── SIDEBAR ──
+  // â”€â”€ SIDEBAR â”€â”€
   const Sidebar = () => (
     <div className="sb" onMouseEnter={() => setExp(true)} onMouseLeave={() => setExp(false)}
       style={{ width:expanded?218:56, background:T.surface, borderRight:`1px solid ${T.border}`,
@@ -478,8 +479,8 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
       </nav>
       {/* Bottom */}
       <div style={{ borderTop:`1px solid ${T.border}`, padding:"6px 0" }}>
-        {[{id:"settings",label:"Configuración",icon:"settings"},
-          {id:"logout",label:"Cerrar Sesión",icon:"logout"}].map(item => (
+        {[{id:"settings",label:"ConfiguraciÃ³n",icon:"settings"},
+          {id:"logout",label:"Cerrar SesiÃ³n",icon:"logout"}].map(item => (
           <div key={item.id} className="ni"
             onClick={item.id==="logout"?onLogout:undefined}
             style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 0",
@@ -493,7 +494,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     </div>
   );
 
-  // ── TOPBAR ──
+  // â”€â”€ TOPBAR â”€â”€
   const Topbar = () => (
     <div style={{ height:56, background:T.surface, borderBottom:`1px solid ${T.border}`,
       display:"flex", alignItems:"center", justifyContent:"space-between",
@@ -503,7 +504,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
           color:T.accent, letterSpacing:"0.04em" }}>
           {NAV.find(n=>n.id===nav)?.label || "Dashboard"}
         </span>
-        <span style={{ color:T.textDim }}>—</span>
+        <span style={{ color:T.textDim }}>â€”</span>
         <span style={{ fontSize:11, color:T.textDim, fontFamily:T.fontMono }}>admin_empresa</span>
       </div>
       <div style={{ display:"flex", alignItems:"center", gap:16 }}>
@@ -540,13 +541,13 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     </div>
   );
 
-  // ── CARD BASE ──
+  // â”€â”€ CARD BASE â”€â”€
   const Card = ({ children, style={} }) => (
     <div style={{ background:T.surface, border:`1px solid ${T.border}`,
       borderRadius:10, overflow:"hidden", ...style }}>{children}</div>
   );
 
-  // ── VISTA: DASHBOARD ──
+  // â”€â”€ VISTA: DASHBOARD â”€â”€
   const ViewDashboard = () => (
     <div className="fade" style={{ display:"flex", flexDirection:"column", gap:16 }}>
       {/* KPIs */}
@@ -570,7 +571,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
         ))}
       </div>
 
-      {/* Alertas críticas si existen */}
+      {/* Alertas crÃ­ticas si existen */}
       {DATA.alertas.filter(a=>a.nivel==="critico").map((a,i) => (
         <div key={i} style={{ background:"#1a0500", border:"1px solid #ef444433",
           borderRadius:8, padding:"10px 16px", display:"flex", alignItems:"center",
@@ -585,7 +586,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
       <div style={{ display:"grid", gridTemplateColumns:"1.4fr 1fr", gap:16 }}>
         {/* Pedidos recientes */}
         <Card>
-          <SectionHeader title="Pedidos Recientes" action={() => setNav("pedidos")} actionLabel="Ver todos →" />
+          <SectionHeader title="Pedidos Recientes" action={() => setNav("pedidos")} actionLabel="Ver todos â†’" />
           <table style={{ width:"100%", borderCollapse:"collapse" }}>
             <thead>
               <tr style={{ background:T.bg }}>
@@ -615,7 +616,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
         {/* Sucursales */}
         <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
           <Card>
-            <SectionHeader title="Sucursales" action={() => setNav("sucursales")} actionLabel="Gestionar →" />
+            <SectionHeader title="Sucursales" action={() => setNav("sucursales")} actionLabel="Gestionar â†’" />
             {DATA.sucursales.map((s,i) => (
               <div key={i} className="tr" style={{ padding:"11px 20px",
                 borderTop: i>0?`1px solid ${T.border}`:"none",
@@ -623,7 +624,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
                 <div>
                   <div style={{ fontSize:12, fontWeight:600, color:T.text }}>{s.nombre}</div>
                   <div style={{ fontSize:10, color:T.textMid, fontFamily:T.fontMono }}>
-                    {s.tipo.toUpperCase()} · sync {s.sync}</div>
+                    {s.tipo.toUpperCase()} Â· sync {s.sync}</div>
                 </div>
                 <div style={{ textAlign:"right" }}>
                   <div style={{ fontSize:14, fontWeight:800, color:T.accent,
@@ -636,7 +637,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
 
           {/* Canales */}
           <Card>
-            <SectionHeader title="Canales" action={() => setNav("integraciones")} actionLabel="Configurar →" />
+            <SectionHeader title="Canales" action={() => setNav("integraciones")} actionLabel="Configurar â†’" />
             {DATA.integraciones.map((c,i) => (
               <div key={i} className="tr" style={{ padding:"9px 20px",
                 borderTop: i>0?`1px solid ${T.border}`:"none",
@@ -659,11 +660,11 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
       {/* Transferencias recientes */}
       <Card>
         <SectionHeader title="Transferencias Recientes"
-          action={() => setNav("transferencias")} actionLabel="Ver todas →" />
+          action={() => setNav("transferencias")} actionLabel="Ver todas â†’" />
         <table style={{ width:"100%", borderCollapse:"collapse" }}>
           <thead>
             <tr style={{ background:T.bg }}>
-              {["Guía","Origen → Destino","Items","Estado","Fecha"].map(h => (
+              {["GuÃ­a","Origen â†’ Destino","Items","Estado","Fecha"].map(h => (
                 <th key={h} style={{ padding:"7px 20px", textAlign:"left", fontSize:9,
                   color:T.textDim, fontWeight:700, letterSpacing:"0.09em",
                   textTransform:"uppercase", fontFamily:T.fontMono }}>{h}</th>
@@ -677,7 +678,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
                   fontFamily:T.fontMono, color:T.accent }}>{t.guia}</td>
                 <td style={{ padding:"11px 20px", fontSize:12, color:T.text }}>
                   <span style={{ color:T.textMid }}>{t.origen}</span>
-                  <span style={{ color:T.textDim, margin:"0 6px" }}>→</span>
+                  <span style={{ color:T.textDim, margin:"0 6px" }}>â†’</span>
                   <span>{t.destino}</span>
                 </td>
                 <td style={{ padding:"11px 20px", fontSize:12,
@@ -693,7 +694,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     </div>
   );
 
-  // ── VISTA: PEDIDOS ──
+  // â”€â”€ VISTA: PEDIDOS â”€â”€
   const ViewPedidos = () => {
     const filtrados = DATA.pedidos.filter(p =>
       (filterEstado === "todos" || p.estado === filterEstado) &&
@@ -765,7 +766,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     );
   };
 
-  // ── VISTA: SUCURSALES ──
+  // â”€â”€ VISTA: SUCURSALES â”€â”€
   const ViewSucursales = () => (
     <div className="fade">
       <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:14 }}>
@@ -803,62 +804,13 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
               ))}
             </div>
             <div style={{ marginTop:10, fontSize:10, color:T.textDim,
-              fontFamily:T.fontMono }}>🔄 Sync hace {s.sync}</div>
+              fontFamily:T.fontMono }}>ðŸ”„ Sync hace {s.sync}</div>
           </div>
         ))}
       </div>
     </div>
   );
 
-  // ── VISTA: TRANSFERENCIAS ──
-  const ViewTransferencias = () => (
-    <div className="fade">
-      <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:14 }}>
-        <button className="btn" style={{ background:T.accentDim,
-          border:`1px solid ${T.accent}44`, borderRadius:8, padding:"8px 16px",
-          color:T.accent, fontSize:12, fontFamily:T.font, fontWeight:700 }}>
-          + Nueva Transferencia
-        </button>
-      </div>
-      <Card>
-        <table style={{ width:"100%", borderCollapse:"collapse" }}>
-          <thead>
-            <tr style={{ background:T.bg }}>
-              {["Guía","Origen","Destino","Items","Estado","Fecha","Acciones"].map(h => (
-                <th key={h} style={{ padding:"9px 18px", textAlign:"left", fontSize:9,
-                  color:T.textDim, fontWeight:700, letterSpacing:"0.09em",
-                  textTransform:"uppercase", fontFamily:T.fontMono }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {DATA.transferencias.map((t,i) => (
-              <tr key={i} className="tr" style={{ borderTop:`1px solid ${T.border}` }}>
-                <td style={{ padding:"13px 18px", fontSize:11,
-                  fontFamily:T.fontMono, color:T.accent }}>{t.guia}</td>
-                <td style={{ padding:"13px 18px", fontSize:12,
-                  color:T.textMid }}>{t.origen}</td>
-                <td style={{ padding:"13px 18px", fontSize:12, color:T.text }}>{t.destino}</td>
-                <td style={{ padding:"13px 18px", fontSize:12,
-                  color:T.textMid, textAlign:"center" }}>{t.items}</td>
-                <td style={{ padding:"13px 18px" }}><Badge estado={t.estado} /></td>
-                <td style={{ padding:"13px 18px", fontSize:10,
-                  color:T.textDim, fontFamily:T.fontMono }}>{t.fecha}</td>
-                <td style={{ padding:"13px 18px" }}>
-                  <button className="btn" style={{ background:T.surface2,
-                    border:`1px solid ${T.border2}`, borderRadius:5,
-                    padding:"3px 8px", color:T.accent, fontSize:10,
-                    fontFamily:T.font }}>Ver</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Card>
-    </div>
-  );
-
-  // ── VISTA: INTEGRACIONES ──
   const ViewIntegraciones = () => (
     <div className="fade" style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:14 }}>
       {DATA.integraciones.map((c,i) => {
@@ -878,7 +830,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
             fontSize:16, color:T.text, marginBottom:4 }}>{c.nombre}</div>
           <div style={{ fontSize:11, color:T.textDim,
             fontFamily:T.fontMono, marginBottom:18 }}>
-            Última sync: hace {c.sync}
+            Ãšltima sync: hace {c.sync}
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:16 }}>
             <div style={{ background:T.bg, borderRadius:6, padding:10 }}>
@@ -905,14 +857,14 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
             style={{ width:"100%", background:T.accentDim,
             border:`1px solid ${T.accent}33`, borderRadius:7, padding:8,
             color:T.accent, fontSize:11, fontFamily:T.font, fontWeight:600 }}>
-            Configurar integración
+            Configurar integraciÃ³n
           </button>
         </div>
       )})}
     </div>
   );
 
-  // ── VISTA: USUARIOS ──
+  // â”€â”€ VISTA: USUARIOS â”€â”€
   const ViewUsuarios = () => (
     <div className="fade">
       <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:14 }}>
@@ -979,7 +931,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     </div>
   );
 
-  // ── VISTA: ALERTAS ──
+  // â”€â”€ VISTA: ALERTAS â”€â”€
   const ViewAlertas = () => (
     <div className="fade" style={{ display:"flex", flexDirection:"column", gap:10 }}>
       {DATA.alertas.map((a,i) => {
@@ -995,7 +947,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
               <div style={{ fontSize:12, fontWeight:600, color:T.text,
                 marginBottom:3 }}>{a.mensaje}</div>
               <div style={{ fontSize:10, color:T.textMid, fontFamily:T.fontMono }}>
-                {a.sucursal !== "—" && `${a.sucursal} · `}{a.tiempo}
+                {a.sucursal !== "â€”" && `${a.sucursal} Â· `}{a.tiempo}
               </div>
             </div>
             <span style={{ background:`${c}15`, color:c, padding:"3px 10px",
@@ -1008,7 +960,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     </div>
   );
 
-  // ── PLACEHOLDER MÓDULOS ──
+  // â”€â”€ PLACEHOLDER MÃ“DULOS â”€â”€
   const ViewPlaceholder = ({ label }) => (
     <div className="fade" style={{ display:"flex", flexDirection:"column",
       alignItems:"center", justifyContent:"center", height:300, gap:12 }}>
@@ -1018,7 +970,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
       <div style={{ fontFamily:T.fontDisplay, fontWeight:700,
         fontSize:16, color:T.textMid }}>{label}</div>
       <div style={{ fontSize:11, color:T.textDim,
-        fontFamily:T.fontMono }}>Módulo en construcción</div>
+        fontFamily:T.fontMono }}>MÃ³dulo en construcciÃ³n</div>
     </div>
   );
 
@@ -1028,7 +980,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
       case "pedidos":        return <ViewPedidos />;
       case "productos":      return <ViewProductos usuario={usuario} />;
       case "sucursales":     return <ViewSucursales />;
-      case "transferencias": return <ViewTransferencias />;
+      case "transferencias": return <ViewTransferencias usuario={usuario} />;
       case "integraciones":  return <ViewIntegraciones />;
       case "usuarios":       return <ViewUsuarios />;
       case "alertas":        return <ViewAlertas />;

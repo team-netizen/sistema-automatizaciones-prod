@@ -19,7 +19,8 @@ type DashboardMetricas = {
 type TransferenciaPayload = {
   sucursal_origen_id: string;
   sucursal_destino_id: string;
-  creado_por: string;
+  notas?: string;
+  aprobacion_requerida?: boolean;
   items: Array<{ producto_id: string; cantidad_enviada: number }>;
 };
 
@@ -28,8 +29,6 @@ type SucursalPayload = {
   tipo?: string;
   estado?: string;
 };
-
-type TransferenciaEstado = 'en_transito' | 'recibido' | 'cancelado';
 
 @Injectable()
 export class OperacionesService {
@@ -736,77 +735,39 @@ export class OperacionesService {
     }
   }
 
-  async getTransferencias(empresa_id: string, filters?: any): Promise<any[]> {
+  async getTransferencias(empresa_id: string, filtros: any = {}): Promise<{ transferencias: any[] }> {
     try {
       let query = this.supabase
         .getAdminClient()
-        .from('transferencias_stock')
-        .select('*')
+        .from('transferencias')
+        .select(
+          `
+          *,
+          sucursal_origen:sucursales!sucursal_origen_id(id, nombre),
+          sucursal_destino:sucursales!sucursal_destino_id(id, nombre),
+          items:transferencia_items(
+            id, cantidad_enviada, cantidad_recibida, observacion_item,
+            producto:productos(id, nombre, sku)
+          )
+        `,
+        )
         .eq('empresa_id', empresa_id);
 
-      if (filters?.estado) {
-        query = query.eq('estado', String(filters.estado));
+      if (filtros?.estado) {
+        query = query.eq('estado', String(filtros.estado));
       }
 
-      if (filters?.sucursal_origen_id) {
-        query = query.eq('sucursal_origen_id', String(filters.sucursal_origen_id));
-      }
-
-      if (filters?.sucursal_destino_id) {
-        query = query.eq('sucursal_destino_id', String(filters.sucursal_destino_id));
-      }
-
-      const encargadoScope = String(filters?._encargado_scope ?? '') === 'true';
-      if (encargadoScope && filters?.sucursal_origen_id && filters?.sucursal_destino_id) {
-        const sucursalScope = String(filters.sucursal_origen_id);
-        if (!/^[A-Za-z0-9-]{1,80}$/.test(sucursalScope)) {
-          throw new BadRequestException('sucursal_id invalido para filtro de transferencias');
+      if (filtros?.sucursalId) {
+        const sucursalId = String(filtros.sucursalId);
+        if (!/^[A-Za-z0-9-]{1,80}$/.test(sucursalId)) {
+          throw new BadRequestException('sucursal_id invalido');
         }
-        // [SECURITY FIX] Encargado: listar solo transferencias donde su sucursal participa.
-        query = query.or(
-          `sucursal_origen_id.eq.${sucursalScope},sucursal_destino_id.eq.${sucursalScope}`,
-        );
+        query = query.or(`sucursal_origen_id.eq.${sucursalId},sucursal_destino_id.eq.${sucursalId}`);
       }
 
-      const limit = this.toPositiveInt(filters?.limit, 100);
-      const page = this.toPositiveInt(filters?.page, 1);
-      const offset = (page - 1) * limit;
-
-      let response = await query
-        .order('fecha_creacion', { ascending: false })
-        .range(offset, offset + limit - 1);
-
-      if (response.error && this.isRecoverableColumnError(response.error)) {
-        response = await query
-          .order('created_at', { ascending: false })
-          .range(offset, offset + limit - 1);
-      }
-
-      if (response.error) throw response.error;
-
-      const transferencias = (response.data ?? []) as Array<Record<string, unknown>>;
-      const sucursalIds = [
-        ...new Set(
-          transferencias
-            .flatMap((t) => [
-              this.readString(t, 'sucursal_origen_id'),
-              this.readString(t, 'sucursal_destino_id'),
-            ])
-            .filter((id): id is string => Boolean(id)),
-        ),
-      ];
-
-      const sucursalesMap = await this.getSucursalesMap(empresa_id, sucursalIds);
-
-      return transferencias.map((t) => ({
-        ...t,
-        sucursal_origen: this.readString(t, 'sucursal_origen_id')
-          ? sucursalesMap.get(this.readString(t, 'sucursal_origen_id') ?? '') ?? null
-          : null,
-        sucursal_destino: this.readString(t, 'sucursal_destino_id')
-          ? sucursalesMap.get(this.readString(t, 'sucursal_destino_id') ?? '') ?? null
-          : null,
-      }));
+      const { data, error } = await query.order('fecha_creacion', { ascending: false });
+      if (error) throw new Error(error.message);
+      return { transferencias: data || [] };
     } catch (error) {
       this.handleError('getTransferencias', error, 'Error al obtener transferencias');
     }
@@ -905,26 +866,34 @@ export class OperacionesService {
     }
   }
 
-  async crearTransferencia(empresa_id: string, data: TransferenciaPayload): Promise<any> {
+  async crearTransferencia(
+    empresa_id: string,
+    usuario_id: string,
+    data: TransferenciaPayload,
+  ): Promise<any> {
     try {
-      if (!data?.sucursal_origen_id || !data?.sucursal_destino_id || !data?.creado_por) {
+      if (!data?.sucursal_origen_id || !data?.sucursal_destino_id) {
         throw new BadRequestException('Faltan datos obligatorios de transferencia');
       }
 
       if (data.sucursal_origen_id === data.sucursal_destino_id) {
-        throw new BadRequestException(
-          'La sucursal de origen y destino no pueden ser la misma',
-        );
+        throw new BadRequestException('La sucursal origen y destino no pueden ser la misma');
       }
 
       if (!Array.isArray(data.items) || data.items.length === 0) {
         throw new BadRequestException('La transferencia debe incluir al menos un item');
       }
 
+      const ids = new Set<string>();
       for (const item of data.items) {
-        if (!item?.producto_id || !Number.isFinite(item.cantidad_enviada) || item.cantidad_enviada <= 0) {
+        const cantidad = Number(item?.cantidad_enviada);
+        if (!item?.producto_id || !Number.isFinite(cantidad) || cantidad <= 0) {
           throw new BadRequestException('Cada item debe incluir producto_id y cantidad_enviada > 0');
         }
+        if (ids.has(item.producto_id)) {
+          throw new BadRequestException('No se permite repetir el mismo producto en la transferencia');
+        }
+        ids.add(item.producto_id);
       }
 
       const { data: sucursalesValidas, error: sucursalesError } = await this.supabase
@@ -935,7 +904,6 @@ export class OperacionesService {
         .in('id', [data.sucursal_origen_id, data.sucursal_destino_id]);
 
       if (sucursalesError || (sucursalesValidas ?? []).length !== 2) {
-        // [SECURITY FIX] Evita transferencias entre sucursales ajenas al tenant.
         throw new BadRequestException('Sucursales invalidas para la empresa autenticada');
       }
 
@@ -948,19 +916,49 @@ export class OperacionesService {
         .in('id', productoIds);
 
       if (productosError || (productosValidos ?? []).length !== productoIds.length) {
-        // [SECURITY FIX] Evita transferir productos fuera del tenant.
         throw new BadRequestException('Existen productos invalidos para la empresa autenticada');
+      }
+
+      for (const item of data.items) {
+        const { data: stock, error: stockError } = await this.supabase
+          .getAdminClient()
+          .from('stock_por_sucursal')
+          .select('cantidad')
+          .eq('empresa_id', empresa_id)
+          .eq('sucursal_id', data.sucursal_origen_id)
+          .eq('producto_id', item.producto_id)
+          .maybeSingle();
+
+        if (stockError && stockError.code !== 'PGRST116') {
+          throw stockError;
+        }
+
+        const disponible = Number(stock?.cantidad || 0);
+        if (Number(item.cantidad_enviada) > disponible) {
+          const { data: prod } = await this.supabase
+            .getAdminClient()
+            .from('productos')
+            .select('nombre, sku')
+            .eq('id', item.producto_id)
+            .maybeSingle();
+
+          throw new BadRequestException(
+            `Stock insuficiente para ${prod?.nombre || item.producto_id}. Disponible: ${disponible}, solicitado: ${item.cantidad_enviada}`,
+          );
+        }
       }
 
       const { data: transferencia, error: transferenciaError } = await this.supabase
         .getAdminClient()
-        .from('transferencias_stock')
+        .from('transferencias')
         .insert({
           empresa_id,
           sucursal_origen_id: data.sucursal_origen_id,
           sucursal_destino_id: data.sucursal_destino_id,
-          creado_por: data.creado_por,
-          estado: 'en_transito',
+          estado: 'pendiente',
+          notas: data.notas || null,
+          aprobacion_requerida: data.aprobacion_requerida ?? true,
+          creado_por: usuario_id,
         })
         .select('*')
         .single();
@@ -969,10 +967,7 @@ export class OperacionesService {
         throw transferenciaError ?? new Error('No se pudo crear la transferencia');
       }
 
-      const transferenciaId = this.readString(
-        transferencia as Record<string, unknown>,
-        'id',
-      );
+      const transferenciaId = this.readString(transferencia as Record<string, unknown>, 'id');
       if (!transferenciaId) {
         throw new InternalServerErrorException('No se pudo resolver el id de transferencia');
       }
@@ -980,7 +975,8 @@ export class OperacionesService {
       const itemsPayload = data.items.map((item) => ({
         transferencia_id: transferenciaId,
         producto_id: item.producto_id,
-        cantidad_enviada: item.cantidad_enviada,
+        cantidad_enviada: Number(item.cantidad_enviada),
+        cantidad_recibida: 0,
       }));
 
       const { data: itemsInsertados, error: itemsError } = await this.supabase
@@ -992,12 +988,28 @@ export class OperacionesService {
       if (itemsError) {
         await this.supabase
           .getAdminClient()
-          .from('transferencias_stock')
+          .from('transferencias')
           .delete()
           .eq('id', transferenciaId)
           .eq('empresa_id', empresa_id);
 
         throw itemsError;
+      }
+
+      if (!Boolean(transferencia.aprobacion_requerida ?? true)) {
+        await this.supabase
+          .getAdminClient()
+          .from('transferencias')
+          .update({
+            estado: 'aprobada',
+            aprobado_por: usuario_id,
+            fecha_aprobacion: new Date().toISOString(),
+            fecha_actualizacion: new Date().toISOString(),
+          })
+          .eq('id', transferenciaId)
+          .eq('empresa_id', empresa_id);
+
+        await this.ejecutarTransferencia(empresa_id, transferenciaId, usuario_id);
       }
 
       return {
@@ -1009,36 +1021,295 @@ export class OperacionesService {
     }
   }
 
-  async actualizarEstadoTransferencia(
+  async aprobarTransferencia(empresa_id: string, usuario_id: string, id: string) {
+    try {
+      const { data: transferencia, error } = await this.supabase
+        .getAdminClient()
+        .from('transferencias')
+        .select('*, items:transferencia_items(*)')
+        .eq('id', id)
+        .eq('empresa_id', empresa_id)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!transferencia) throw new BadRequestException('Transferencia no encontrada');
+      if (transferencia.estado !== 'pendiente') {
+        throw new BadRequestException(
+          `No se puede aprobar una transferencia en estado ${transferencia.estado}`,
+        );
+      }
+
+      const { error: updateError } = await this.supabase
+        .getAdminClient()
+        .from('transferencias')
+        .update({
+          estado: 'aprobada',
+          aprobado_por: usuario_id,
+          fecha_aprobacion: new Date().toISOString(),
+          fecha_actualizacion: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .eq('empresa_id', empresa_id);
+
+      if (updateError) throw updateError;
+
+      const resultado = await this.ejecutarTransferencia(empresa_id, id, usuario_id);
+      if (resultado.parcial) {
+        return {
+          success: true,
+          parcial: true,
+          message: `Transferencia aprobada con ${resultado.errores.length} item(s) pendientes de procesar`,
+        };
+      }
+
+      return { success: true, message: 'Transferencia aprobada y ejecutada' };
+    } catch (error) {
+      this.handleError('aprobarTransferencia', error, 'Error al aprobar transferencia');
+    }
+  }
+
+  async rechazarTransferencia(empresa_id: string, id: string, motivo: string) {
+    try {
+      const { data: transferencia, error } = await this.supabase
+        .getAdminClient()
+        .from('transferencias')
+        .select('estado')
+        .eq('id', id)
+        .eq('empresa_id', empresa_id)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!transferencia) throw new BadRequestException('Transferencia no encontrada');
+      if (transferencia.estado !== 'pendiente') {
+        throw new BadRequestException(
+          `No se puede rechazar una transferencia en estado ${transferencia.estado}`,
+        );
+      }
+
+      const { error: rejectError } = await this.supabase
+        .getAdminClient()
+        .from('transferencias')
+        .update({
+          estado: 'rechazada',
+          notas: motivo || null,
+          fecha_actualizacion: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .eq('empresa_id', empresa_id);
+
+      if (rejectError) throw rejectError;
+      return { success: true, message: 'Transferencia rechazada' };
+    } catch (error) {
+      this.handleError('rechazarTransferencia', error, 'Error al rechazar transferencia');
+    }
+  }
+
+  private async ejecutarTransferencia(
     empresa_id: string,
     transferencia_id: string,
-    estado: TransferenciaEstado,
-  ): Promise<any> {
-    try {
-      if (!['en_transito', 'recibido', 'cancelado'].includes(estado)) {
-        throw new BadRequestException('Estado de transferencia no permitido');
-      }
+    usuario_id: string,
+  ): Promise<{ parcial: boolean; errores: string[]; total: number }> {
+    void usuario_id;
+    const nowIso = new Date().toISOString();
 
-      const { data, error } = await this.supabase
+    const { data: transferencia, error } = await this.supabase
+      .getAdminClient()
+      .from('transferencias')
+      .select('id, empresa_id, sucursal_origen_id, sucursal_destino_id, items:transferencia_items(*)')
+      .eq('id', transferencia_id)
+      .eq('empresa_id', empresa_id)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!transferencia) throw new BadRequestException('Transferencia no encontrada');
+
+    const items = Array.isArray(transferencia.items) ? transferencia.items : [];
+    if (items.length === 0) {
+      await this.supabase
         .getAdminClient()
-        .from('transferencias_stock')
-        .update({ estado })
-        .eq('empresa_id', empresa_id)
+        .from('transferencias')
+        .update({ estado: 'completada', fecha_actualizacion: nowIso })
         .eq('id', transferencia_id)
-        .select('*')
-        .single();
+        .eq('empresa_id', empresa_id);
+      await this.forzarSyncWooCommerce(empresa_id);
+      return { parcial: false, errores: [], total: 0 };
+    }
 
-      if (error || !data) {
-        throw error ?? new Error('Transferencia no encontrada');
+    await this.supabase
+      .getAdminClient()
+      .from('transferencias')
+      .update({ estado: 'en_transito', fecha_actualizacion: nowIso })
+      .eq('id', transferencia_id)
+      .eq('empresa_id', empresa_id);
+
+    const settled = await Promise.allSettled(
+      items.map((item: any) => this.moverStockTransferenciaItem(empresa_id, transferencia, item)),
+    );
+
+    const errores = settled
+      .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+      .map((r) => String(r.reason?.message || r.reason || 'Error desconocido'));
+
+    if (errores.length === 0) {
+      await this.supabase
+        .getAdminClient()
+        .from('transferencias')
+        .update({ estado: 'completada', fecha_actualizacion: new Date().toISOString() })
+        .eq('id', transferencia_id)
+        .eq('empresa_id', empresa_id);
+    } else {
+      await this.supabase
+        .getAdminClient()
+        .from('transferencias')
+        .update({ estado: 'en_transito', fecha_actualizacion: new Date().toISOString() })
+        .eq('id', transferencia_id)
+        .eq('empresa_id', empresa_id);
+    }
+
+    await this.forzarSyncWooCommerce(empresa_id);
+    return { parcial: errores.length > 0, errores, total: items.length };
+  }
+
+  private async moverStockTransferenciaItem(
+    empresa_id: string,
+    transferencia: any,
+    item: any,
+  ): Promise<void> {
+    const productoId = String(item?.producto_id || '');
+    const cantidad = Number(item?.cantidad_enviada || 0);
+    if (!productoId || !Number.isFinite(cantidad) || cantidad <= 0) {
+      throw new BadRequestException('Item de transferencia invalido');
+    }
+
+    const rpcResult = await this.supabase.getAdminClient().rpc('decrementar_stock', {
+      p_empresa_id: empresa_id,
+      p_sucursal_id: transferencia.sucursal_origen_id,
+      p_producto_id: productoId,
+      p_cantidad: cantidad,
+    });
+
+    if (rpcResult.error) {
+      const code = String(rpcResult.error.code ?? '');
+      const message = String(rpcResult.error.message ?? '').toLowerCase();
+      const funcionNoExiste =
+        code === '42883'
+        || code === 'PGRST202'
+        || message.includes('decrementar_stock')
+        || message.includes('function');
+
+      if (!funcionNoExiste) {
+        throw new Error(rpcResult.error.message || 'No se pudo descontar stock de origen');
       }
 
-      return data;
-    } catch (error) {
-      this.handleError(
-        'actualizarEstadoTransferencia',
-        error,
-        'Error al actualizar estado de transferencia',
+      await this.decrementarStockManual(
+        empresa_id,
+        transferencia.sucursal_origen_id,
+        productoId,
+        cantidad,
       );
+    }
+
+    const { data: stockDestino, error: stockDestinoError } = await this.supabase
+      .getAdminClient()
+      .from('stock_por_sucursal')
+      .select('id, cantidad')
+      .eq('empresa_id', empresa_id)
+      .eq('sucursal_id', transferencia.sucursal_destino_id)
+      .eq('producto_id', productoId)
+      .maybeSingle();
+
+    if (stockDestinoError && stockDestinoError.code !== 'PGRST116') {
+      throw stockDestinoError;
+    }
+
+    if (stockDestino?.id) {
+      const { error: updateDestinoError } = await this.supabase
+        .getAdminClient()
+        .from('stock_por_sucursal')
+        .update({ cantidad: Number(stockDestino.cantidad || 0) + cantidad })
+        .eq('id', stockDestino.id);
+      if (updateDestinoError) throw updateDestinoError;
+    } else {
+      const { error: insertDestinoError } = await this.supabase
+        .getAdminClient()
+        .from('stock_por_sucursal')
+        .insert({
+          empresa_id,
+          sucursal_id: transferencia.sucursal_destino_id,
+          producto_id: productoId,
+          cantidad,
+        });
+      if (insertDestinoError) throw insertDestinoError;
+    }
+
+    const { error: itemError } = await this.supabase
+      .getAdminClient()
+      .from('transferencia_items')
+      .update({ cantidad_recibida: cantidad })
+      .eq('id', item.id);
+
+    if (itemError) throw itemError;
+  }
+
+  private async decrementarStockManual(
+    empresa_id: string,
+    sucursal_id: string,
+    producto_id: string,
+    cantidad: number,
+  ): Promise<void> {
+    const { data: stockOrigen, error: stockOrigenError } = await this.supabase
+      .getAdminClient()
+      .from('stock_por_sucursal')
+      .select('id, cantidad')
+      .eq('empresa_id', empresa_id)
+      .eq('sucursal_id', sucursal_id)
+      .eq('producto_id', producto_id)
+      .maybeSingle();
+
+    if (stockOrigenError && stockOrigenError.code !== 'PGRST116') {
+      throw stockOrigenError;
+    }
+
+    const disponible = Number(stockOrigen?.cantidad || 0);
+    if (!stockOrigen?.id || disponible < cantidad) {
+      throw new BadRequestException(
+        `Stock insuficiente en sucursal origen para producto ${producto_id}. Disponible: ${disponible}, solicitado: ${cantidad}`,
+      );
+    }
+
+    const { error: updateError } = await this.supabase
+      .getAdminClient()
+      .from('stock_por_sucursal')
+      .update({ cantidad: Math.max(0, disponible - cantidad) })
+      .eq('id', stockOrigen.id);
+
+    if (updateError) throw updateError;
+  }
+
+  private async forzarSyncWooCommerce(empresa_id: string): Promise<void> {
+    try {
+      const { data: integracion, error: integracionError } = await this.supabase
+        .getAdminClient()
+        .from('integraciones_canal')
+        .select('id')
+        .eq('empresa_id', empresa_id)
+        .eq('tipo_integracion', 'woocommerce')
+        .eq('activa', true)
+        .maybeSingle();
+
+      if (integracionError || !integracion) return;
+
+      const { error } = await this.supabase.getAdminClient().rpc('enqueue_woocommerce_sync', {
+        p_empresa_id: empresa_id,
+        p_tipo: 'sync-stock',
+      });
+
+      if (error) {
+        this.logger.warn(`[forzarSyncWooCommerce] No se pudo forzar sync WooCommerce: ${error.message}`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'error desconocido';
+      this.logger.warn(`[forzarSyncWooCommerce] ${message}`);
     }
   }
 

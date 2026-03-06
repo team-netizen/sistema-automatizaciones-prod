@@ -25,8 +25,6 @@ type AuthenticatedRequest = Request & {
   perfil: PerfilUsuario;
 };
 
-type TransferenciaEstado = 'en_transito' | 'recibido' | 'cancelado';
-
 @Controller('operaciones')
 @UseGuards(RolesGuard, EmpresaGuard)
 export class OperacionesController {
@@ -239,95 +237,54 @@ export class OperacionesController {
   }
 
   @Get('transferencias')
-  @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
-  getTransferencias(
+  @Roles('admin_empresa', 'super_admin')
+  async getTransferencias(
     @Req() req: AuthenticatedRequest,
-    @Query() filters: Record<string, string>,
+    @Query('estado') estado?: string,
+    @Query('sucursal_id') sucursalId?: string,
   ) {
     const empresaId = req.perfil.empresa_id;
-    if (!empresaId) {
-      throw new ForbiddenException('super_admin debe especificar empresa_id');
-    }
-    if (req.perfil.rol === 'encargado_sucursal' && req.perfil.sucursal_id) {
-      const requestedOrigen = filters?.sucursal_origen_id;
-      const requestedDestino = filters?.sucursal_destino_id;
-
-      if (
-        (requestedOrigen && requestedOrigen !== req.perfil.sucursal_id) ||
-        (requestedDestino && requestedDestino !== req.perfil.sucursal_id)
-      ) {
-        throw new ForbiddenException(
-          'Encargado de sucursal no puede consultar transferencias de otra sucursal',
-        );
-      }
-
-      return this.operacionesService.getTransferencias(empresaId, {
-        ...filters,
-        sucursal_origen_id: req.perfil.sucursal_id,
-        sucursal_destino_id: req.perfil.sucursal_id,
-        _encargado_scope: 'true',
-      });
-    }
-
-    return this.operacionesService.getTransferencias(empresaId, filters);
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    return this.operacionesService.getTransferencias(empresaId, {
+      estado,
+      sucursalId,
+    });
   }
 
   @Post('transferencias')
-  @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
-  crearTransferencia(
+  @Roles('admin_empresa', 'super_admin')
+  async crearTransferencia(
     @Req() req: AuthenticatedRequest,
-    @Body()
-    body: {
-      sucursal_origen_id: string;
-      sucursal_destino_id: string;
-      items: Array<{ producto_id: string; cantidad_enviada: number }>;
-    },
+    @Body() body: any,
   ) {
     const empresaId = req.perfil.empresa_id;
-    if (!empresaId) {
-      throw new ForbiddenException('super_admin debe especificar empresa_id');
-    }
-    // [SECURITY FIX] No confiar en creado_por del cliente; usar identidad autenticada.
-    const payload = {
-      ...body,
-      creado_por: req.perfil.id,
-    };
-
-    if (req.perfil.rol === 'encargado_sucursal' && req.perfil.sucursal_id) {
-      const participaSucursal =
-        payload.sucursal_origen_id === req.perfil.sucursal_id ||
-        payload.sucursal_destino_id === req.perfil.sucursal_id;
-
-      if (!participaSucursal) {
-        throw new ForbiddenException(
-          'Encargado de sucursal solo puede crear transferencias de su sucursal',
-        );
-      }
-    }
-
-    return this.operacionesService.crearTransferencia(empresaId, payload);
+    const usuarioId = req.perfil.id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    return this.operacionesService.crearTransferencia(empresaId, usuarioId, body);
   }
 
-  @Patch('transferencias/:id/estado')
-  @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
-  actualizarEstadoTransferencia(
+  @Post('transferencias/:id/aprobar')
+  @Roles('admin_empresa', 'super_admin')
+  async aprobarTransferencia(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
-    @Body() body: { estado: TransferenciaEstado },
   ) {
     const empresaId = req.perfil.empresa_id;
-    if (!empresaId) {
-      throw new ForbiddenException('super_admin debe especificar empresa_id');
-    }
-    if (!body?.estado) {
-      throw new BadRequestException('El estado es obligatorio');
-    }
+    const usuarioId = req.perfil.id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    return this.operacionesService.aprobarTransferencia(empresaId, usuarioId, id);
+  }
 
-    return this.operacionesService.actualizarEstadoTransferencia(
-      empresaId,
-      id,
-      body.estado,
-    );
+  @Post('transferencias/:id/rechazar')
+  @Roles('admin_empresa', 'super_admin')
+  async rechazarTransferencia(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() body: { motivo: string },
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    return this.operacionesService.rechazarTransferencia(empresaId, id, body.motivo);
   }
 
   @Get('stock')
