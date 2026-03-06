@@ -17,6 +17,7 @@ type TableName =
   | 'sucursales'
   | 'productos'
   | 'pedidos'
+  | 'transferencias'
   | 'transferencias_stock'
   | 'movimientos_stock';
 
@@ -76,7 +77,7 @@ function collectResourceChecks(req: Request): ResourceCheck[] {
     { key: 'producto_id', table: 'productos' },
     { key: 'pedido_id', table: 'pedidos' },
     { key: 'movimiento_id', table: 'movimientos_stock' },
-    { key: 'transferencia_id', table: 'transferencias_stock' },
+    { key: 'transferencia_id', table: 'transferencias' },
   ];
 
   for (const entry of map) {
@@ -93,7 +94,7 @@ function collectResourceChecks(req: Request): ResourceCheck[] {
   const pathId = readValueFromParams(req, 'id');
   if (pathId) {
     if (routePath.includes('transferencias')) {
-      checks.push({ id: pathId, table: 'transferencias_stock', source: 'params.id' });
+      checks.push({ id: pathId, table: 'transferencias', source: 'params.id' });
     } else if (routePath.includes('productos')) {
       checks.push({ id: pathId, table: 'productos', source: 'params.id' });
     } else if (routePath.includes('sucursales')) {
