@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react';
 import './index.css';
 import { LoginPage } from './pages/LoginPage';
-import { DashboardLayout } from './components/layout/DashboardLayout';
 import { SuperAdminDashboard } from './components/dashboard/SuperAdminDashboard';
 import AdminEmpresaDashboard from './components/dashboard/AdminEmpresaDashboard';
-import { OperacionesLayout } from './modules/operaciones/layout/OperacionesLayout';
 import { Dashboard as OperacionesDashboard } from './modules/operaciones/pages/Dashboard';
 import { WorkerDashboard as OperacionesWorkerDashboard } from './modules/operaciones/pages/WorkerDashboard';
 import { Productos as OperacionesProductos } from './modules/operaciones/pages/Productos';
