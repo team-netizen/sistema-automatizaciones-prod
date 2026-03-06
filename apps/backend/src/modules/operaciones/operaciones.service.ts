@@ -1372,9 +1372,8 @@ export class OperacionesService {
 
       const { error } = await this.supabase
         .getAdminClient()
-        .auth.admin.generateLink({
-          type: 'recovery',
-          email,
+        .auth.resetPasswordForEmail(email, {
+          redirectTo: `${process.env.FRONTEND_URL}/reset-password`,
         });
 
       if (error) throw new Error(error.message);
