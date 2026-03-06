@@ -233,7 +233,8 @@ export class OperacionesService {
         .from('productos')
         .select(
           `
-          id, nombre, sku, precio, activo, categoria_id, descripcion,
+          id, nombre, sku, precio, costo, activo, categoria_id,
+          descripcion, stock_minimo,
           stock_por_sucursal:stock_por_sucursal(
             cantidad,
             sucursal:sucursales(id, nombre)
@@ -297,6 +298,8 @@ export class OperacionesService {
 
         return {
           ...p,
+          stock_minimo: (p as any).stock_minimo || 0,
+          costo: (p as any).costo || null,
           stock_total: stockTotal,
           stock_por_sucursal: stockPorSucursal,
           woo_sincronizado: !!integracion && !!this.readOptionalString(p, 'sku'),
