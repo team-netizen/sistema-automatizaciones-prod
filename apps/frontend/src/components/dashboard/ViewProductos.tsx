@@ -405,7 +405,7 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
       categoria_id: producto?.categoria_id ? String(producto.categoria_id) : null,
       descripcion: String(producto?.descripcion ?? ''),
       precio: String(producto?.precio ?? ''),
-      stock_minimo: Number(producto?.stock_minimo ?? 0),
+      stock_minimo: Number(producto?.stock_minimo || 0),
       activo: Boolean(producto?.activo),
     });
     void cargarCategoriasModal();
