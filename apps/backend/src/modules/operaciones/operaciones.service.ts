@@ -141,6 +141,7 @@ export class OperacionesService {
       .order('nombre');
 
     if (error) {
+      console.error('getSucursales ERROR DETALLE:', JSON.stringify(error));
       this.handleError('getSucursales', error, 'Error al obtener sucursales');
     }
 
