@@ -81,6 +81,7 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
     categoria_id: null as string | null,
     descripcion: '',
     precio: '',
+    stock_minimo: 0,
     activo: true,
   });
 
@@ -384,6 +385,7 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
       categoria_id: null,
       descripcion: '',
       precio: '',
+      stock_minimo: 0,
       activo: true,
     });
     setSucursales([]);
@@ -403,6 +405,7 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
       categoria_id: producto?.categoria_id ? String(producto.categoria_id) : null,
       descripcion: String(producto?.descripcion ?? ''),
       precio: String(producto?.precio ?? ''),
+      stock_minimo: Number(producto?.stock_minimo ?? 0),
       activo: Boolean(producto?.activo),
     });
     void cargarCategoriasModal();
@@ -516,6 +519,7 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
     const descripcion = String(nuevoProducto.descripcion ?? '').trim();
     const precioText = String(nuevoProducto.precio ?? '').trim();
     const precio = Number(precioText);
+    const stockMinimo = Number(nuevoProducto.stock_minimo ?? 0);
 
     if (!nombre || !sku || !precioText) {
       setErrorNuevoProducto('Nombre, SKU y precio son obligatorios');
@@ -524,6 +528,11 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
 
     if (!Number.isFinite(precio) || precio < 0) {
       setErrorNuevoProducto('El precio debe ser un numero valido');
+      return;
+    }
+
+    if (!Number.isFinite(stockMinimo) || stockMinimo < 0) {
+      setErrorNuevoProducto('El stock minimo debe ser un numero valido mayor o igual a 0');
       return;
     }
 
@@ -536,6 +545,7 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
         categoria_id: nuevoProducto.categoria_id || null,
         descripcion: descripcion || null,
         precio,
+        stock_minimo: stockMinimo,
         activo: Boolean(nuevoProducto.activo),
       };
 
@@ -1274,6 +1284,35 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
                   marginBottom: 12,
                 }}
               />
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 12, color: T.textMid, marginBottom: 6, display: 'block' }}>
+                  Stock minimo por sucursal
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={nuevoProducto.stock_minimo || 0}
+                  onChange={(e) => setNuevoProducto((prev) => ({
+                    ...prev,
+                    stock_minimo: Math.max(0, parseInt(e.target.value, 10) || 0),
+                  }))}
+                  placeholder="0"
+                  style={{
+                    width: '100%',
+                    background: T.bg,
+                    border: `1px solid ${T.border2}`,
+                    borderRadius: 8,
+                    padding: '10px 14px',
+                    color: T.text,
+                    fontSize: 13,
+                    fontFamily: T.fontMono,
+                  }}
+                />
+                <div style={{ fontSize: 11, color: T.textDim, marginTop: 4 }}>
+                  Alerta cuando el stock baje de este numero en cualquier sucursal
+                </div>
+              </div>
 
               {modoModal === 'crear' && (
                 <div style={{ marginBottom: 16 }}>
