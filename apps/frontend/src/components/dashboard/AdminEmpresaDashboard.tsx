@@ -360,7 +360,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
   const normalizeSucursal = (s: any) => ({
     nombre: s?.nombre ?? "Sucursal",
     tipo: s?.tipo ?? "tienda",
-    stock: Number(s?.stock_total ?? s?.stock ?? 0),
+    stock: Number(s?.total_unidades ?? s?.stock_total ?? s?.stock ?? 0),
     pedidos: Number(s?.pedidos_activos ?? s?.pedidos ?? 0),
     estado: s?.estado ?? "activa",
     sync: s?.sync ?? s?.ultima_sync ?? "-",
