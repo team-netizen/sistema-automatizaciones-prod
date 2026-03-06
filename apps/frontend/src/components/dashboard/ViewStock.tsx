@@ -80,6 +80,7 @@ export const ViewStock = ({ usuario }: ViewStockProps) => {
 
     void Promise.all([stockPromise, operacionesService.getSucursales()])
       .then(([stockRes, sucRes]) => {
+        console.log('STOCK RAW primer item:', JSON.stringify(stockRes?.[0] || stockRes?.stock?.[0]));
         setStockData(Array.isArray(stockRes) ? stockRes : stockRes?.stock || []);
         setSucursales(Array.isArray(sucRes) ? sucRes : sucRes?.sucursales || []);
       })
