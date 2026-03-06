@@ -294,43 +294,85 @@ export const ViewStock = ({ usuario }: ViewStockProps) => {
             )}
 
             {!loading &&
-              productosConStock.map((producto) => (
-                <tr key={producto.producto_id} style={{ borderTop: `1px solid ${T.border}` }}>
-                  <td style={tdMono}>{producto.sku}</td>
-                  <td style={tdText}>{producto.nombre}</td>
-                  <td style={{ ...tdMono, textAlign: 'center' }}>{producto.stock_minimo}</td>
-                  {sucursalesMostrar.map((s) => {
-                    const cell = producto?.sucursales?.[s.id] || { cantidad: 0, cantidad_reservada: 0 };
-                    const cantidad = Number(cell.cantidad || 0);
-                    const stockMin = Number(producto.stock_minimo || 0);
-                    return (
-                      <td
-                        key={`${producto.producto_id}-${s.id}`}
-                        onClick={() => abrirModalAjuste(producto, s)}
-                        style={{
-                          cursor: 'pointer',
-                          textAlign: 'center',
-                          padding: '10px 16px',
-                          fontFamily: `${T.fontMono}, monospace`,
-                          fontWeight: 700,
-                          fontSize: 14,
-                          color:
-                            cantidad === 0 ? '#ef4444' : cantidad < stockMin ? '#f59e0b' : '#00e87b',
-                          background:
-                            cantidad === 0
-                              ? '#ef444408'
-                              : cantidad < stockMin
-                                ? '#f59e0b08'
-                                : 'transparent',
-                        }}
-                      >
-                        {cantidad}
-                      </td>
-                    );
-                  })}
-                  <td style={{ ...tdMono, textAlign: 'center', color: T.accent }}>{producto.total}</td>
-                </tr>
-              ))}
+              productosConStock.map((producto) => {
+                const tieneStockCero = Object.values(producto.sucursales).some(
+                  (s: any) => Number(s?.cantidad || 0) === 0,
+                );
+                const tieneStockBajo = Object.values(producto.sucursales).some(
+                  (s: any) =>
+                    Number(producto.stock_minimo || 0) > 0
+                    && Number(s?.cantidad || 0) < Number(producto.stock_minimo || 0),
+                );
+
+                return (
+                  <tr
+                    key={producto.producto_id}
+                    style={{
+                      borderTop: `1px solid ${T.border}`,
+                      background: tieneStockCero
+                        ? '#ef444408'
+                        : tieneStockBajo
+                          ? '#f59e0b06'
+                          : 'transparent',
+                      borderLeft: tieneStockCero
+                        ? '3px solid #ef4444'
+                        : tieneStockBajo
+                          ? '3px solid #f59e0b'
+                          : '3px solid transparent',
+                    }}
+                  >
+                    <td style={tdMono}>{producto.sku}</td>
+                    <td style={tdText}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {(tieneStockCero || tieneStockBajo) && (
+                          <span
+                            title={
+                              tieneStockCero
+                                ? 'Sin stock en alguna sucursal'
+                                : 'Stock bajo el minimo'
+                            }
+                            style={{ fontSize: 12 }}
+                          >
+                            {tieneStockCero ? '🔴' : '⚠️'}
+                          </span>
+                        )}
+                        <span>{producto.nombre}</span>
+                      </div>
+                    </td>
+                    <td style={{ ...tdMono, textAlign: 'center' }}>{producto.stock_minimo}</td>
+                    {sucursalesMostrar.map((s) => {
+                      const cell = producto?.sucursales?.[s.id] || { cantidad: 0, cantidad_reservada: 0 };
+                      const cantidad = Number(cell.cantidad || 0);
+                      const stockMin = Number(producto.stock_minimo || 0);
+                      return (
+                        <td
+                          key={`${producto.producto_id}-${s.id}`}
+                          onClick={() => abrirModalAjuste(producto, s)}
+                          style={{
+                            cursor: 'pointer',
+                            textAlign: 'center',
+                            padding: '10px 16px',
+                            fontFamily: `${T.fontMono}, monospace`,
+                            fontWeight: 700,
+                            fontSize: 14,
+                            color:
+                              cantidad === 0 ? '#ef4444' : cantidad < stockMin ? '#f59e0b' : '#00e87b',
+                            background:
+                              cantidad === 0
+                                ? '#ef444408'
+                                : cantidad < stockMin
+                                  ? '#f59e0b08'
+                                  : 'transparent',
+                          }}
+                        >
+                          {cantidad}
+                        </td>
+                      );
+                    })}
+                    <td style={{ ...tdMono, textAlign: 'center', color: T.accent }}>{producto.total}</td>
+                  </tr>
+                );
+              })}
 
             {!loading && productosConStock.length > 0 && (
               <tr style={{ borderTop: `1px solid ${T.border2}`, background: T.surface2 }}>
