@@ -1032,7 +1032,7 @@ export class OperacionesService {
           whatsapp: 'WhatsApp',
         }[data.tipo] || data.tipo;
 
-      let canalId = '';
+      let canalId: string | null = null;
       {
         const { data: canal, error: canalError } = await this.supabase
           .getAdminClient()
@@ -1061,7 +1061,7 @@ export class OperacionesService {
         }
       }
 
-      if (!canalId) throw new BadRequestException('No se pudo resolver canal de venta');
+      if (!canalId) throw new Error('No se pudo obtener canal_id');
 
       const backendUrl = (process.env.BACKEND_URL || '').replace(/\/+$/, '');
       const webhookUrl = `${backendUrl}/api/integraciones/${data.tipo}/webhook/${empresa_id}`;
