@@ -1373,7 +1373,7 @@ export class OperacionesService {
       const { error } = await this.supabase
         .getAdminClient()
         .auth.resetPasswordForEmail(email, {
-          redirectTo: `${process.env.FRONTEND_URL}/auth/callback`,
+          redirectTo: `${process.env.FRONTEND_URL}/reset-password`,
         });
 
       if (error) throw new Error(error.message);

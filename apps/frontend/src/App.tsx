@@ -14,6 +14,7 @@ import { Alertas as OperacionesAlertas } from './modules/operaciones/pages/Alert
 import { Reportes as OperacionesReportes } from './modules/operaciones/pages/Reportes';
 import { Sucursales as OperacionesSucursales } from './modules/operaciones/pages/Sucursales';
 import { cerrarSesion, type PerfilUsuario, verificarSesion } from './lib/auth';
+import ResetPassword from './pages/ResetPassword';
 
 type ActiveView =
   | 'dashboard'
@@ -65,6 +66,9 @@ function isSuperAdminRole(rol?: PerfilUsuario['rol'] | null): boolean {
 }
 
 function App() {
+  const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/';
+  const isResetRoute = currentPath === '/reset-password' || currentPath === '/auth/callback';
+
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [usuario, setUsuario] = useState<UsuarioSesion | null>(null);
   const [activeView, setActiveView] = useState<ActiveView>('dashboard');
@@ -98,8 +102,12 @@ function App() {
   };
 
   useEffect(() => {
+    if (isResetRoute) {
+      setIsLoadingSesion(false);
+      return;
+    }
     void syncSesion();
-  }, []);
+  }, [isResetRoute]);
 
   useEffect(() => {
     if (!usuario) return;
@@ -151,6 +159,10 @@ function App() {
         return isVistaLimitada ? <OperacionesWorkerDashboard /> : <OperacionesDashboard />;
     }
   };
+
+  if (isResetRoute) {
+    return <ResetPassword />;
+  }
 
   if (isLoadingSesion) {
     return (
