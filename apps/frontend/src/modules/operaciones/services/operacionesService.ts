@@ -233,6 +233,25 @@ export const operacionesService = {
     return parseOrThrow(response, 'Error al obtener integraciones');
   },
 
+  conectarIntegracion: async (data: {
+    tipo: string;
+    credenciales: Record<string, string>;
+    modo: 'conectar' | 'configurar';
+  }) => {
+    const response = await authFetch(`${API_URL}/operaciones/integraciones/conectar`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return parseOrThrow(response, 'Error al conectar integracion');
+  },
+
+  desconectarIntegracion: async (tipo: string) => {
+    const response = await authFetch(`${API_URL}/operaciones/integraciones/${tipo}/desconectar`, {
+      method: 'POST',
+    });
+    return parseOrThrow(response, 'Error al desconectar integracion');
+  },
+
   getReservas: async () => {
     const response = await authFetch(`${API_URL}/operaciones/reservas`);
     return parseOrThrow(response, 'Error al obtener reservas');

@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { operacionesService } from '../../modules/operaciones/services/operacionesService';
 import WooCommerceModal from '../integraciones/WooCommerceModal';
+import { ViewIntegraciones } from './ViewIntegraciones';
 import { ViewProductos } from './ViewProductos';
 import { ViewStock } from './ViewStock';
 import { ViewTransferencias } from './ViewTransferencias';
@@ -813,7 +814,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     </div>
   );
 
-  const ViewIntegraciones = () => (
+  const ViewIntegracionesLegacy = () => (
     <div className="fade" style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:14 }}>
       {DATA.integraciones.map((c,i) => {
         const isWoo = String(c?.nombre ?? "").toLowerCase().includes("woo");
@@ -984,7 +985,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
       case "sucursales":     return <ViewSucursales />;
       case "transferencias": return <ViewTransferencias usuario={usuario} />;
       case "stock":          return <ViewStock usuario={usuario} />;
-      case "integraciones":  return <ViewIntegraciones />;
+      case "integraciones":  return <ViewIntegraciones usuario={usuario} />;
       case "usuarios":       return <ViewUsuarios />;
       case "alertas":        return <ViewAlertas />;
       default: return <ViewPlaceholder label={NAV.find(n=>n.id===nav)?.label||nav} />;

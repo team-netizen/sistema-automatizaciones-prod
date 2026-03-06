@@ -341,4 +341,31 @@ export class OperacionesController {
     }
     return this.operacionesService.getIntegraciones(empresaId);
   }
+
+  @Post('integraciones/conectar')
+  @Roles('admin_empresa', 'super_admin')
+  async conectarIntegracion(
+    @Req() req: AuthenticatedRequest,
+    @Body()
+    body: {
+      tipo: string;
+      credenciales: Record<string, string>;
+      modo: 'conectar' | 'configurar';
+    },
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    return this.operacionesService.conectarIntegracion(empresaId, body);
+  }
+
+  @Post('integraciones/:tipo/desconectar')
+  @Roles('admin_empresa', 'super_admin')
+  async desconectarIntegracion(
+    @Req() req: AuthenticatedRequest,
+    @Param('tipo') tipo: string,
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    return this.operacionesService.desconectarIntegracion(empresaId, tipo);
+  }
 }

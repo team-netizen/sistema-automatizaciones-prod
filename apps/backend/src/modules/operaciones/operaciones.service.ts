@@ -1011,6 +1011,138 @@ export class OperacionesService {
     }
   }
 
+  async conectarIntegracion(
+    empresa_id: string,
+    data: {
+      tipo: string;
+      credenciales: Record<string, string>;
+      modo: 'conectar' | 'configurar';
+    },
+  ) {
+    try {
+      if (!data?.tipo) {
+        throw new BadRequestException('tipo de integracion requerido');
+      }
+
+      const nombreCanal =
+        {
+          woocommerce: 'WooCommerce',
+          mercadolibre: 'Mercado Libre',
+          shopify: 'Shopify',
+          whatsapp: 'WhatsApp',
+        }[data.tipo] || data.tipo;
+
+      let canalId = '';
+      {
+        const { data: canal, error: canalError } = await this.supabase
+          .getAdminClient()
+          .from('canales_venta')
+          .select('id')
+          .eq('empresa_id', empresa_id)
+          .eq('nombre', nombreCanal)
+          .maybeSingle();
+
+        if (canalError && canalError.code !== 'PGRST116') {
+          throw canalError;
+        }
+
+        canalId = this.readString(canal as Record<string, unknown>, 'id');
+
+        if (!canalId) {
+          const { data: newCanal, error: newCanalError } = await this.supabase
+            .getAdminClient()
+            .from('canales_venta')
+            .insert({ empresa_id, nombre: nombreCanal })
+            .select('id')
+            .single();
+
+          if (newCanalError) throw newCanalError;
+          canalId = this.readString(newCanal as Record<string, unknown>, 'id');
+        }
+      }
+
+      if (!canalId) throw new BadRequestException('No se pudo resolver canal de venta');
+
+      const backendUrl = (process.env.BACKEND_URL || '').replace(/\/+$/, '');
+      const webhookUrl = `${backendUrl}/api/integraciones/${data.tipo}/webhook/${empresa_id}`;
+
+      const payload = {
+        empresa_id,
+        canal_id: canalId,
+        tipo_integracion: data.tipo,
+        credenciales: data.credenciales || {},
+        webhook_url: webhookUrl,
+        activa: true,
+        intervalo_sync_minutos: 15,
+      };
+
+      const { error: upsertError } = await this.supabase
+        .getAdminClient()
+        .from('integraciones_canal')
+        .upsert(payload, { onConflict: 'empresa_id,tipo_integracion' });
+
+      if (upsertError) {
+        const { data: existing, error: existingError } = await this.supabase
+          .getAdminClient()
+          .from('integraciones_canal')
+          .select('id')
+          .eq('empresa_id', empresa_id)
+          .eq('tipo_integracion', data.tipo)
+          .maybeSingle();
+
+        if (existingError && existingError.code !== 'PGRST116') {
+          throw existingError;
+        }
+
+        const existingId = this.readString(existing as Record<string, unknown>, 'id');
+
+        if (existingId) {
+          const { error: updateError } = await this.supabase
+            .getAdminClient()
+            .from('integraciones_canal')
+            .update({
+              credenciales: data.credenciales || {},
+              webhook_url: webhookUrl,
+              activa: true,
+              intervalo_sync_minutos: 15,
+            })
+            .eq('id', existingId);
+
+          if (updateError) throw updateError;
+        } else {
+          const { error: insertError } = await this.supabase
+            .getAdminClient()
+            .from('integraciones_canal')
+            .insert(payload);
+
+          if (insertError) throw insertError;
+        }
+      }
+
+      return { success: true, webhook_url: webhookUrl };
+    } catch (error) {
+      this.handleError('conectarIntegracion', error, 'Error al conectar integracion');
+    }
+  }
+
+  async desconectarIntegracion(empresa_id: string, tipo: string) {
+    try {
+      if (!tipo) throw new BadRequestException('tipo de integracion requerido');
+
+      const { error } = await this.supabase
+        .getAdminClient()
+        .from('integraciones_canal')
+        .update({ activa: false })
+        .eq('empresa_id', empresa_id)
+        .eq('tipo_integracion', tipo);
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      this.handleError('desconectarIntegracion', error, 'Error al desconectar integracion');
+    }
+  }
+
   async crearTransferencia(
     empresa_id: string,
     usuario_id: string,
