@@ -239,6 +239,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
 
   const recargarSucursales = async () => {
     const data = await operacionesService.getSucursales();
+    console.log('SUCURSALES RAW:', JSON.stringify(data));
     const rows = toRows(data, ["sucursales", "data", "items"]);
     setSucursales(rows);
   };
@@ -305,6 +306,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
           setPedidos(rows);
         }
         if (sucursalesRes.status === "fulfilled") {
+          console.log('SUCURSALES RAW:', JSON.stringify(sucursalesRes.value));
           const rows = toRows(sucursalesRes.value, ["sucursales", "data", "items"]);
           setSucursales(rows);
         }
@@ -368,8 +370,8 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
 
   const normalizeTransferencia = (t: any) => ({
     guia: t?.guia ?? t?.id ?? "TRF-0000",
-    origen: t?.sucursal_origen ?? t?.origen ?? "Origen",
-    destino: t?.sucursal_destino ?? t?.destino ?? "Destino",
+    origen: t?.sucursal_origen?.nombre ?? t?.origen ?? "Origen",
+    destino: t?.sucursal_destino?.nombre ?? t?.destino ?? "Destino",
     items: Number(t?.items ?? t?.total_items ?? 0),
     estado: t?.estado ?? "en_transito",
     fecha: t?.fecha ?? t?.created_at ?? "-",
