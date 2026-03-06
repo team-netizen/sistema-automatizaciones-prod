@@ -742,7 +742,7 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
                         fontFamily: T.fontMono,
                       }}
                     />
-                    {['SKU', 'Nombre', 'Precio', 'Stock', 'Woo', 'Estado', 'Acciones'].map((h) => (
+                    {['SKU', 'Nombre', 'Categoría', 'Precio', 'Stock', 'Woo', 'Estado', 'Acciones'].map((h) => (
                       <th
                         key={h}
                         style={{
@@ -802,6 +802,13 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
                           </td>
                           <td style={{ padding: '12px 16px', color: T.text, fontWeight: 500 }}>
                             {p?.nombre || 'Producto sin nombre'}
+                          </td>
+                          <td style={{ padding: '12px 16px', color: T.textMid, fontSize: 12 }}>
+                            {categorias.find((c: any) => String(c?.id ?? '') === String(p?.categoria_id ?? ''))?.nombre || (
+                              <span style={{ color: T.textDim, fontStyle: 'italic', fontSize: 11 }}>
+                                Sin categoría
+                              </span>
+                            )}
                           </td>
                           <td style={{ padding: '12px 16px', color: T.textMid, textAlign: 'right' }}>
                             S/ {Number(p?.precio || 0).toFixed(2)}
@@ -902,7 +909,7 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
                         {abierto && (
                           <tr>
                             <td
-                              colSpan={8}
+                              colSpan={9}
                               style={{
                                 background: T.surface,
                                 padding: '12px 16px',
