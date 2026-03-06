@@ -3,61 +3,12 @@ import './index.css';
 import { LoginPage } from './pages/LoginPage';
 import { SuperAdminDashboard } from './components/dashboard/SuperAdminDashboard';
 import AdminEmpresaDashboard from './components/dashboard/AdminEmpresaDashboard';
-import { Dashboard as OperacionesDashboard } from './modules/operaciones/pages/Dashboard';
-import { WorkerDashboard as OperacionesWorkerDashboard } from './modules/operaciones/pages/WorkerDashboard';
-import { Productos as OperacionesProductos } from './modules/operaciones/pages/Productos';
-import { Pedidos as OperacionesPedidos } from './modules/operaciones/pages/Pedidos';
-import { Movimientos as OperacionesMovimientos } from './modules/operaciones/pages/Movimientos';
-import { Alertas as OperacionesAlertas } from './modules/operaciones/pages/Alertas';
-import { Reportes as OperacionesReportes } from './modules/operaciones/pages/Reportes';
-import { Sucursales as OperacionesSucursales } from './modules/operaciones/pages/Sucursales';
 import { cerrarSesion, type PerfilUsuario, verificarSesion } from './lib/auth';
 import ResetPassword from './pages/ResetPassword';
-
-type ActiveView =
-  | 'dashboard'
-  | 'operaciones'
-  | 'admin-companies'
-  | 'skills'
-  | 'executions'
-  | 'settings'
-  | 'super-dashboard'
-  | 'pos';
 
 type UsuarioSesion = PerfilUsuario & {
   email?: string;
 };
-
-const ACTIVE_VIEWS: ReadonlyArray<ActiveView> = [
-  'dashboard',
-  'operaciones',
-  'admin-companies',
-  'skills',
-  'executions',
-  'settings',
-  'super-dashboard',
-  'pos',
-];
-
-function toActiveView(value: string): ActiveView {
-  return ACTIVE_VIEWS.includes(value as ActiveView) ? (value as ActiveView) : 'dashboard';
-}
-
-function getInitialViewByRole(rol: PerfilUsuario['rol']): ActiveView {
-  if (rol === 'super_admin') return 'super-dashboard';
-  if (rol === 'admin_empresa') return 'operaciones';
-  if (rol === 'encargado_sucursal') return 'operaciones';
-  return 'pos';
-}
-
-function sanitizeViewByRole(view: ActiveView, rol: PerfilUsuario['rol']): ActiveView {
-  if (rol === 'vendedor') return 'pos';
-  if (rol === 'admin_empresa' && view === 'super-dashboard') return 'operaciones';
-  if (rol === 'encargado_sucursal' && (view === 'admin-companies' || view === 'super-dashboard')) {
-    return 'operaciones';
-  }
-  return view;
-}
 
 function isSuperAdminRole(rol?: PerfilUsuario['rol'] | null): boolean {
   return rol === 'super_admin';
@@ -69,11 +20,7 @@ function App() {
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [usuario, setUsuario] = useState<UsuarioSesion | null>(null);
-  const [activeView, setActiveView] = useState<ActiveView>('dashboard');
-  const [activeOperacionesSubView, setActiveOperacionesSubView] = useState('dashboard');
   const [isLoadingSesion, setIsLoadingSesion] = useState(true);
-
-  const isEncargado = usuario?.rol === 'encargado_sucursal';
 
   const syncSesion = async () => {
     setIsLoadingSesion(true);
@@ -83,7 +30,6 @@ function App() {
       if (!resultado?.perfil) {
         setIsAuthenticated(false);
         setUsuario(null);
-        setActiveView('dashboard');
         return;
       }
 
@@ -93,7 +39,6 @@ function App() {
 
       setUsuario(usuarioSesion);
       setIsAuthenticated(true);
-      setActiveView(getInitialViewByRole(perfil.rol));
     } finally {
       setIsLoadingSesion(false);
     }
@@ -107,21 +52,6 @@ function App() {
     void syncSesion();
   }, [isResetRoute]);
 
-  useEffect(() => {
-    if (!usuario) return;
-
-    const safeView = sanitizeViewByRole(activeView, usuario.rol);
-    if (safeView !== activeView) {
-      setActiveView(safeView);
-    }
-  }, [activeView, usuario]);
-
-  useEffect(() => {
-    if (activeView === 'operaciones') {
-      setActiveOperacionesSubView('dashboard');
-    }
-  }, [activeView]);
-
   const handleLoginSuccess = (_data: unknown) => {
     void syncSesion();
   };
@@ -131,31 +61,6 @@ function App() {
     localStorage.removeItem('refresh_token');
     setIsAuthenticated(false);
     setUsuario(null);
-    setActiveView('dashboard');
-    setActiveOperacionesSubView('dashboard');
-  };
-
-  const renderOperacionesPage = () => {
-    const isVistaLimitada = isEncargado;
-
-    switch (activeOperacionesSubView) {
-      case 'dashboard':
-        return isVistaLimitada ? <OperacionesWorkerDashboard /> : <OperacionesDashboard />;
-      case 'productos':
-        return <OperacionesProductos />;
-      case 'sucursales':
-        return isVistaLimitada ? <OperacionesWorkerDashboard /> : <OperacionesSucursales />;
-      case 'pedidos':
-        return <OperacionesPedidos />;
-      case 'movimientos':
-        return <OperacionesMovimientos />;
-      case 'alertas':
-        return <OperacionesAlertas />;
-      case 'reportes':
-        return isVistaLimitada ? <OperacionesWorkerDashboard /> : <OperacionesReportes />;
-      default:
-        return isVistaLimitada ? <OperacionesWorkerDashboard /> : <OperacionesDashboard />;
-    }
   };
 
   if (isResetRoute) {
