@@ -128,39 +128,19 @@ export class OperacionesService {
   }
 
   async getSucursales(empresa_id: string): Promise<any[]> {
-    const { data, error } = await this.supabase
-      .getAdminClient()
-      .from('sucursales')
-      .select(
-        `
-        *,
-        stock:stock_por_sucursal(cantidad, producto_id)
-      `,
-      )
-      .eq('empresa_id', empresa_id)
-      .order('nombre');
+    try {
+      const { data, error } = await this.supabase
+        .getAdminClient()
+        .from('sucursales')
+        .select('*')
+        .eq('empresa_id', empresa_id)
+        .order('nombre', { ascending: true });
 
-    if (error) {
+      if (error) throw error;
+      return data ?? [];
+    } catch (error) {
       this.handleError('getSucursales', error, 'Error al obtener sucursales');
     }
-
-    return (data || []).map((s: any) => {
-      const stockItems = s.stock || [];
-      const total_unidades = stockItems.reduce(
-        (sum: number, item: any) => sum + (item.cantidad || 0),
-        0,
-      );
-      const productos_activos = new Set(
-        stockItems.map((item: any) => item.producto_id),
-      ).size;
-
-      return {
-        ...s,
-        stock: undefined,
-        total_unidades,
-        productos_activos,
-      };
-    });
   }
 
   async crearSucursal(empresa_id: string, data: SucursalPayload): Promise<any> {
