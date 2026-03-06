@@ -37,9 +37,37 @@ export const operacionesService = {
     return parseOrThrow(response, 'Error al obtener productos');
   },
 
-  getCategorias: async () => {
-    const response = await authFetch(`${API_URL}/operaciones/categorias`);
+  getCategorias: async (filters?: { incluir_inactivas?: boolean; solo_activas?: boolean }) => {
+    const response = await authFetch(
+      `${API_URL}/operaciones/categorias${buildQueryString(filters as QueryFilters)}`,
+    );
     if (!response.ok) return { categorias: [] };
+    return response.json();
+  },
+
+  crearCategoria: async (data: { nombre: string; descripcion?: string; activa: boolean }) => {
+    const response = await authFetch(`${API_URL}/operaciones/categorias`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Error al crear categoria');
+    return response.json();
+  },
+
+  actualizarCategoria: async (id: string, data: any) => {
+    const response = await authFetch(`${API_URL}/operaciones/categorias/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Error al actualizar categoria');
+    return response.json();
+  },
+
+  eliminarCategoria: async (id: string) => {
+    const response = await authFetch(`${API_URL}/operaciones/categorias/${id}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) throw new Error('Error al eliminar categoria');
     return response.json();
   },
 

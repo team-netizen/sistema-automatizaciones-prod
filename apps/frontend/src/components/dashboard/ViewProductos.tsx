@@ -1,4 +1,4 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 import { Fragment, useEffect, useState } from 'react';
 import { operacionesService } from '../../modules/operaciones/services/operacionesService';
 
@@ -59,8 +59,19 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
   const [progresoCSV, setProgresoCSV] = useState({ actual: 0, total: 0 });
   const [resultadoImportacion, setResultadoImportacion] = useState<any | null>(null);
   const [errorImportacion, setErrorImportacion] = useState('');
+  const [pestanaActiva, setPestanaActiva] = useState<'productos' | 'categorias'>('productos');
   const [categorias, setCategorias] = useState<any[]>([]);
   const [cargandoCategorias, setCargandoCategorias] = useState(false);
+  const [categoriasList, setCategoriasList] = useState<any[]>([]);
+  const [loadingCats, setLoadingCats] = useState(false);
+  const [modalCategoria, setModalCategoria] = useState(false);
+  const [categoriaEditando, setCategoriaEditando] = useState<any>(null);
+  const [nombreCategoria, setNombreCategoria] = useState('');
+  const [descripcionCategoria, setDescripcionCategoria] = useState('');
+  const [activaCategoria, setActivaCategoria] = useState(true);
+  const [guardandoCategoria, setGuardandoCategoria] = useState(false);
+  const [errorCategoria, setErrorCategoria] = useState('');
+  const [eliminandoCategoriaId, setEliminandoCategoriaId] = useState<string | null>(null);
   const [sucursales, setSucursales] = useState<any[]>([]);
   const [stockInicial, setStockInicial] = useState<Record<string, number>>({});
   const [nuevoProducto, setNuevoProducto] = useState({
@@ -107,15 +118,44 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
   const cargarCategoriasModal = async () => {
     setCargandoCategorias(true);
     try {
-      const res = await operacionesService.getCategorias();
+      const res = await operacionesService.getCategorias({ solo_activas: true });
       const rows = Array.isArray(res?.categorias) ? res.categorias : [];
-      setCategorias(rows);
+      setCategorias(
+        rows.map((cat: any) => ({
+          ...cat,
+          activa: Boolean(cat?.activa ?? cat?.activo ?? true),
+        })),
+      );
     } catch {
       setCategorias([]);
     } finally {
       setCargandoCategorias(false);
     }
   };
+
+  const cargarCategoriasGestion = async () => {
+    setLoadingCats(true);
+    try {
+      const res = await operacionesService.getCategorias({ incluir_inactivas: true });
+      const rows = Array.isArray(res?.categorias) ? res.categorias : [];
+      setCategoriasList(
+        rows.map((cat: any) => ({
+          ...cat,
+          activa: Boolean(cat?.activa ?? cat?.activo ?? true),
+        })),
+      );
+    } catch {
+      setCategoriasList([]);
+    } finally {
+      setLoadingCats(false);
+    }
+  };
+
+  useEffect(() => {
+    if (pestanaActiva === 'categorias') {
+      void cargarCategoriasGestion();
+    }
+  }, [pestanaActiva]);
 
   const parseCsvLine = (line: string) => {
     const out: string[] = [];
@@ -380,6 +420,79 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
     }
   };
 
+  const abrirModalNuevaCategoria = () => {
+    setCategoriaEditando(null);
+    setNombreCategoria('');
+    setDescripcionCategoria('');
+    setActivaCategoria(true);
+    setErrorCategoria('');
+    setModalCategoria(true);
+  };
+
+  const abrirModalEditarCategoria = (cat: any) => {
+    setCategoriaEditando(cat);
+    setNombreCategoria(String(cat?.nombre ?? ''));
+    setDescripcionCategoria(String(cat?.descripcion ?? ''));
+    setActivaCategoria(Boolean(cat?.activa ?? cat?.activo ?? true));
+    setErrorCategoria('');
+    setModalCategoria(true);
+  };
+
+  const cerrarModalCategoria = () => {
+    if (guardandoCategoria) return;
+    setModalCategoria(false);
+  };
+
+  const guardarCategoria = async (e: any) => {
+    e.preventDefault();
+    const nombre = String(nombreCategoria ?? '').trim();
+    const descripcion = String(descripcionCategoria ?? '').trim();
+
+    if (!nombre) {
+      setErrorCategoria('El nombre es obligatorio');
+      return;
+    }
+
+    setGuardandoCategoria(true);
+    setErrorCategoria('');
+    try {
+      const payload = {
+        nombre,
+        descripcion: descripcion || null,
+        activa: Boolean(activaCategoria),
+      };
+
+      if (categoriaEditando?.id) {
+        await operacionesService.actualizarCategoria(String(categoriaEditando.id), payload);
+      } else {
+        await operacionesService.crearCategoria(payload);
+      }
+
+      setModalCategoria(false);
+      await Promise.all([cargarCategoriasGestion(), cargarCategoriasModal()]);
+    } catch (err: any) {
+      setErrorCategoria(err?.message || 'Error al guardar categoria');
+    } finally {
+      setGuardandoCategoria(false);
+    }
+  };
+
+  const eliminarCategoria = async (categoriaId: string) => {
+    if (!categoriaId) return;
+    const confirmar = window.confirm('Eliminar esta categoria? Esta accion no se puede deshacer.');
+    if (!confirmar) return;
+
+    setEliminandoCategoriaId(categoriaId);
+    try {
+      await operacionesService.eliminarCategoria(categoriaId);
+      await Promise.all([cargarCategoriasGestion(), cargarCategoriasModal()]);
+    } catch (err) {
+      console.error('Error al eliminar categoria:', err);
+    } finally {
+      setEliminandoCategoriaId(null);
+    }
+  };
+
   const submitNuevoProducto = async (e: any) => {
     e.preventDefault();
     const nombre = String(nuevoProducto.nombre ?? '').trim();
@@ -439,254 +552,451 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
     }
   };
 
-  if (loading) {
-    return (
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        height: 200, color: T.textMid, fontSize: 13,
-      }}>
-        Cargando productos...
-      </div>
-    );
-  }
-
   return (
     <div className="fade" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <div style={{ fontFamily: T.fontDisplay, fontWeight: 800, fontSize: 20, color: T.text }}>
-            Productos
+            {pestanaActiva === 'productos' ? 'Productos' : 'Categorias'}
           </div>
           <div style={{ fontSize: 11, color: T.textMid, fontFamily: T.fontMono }}>
-            {productos.length} productos registrados
+            {pestanaActiva === 'productos'
+              ? `${productos.length} productos registrados`
+              : `${categoriasList.length} categorias registradas`}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            className="btn"
-            onClick={exportarProductosCSV}
-            style={{
-              background: T.surface2,
-              border: `1px solid ${T.border2}`,
-              borderRadius: 8,
-              padding: '8px 14px',
-              color: T.text,
-              fontSize: 12,
-              fontFamily: T.font,
-              fontWeight: 700,
-            }}
-          >
-            Exportar CSV
-          </button>
-          <button
-            className="btn"
-            onClick={abrirModalImportar}
-            style={{
-              background: T.surface2,
-              border: `1px solid ${T.border2}`,
-              borderRadius: 8,
-              padding: '8px 14px',
-              color: T.text,
-              fontSize: 12,
-              fontFamily: T.font,
-              fontWeight: 700,
-            }}
-          >
-            Importar CSV
-          </button>
-          <button
-            className="btn"
-            onClick={abrirModalNuevo}
-            style={{
-              background: T.accentDim,
-              border: `1px solid ${T.accent}44`,
-              borderRadius: 8,
-              padding: '8px 14px',
-              color: T.accent,
-              fontSize: 12,
-              fontFamily: T.font,
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <Ico d={IC.plus} size={14} color={T.accent} />
-            Nuevo Producto
-          </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            {(['productos', 'categorias'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setPestanaActiva(tab)}
+                style={{
+                  background: pestanaActiva === tab ? '#00e87b18' : 'transparent',
+                  color: pestanaActiva === tab ? '#00e87b' : '#4d6b58',
+                  border: pestanaActiva === tab ? '1px solid #00e87b33' : '1px solid transparent',
+                  borderRadius: 8,
+                  padding: '6px 16px',
+                  fontSize: 12,
+                  fontFamily: 'DM Sans',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  textTransform: 'capitalize',
+                }}
+              >
+                {tab === 'productos' ? 'Productos' : 'Categorias'}
+              </button>
+            ))}
+          </div>
+          {pestanaActiva === 'productos' && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                className="btn"
+                onClick={exportarProductosCSV}
+                style={{
+                  background: T.surface2,
+                  border: `1px solid ${T.border2}`,
+                  borderRadius: 8,
+                  padding: '8px 14px',
+                  color: T.text,
+                  fontSize: 12,
+                  fontFamily: T.font,
+                  fontWeight: 700,
+                }}
+              >
+                Exportar CSV
+              </button>
+              <button
+                className="btn"
+                onClick={abrirModalImportar}
+                style={{
+                  background: T.surface2,
+                  border: `1px solid ${T.border2}`,
+                  borderRadius: 8,
+                  padding: '8px 14px',
+                  color: T.text,
+                  fontSize: 12,
+                  fontFamily: T.font,
+                  fontWeight: 700,
+                }}
+              >
+                Importar CSV
+              </button>
+              <button
+                className="btn"
+                onClick={abrirModalNuevo}
+                style={{
+                  background: T.accentDim,
+                  border: `1px solid ${T.accent}44`,
+                  borderRadius: 8,
+                  padding: '8px 14px',
+                  color: T.accent,
+                  fontSize: 12,
+                  fontFamily: T.font,
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <Ico d={IC.plus} size={14} color={T.accent} />
+                Nuevo Producto
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        background: T.surface, border: `1px solid ${T.border}`,
-        borderRadius: 8, padding: '8px 12px',
-      }}>
-        <Ico d={IC.search} size={13} color={T.textMid} />
-        <input
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar por nombre o SKU..."
-          style={{
-            background: 'none',
-            border: 'none',
-            color: T.text,
-            fontSize: 12,
-            fontFamily: T.font,
-            width: '100%',
-          }}
-        />
-      </div>
+      {pestanaActiva === 'productos' ? (
+        <>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: T.surface, border: `1px solid ${T.border}`,
+            borderRadius: 8, padding: '8px 12px',
+          }}>
+            <Ico d={IC.search} size={13} color={T.textMid} />
+            <input
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar por nombre o SKU..."
+              style={{
+                background: 'none',
+                border: 'none',
+                color: T.text,
+                fontSize: 12,
+                fontFamily: T.font,
+                width: '100%',
+              }}
+            />
+          </div>
 
-      {productosFiltrados.length === 0 ? (
-        <div style={{
-          textAlign: 'center', padding: 40, color: T.textMid, fontSize: 13,
-        }}>
-          {busqueda ? `No se encontraron productos con "${busqueda}"` : 'No hay productos registrados'}
-        </div>
-      ) : (
-        <Card>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: T.bg }}>
-                <th
-                  style={{
-                    padding: '9px 8px',
-                    width: 24,
-                    textAlign: 'center',
-                    fontSize: 9,
-                    color: T.textDim,
-                    fontWeight: 700,
-                    letterSpacing: '0.09em',
-                    textTransform: 'uppercase',
-                    fontFamily: T.fontMono,
-                  }}
-                />
-                {['SKU', 'Nombre', 'Precio', 'Stock', 'Woo', 'Estado', 'Acciones'].map((h) => (
-                  <th
-                    key={h}
-                    style={{
-                      padding: '9px 16px',
-                      textAlign: h === 'Precio' || h === 'Stock' ? 'right' : 'left',
-                      fontSize: 9,
-                      color: T.textDim,
-                      fontWeight: 700,
-                      letterSpacing: '0.09em',
-                      textTransform: 'uppercase',
-                      fontFamily: T.fontMono,
-                    }}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {productosFiltrados.map((p) => {
-                const productoId = String(p?.id ?? '');
-                const abierto = expandido === productoId;
-                const stockTotal = Number(p?.stock_total || 0);
-                const stockPorSucursal = Array.isArray(p?.stock_por_sucursal) ? p.stock_por_sucursal : [];
-                const estaActivo = Boolean(p?.activo);
-
-                return (
-                  <Fragment key={productoId}>
-                    <tr
-                      className="tr"
-                      style={{ borderBottom: `1px solid ${T.border}` }}
-                    >
-                      <td
-                        onClick={() => setExpandido(abierto ? null : productoId)}
+          {loading ? (
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              height: 200, color: T.textMid, fontSize: 13,
+            }}>
+              Cargando productos...
+            </div>
+          ) : productosFiltrados.length === 0 ? (
+            <div style={{
+              textAlign: 'center', padding: 40, color: T.textMid, fontSize: 13,
+            }}>
+              {busqueda ? `No se encontraron productos con "${busqueda}"` : 'No hay productos registrados'}
+            </div>
+          ) : (
+            <Card>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: T.bg }}>
+                    <th
+                      style={{
+                        padding: '9px 8px',
+                        width: 24,
+                        textAlign: 'center',
+                        fontSize: 9,
+                        color: T.textDim,
+                        fontWeight: 700,
+                        letterSpacing: '0.09em',
+                        textTransform: 'uppercase',
+                        fontFamily: T.fontMono,
+                      }}
+                    />
+                    {['SKU', 'Nombre', 'Precio', 'Stock', 'Woo', 'Estado', 'Acciones'].map((h) => (
+                      <th
+                        key={h}
                         style={{
-                          padding: '12px 8px',
-                          cursor: 'pointer',
-                          width: 24,
-                          textAlign: 'center',
+                          padding: '9px 16px',
+                          textAlign: h === 'Precio' || h === 'Stock' ? 'right' : 'left',
+                          fontSize: 9,
+                          color: T.textDim,
+                          fontWeight: 700,
+                          letterSpacing: '0.09em',
+                          textTransform: 'uppercase',
+                          fontFamily: T.fontMono,
                         }}
                       >
-                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                          <path
-                            d="M2 3.5L5 6.5L8 3.5"
-                            stroke={T.textMid}
-                            strokeWidth="1.5"
-                            style={{
-                              transform: abierto ? 'rotate(180deg)' : 'rotate(0deg)',
-                              transition: 'transform 0.2s',
-                              display: 'block',
-                            }}
-                          />
-                        </svg>
-                      </td>
-                      <td style={{ padding: '12px 16px', fontFamily: T.fontMono, color: T.accent, fontSize: 12 }}>
-                        {p?.sku || '�'}
-                      </td>
-                      <td style={{ padding: '12px 16px', color: T.text, fontWeight: 500 }}>
-                        {p?.nombre || 'Producto sin nombre'}
-                      </td>
-                      <td style={{ padding: '12px 16px', color: T.textMid, textAlign: 'right' }}>
-                        S/ {Number(p?.precio || 0).toFixed(2)}
-                      </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                        <span
-                          style={{
-                            color: stockTotal > 10 ? T.accent : stockTotal > 0 ? '#f59e0b' : '#ef4444',
-                            fontWeight: 700,
-                            fontFamily: T.fontMono,
-                          }}
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {productosFiltrados.map((p) => {
+                    const productoId = String(p?.id ?? '');
+                    const abierto = expandido === productoId;
+                    const stockTotal = Number(p?.stock_total || 0);
+                    const stockPorSucursal = Array.isArray(p?.stock_por_sucursal) ? p.stock_por_sucursal : [];
+                    const estaActivo = Boolean(p?.activo);
+
+                    return (
+                      <Fragment key={productoId}>
+                        <tr
+                          className="tr"
+                          style={{ borderBottom: `1px solid ${T.border}` }}
                         >
-                          {stockTotal}
+                          <td
+                            onClick={() => setExpandido(abierto ? null : productoId)}
+                            style={{
+                              padding: '12px 8px',
+                              cursor: 'pointer',
+                              width: 24,
+                              textAlign: 'center',
+                            }}
+                          >
+                            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                              <path
+                                d="M2 3.5L5 6.5L8 3.5"
+                                stroke={T.textMid}
+                                strokeWidth="1.5"
+                                style={{
+                                  transform: abierto ? 'rotate(180deg)' : 'rotate(0deg)',
+                                  transition: 'transform 0.2s',
+                                  display: 'block',
+                                }}
+                              />
+                            </svg>
+                          </td>
+                          <td style={{ padding: '12px 16px', fontFamily: T.fontMono, color: T.accent, fontSize: 12 }}>
+                            {p?.sku || 'ï¿½'}
+                          </td>
+                          <td style={{ padding: '12px 16px', color: T.text, fontWeight: 500 }}>
+                            {p?.nombre || 'Producto sin nombre'}
+                          </td>
+                          <td style={{ padding: '12px 16px', color: T.textMid, textAlign: 'right' }}>
+                            S/ {Number(p?.precio || 0).toFixed(2)}
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                            <span
+                              style={{
+                                color: stockTotal > 10 ? T.accent : stockTotal > 0 ? '#f59e0b' : '#ef4444',
+                                fontWeight: 700,
+                                fontFamily: T.fontMono,
+                              }}
+                            >
+                              {stockTotal}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                            {p?.woo_sincronizado ? (
+                              <span
+                                style={{
+                                  background: T.accentDim,
+                                  color: T.accent,
+                                  borderRadius: 4,
+                                  padding: '2px 8px',
+                                  fontSize: 11,
+                                }}
+                              >
+                                sync
+                              </span>
+                            ) : (
+                              <span
+                                style={{
+                                  background: `${T.textMid}18`,
+                                  color: T.textMid,
+                                  borderRadius: 4,
+                                  padding: '2px 8px',
+                                  fontSize: 11,
+                                }}
+                              >
+                                ï¿½
+                              </span>
+                            )}
+                          </td>
+                          <td onClick={(e) => e.stopPropagation()} style={{ padding: '12px 16px' }}>
+                            <button
+                              onClick={() => toggleActivo(productoId, estaActivo)}
+                              style={{
+                                background: estaActivo ? T.accentDim : '#ef444418',
+                                color: estaActivo ? T.accent : '#ef4444',
+                                border: 'none',
+                                borderRadius: 4,
+                                padding: '2px 10px',
+                                fontSize: 11,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              {estaActivo ? 'Activo' : 'Inactivo'}
+                            </button>
+                          </td>
+                          <td onClick={(e) => e.stopPropagation()} style={{ padding: '12px 16px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  abrirModalEditar(p);
+                                }}
+                                style={{
+                                  background: T.accentDim,
+                                  color: T.accent,
+                                  border: `1px solid ${T.accent}33`,
+                                  borderRadius: 4,
+                                  padding: '2px 8px',
+                                  fontSize: 11,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                Editar
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  solicitarEliminarProducto(p);
+                                }}
+                                style={{
+                                  background: '#ef444418',
+                                  color: '#ef4444',
+                                  border: '1px solid #ef444433',
+                                  borderRadius: 4,
+                                  padding: '2px 8px',
+                                  fontSize: 11,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                Eliminar
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        {abierto && (
+                          <tr>
+                            <td
+                              colSpan={8}
+                              style={{
+                                background: T.surface,
+                                padding: '12px 16px',
+                                borderBottom: `1px solid ${T.border}`,
+                              }}
+                            >
+                              <div style={{ fontSize: 12, color: T.textMid, marginBottom: 8 }}>
+                                Stock por sucursal
+                              </div>
+                              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                                {stockPorSucursal.map((s: any, idx: number) => (
+                                  <div
+                                    key={String(s?.sucursal_id ?? idx)}
+                                    style={{
+                                      background: T.surface2,
+                                      border: `1px solid ${T.border2}`,
+                                      borderRadius: 8,
+                                      padding: '8px 16px',
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      gap: 4,
+                                    }}
+                                  >
+                                    <span style={{ color: T.textMid, fontSize: 11 }}>
+                                      {s?.sucursal_nombre || 'Sucursal'}
+                                    </span>
+                                    <span
+                                      style={{
+                                        color: T.text,
+                                        fontFamily: T.fontMono,
+                                        fontSize: 18,
+                                        fontWeight: 700,
+                                      }}
+                                    >
+                                      {Number(s?.cantidad || 0)}
+                                    </span>
+                                  </div>
+                                ))}
+                                {stockPorSucursal.length === 0 && (
+                                  <span style={{ color: T.textMid, fontSize: 12 }}>
+                                    Sin stock en sucursales
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </Card>
+          )}
+        </>
+      ) : (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div>
+              <h2 style={{ margin: 0, color: T.text, fontFamily: T.fontDisplay }}>Categorias</h2>
+              <p style={{ margin: '4px 0 0 0', color: T.textMid, fontSize: 12 }}>
+                {categoriasList.length} categorias registradas
+              </p>
+            </div>
+            <button
+              className="btn"
+              onClick={abrirModalNuevaCategoria}
+              style={{
+                background: T.accentDim,
+                border: `1px solid ${T.accent}44`,
+                borderRadius: 8,
+                padding: '8px 14px',
+                color: T.accent,
+                fontSize: 12,
+                fontFamily: T.font,
+                fontWeight: 700,
+              }}
+            >
+              + Nueva Categoria
+            </button>
+          </div>
+          {loadingCats ? (
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              height: 180, color: T.textMid, fontSize: 13,
+            }}>
+              Cargando categorias...
+            </div>
+          ) : categoriasList.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 40, color: T.textMid, fontSize: 13 }}>
+              No hay categorias registradas
+            </div>
+          ) : (
+            <Card>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: T.bg }}>
+                    {['Nombre', 'Descripcion', 'Estado', 'Acciones'].map((h) => (
+                      <th
+                        key={h}
+                        style={{
+                          padding: '9px 16px',
+                          textAlign: 'left',
+                          fontSize: 9,
+                          color: T.textDim,
+                          fontWeight: 700,
+                          letterSpacing: '0.09em',
+                          textTransform: 'uppercase',
+                          fontFamily: T.fontMono,
+                        }}
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {categoriasList.map((cat) => (
+                    <tr key={String(cat?.id ?? '')} style={{ borderBottom: `1px solid ${T.border}` }}>
+                      <td style={{ padding: '12px 16px', color: T.text, fontWeight: 600 }}>
+                        {String(cat?.nombre ?? '')}
+                      </td>
+                      <td style={{ padding: '12px 16px', color: T.textMid }}>
+                        {cat?.descripcion || '—'}
+                      </td>
+                      <td style={{ padding: '12px 16px' }}>
+                        <span style={{ color: cat?.activa ? '#00e87b' : '#ef4444', fontWeight: 700 }}>
+                          {cat?.activa ? 'Activa' : 'Inactiva'}
                         </span>
                       </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                        {p?.woo_sincronizado ? (
-                          <span
-                            style={{
-                              background: T.accentDim,
-                              color: T.accent,
-                              borderRadius: 4,
-                              padding: '2px 8px',
-                              fontSize: 11,
-                            }}
-                          >
-                            sync
-                          </span>
-                        ) : (
-                          <span
-                            style={{
-                              background: `${T.textMid}18`,
-                              color: T.textMid,
-                              borderRadius: 4,
-                              padding: '2px 8px',
-                              fontSize: 11,
-                            }}
-                          >
-                            �
-                          </span>
-                        )}
-                      </td>
-                      <td onClick={(e) => e.stopPropagation()} style={{ padding: '12px 16px' }}>
-                        <button
-                          onClick={() => toggleActivo(productoId, estaActivo)}
-                          style={{
-                            background: estaActivo ? T.accentDim : '#ef444418',
-                            color: estaActivo ? T.accent : '#ef4444',
-                            border: 'none',
-                            borderRadius: 4,
-                            padding: '2px 10px',
-                            fontSize: 11,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          {estaActivo ? 'Activo' : 'Inactivo'}
-                        </button>
-                      </td>
-                      <td onClick={(e) => e.stopPropagation()} style={{ padding: '12px 16px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
+                      <td style={{ padding: '12px 16px' }}>
+                        <div style={{ display: 'flex', gap: 8 }}>
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              abrirModalEditar(p);
-                            }}
+                            className="btn"
+                            onClick={() => abrirModalEditarCategoria(cat)}
                             style={{
                               background: T.accentDim,
                               color: T.accent,
@@ -700,10 +1010,9 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
                             Editar
                           </button>
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              solicitarEliminarProducto(p);
-                            }}
+                            className="btn"
+                            onClick={() => eliminarCategoria(String(cat?.id ?? ''))}
+                            disabled={eliminandoCategoriaId === String(cat?.id ?? '')}
                             style={{
                               background: '#ef444418',
                               color: '#ef4444',
@@ -712,70 +1021,20 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
                               padding: '2px 8px',
                               fontSize: 11,
                               cursor: 'pointer',
+                              opacity: eliminandoCategoriaId === String(cat?.id ?? '') ? 0.6 : 1,
                             }}
                           >
-                            Eliminar
+                            {eliminandoCategoriaId === String(cat?.id ?? '') ? 'Eliminando...' : 'Eliminar'}
                           </button>
                         </div>
                       </td>
                     </tr>
-                    {abierto && (
-                      <tr>
-                        <td
-                          colSpan={8}
-                          style={{
-                            background: T.surface,
-                            padding: '12px 16px',
-                            borderBottom: `1px solid ${T.border}`,
-                          }}
-                        >
-                          <div style={{ fontSize: 12, color: T.textMid, marginBottom: 8 }}>
-                            Stock por sucursal
-                          </div>
-                          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                            {stockPorSucursal.map((s: any, idx: number) => (
-                              <div
-                                key={String(s?.sucursal_id ?? idx)}
-                                style={{
-                                  background: T.surface2,
-                                  border: `1px solid ${T.border2}`,
-                                  borderRadius: 8,
-                                  padding: '8px 16px',
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  gap: 4,
-                                }}
-                              >
-                                <span style={{ color: T.textMid, fontSize: 11 }}>
-                                  {s?.sucursal_nombre || 'Sucursal'}
-                                </span>
-                                <span
-                                  style={{
-                                    color: T.text,
-                                    fontFamily: T.fontMono,
-                                    fontSize: 18,
-                                    fontWeight: 700,
-                                  }}
-                                >
-                                  {Number(s?.cantidad || 0)}
-                                </span>
-                              </div>
-                            ))}
-                            {stockPorSucursal.length === 0 && (
-                              <span style={{ color: T.textMid, fontSize: 12 }}>
-                                Sin stock en sucursales
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </Card>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+          )}
+        </div>
       )}
       {modalNuevo && (
         <div
@@ -1118,6 +1377,196 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
           </div>
         </div>
       )}
+      {modalCategoria && (
+        <div
+          onClick={cerrarModalCategoria}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.68)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1440,
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: 460,
+              background: T.surface,
+              border: `1px solid ${T.border}`,
+              borderRadius: 12,
+              boxShadow: '0 28px 80px rgba(0,0,0,0.45)',
+              padding: 18,
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div>
+                <div style={{ fontFamily: T.fontDisplay, fontWeight: 800, fontSize: 18, color: T.text }}>
+                  {categoriaEditando ? 'Editar Categoria' : 'Nueva Categoria'}
+                </div>
+                <div style={{ fontSize: 11, color: T.textMid, fontFamily: T.fontMono }}>
+                  {categoriaEditando ? 'Actualiza la categoria seleccionada' : 'Crea una nueva categoria de productos'}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn"
+                onClick={cerrarModalCategoria}
+                disabled={guardandoCategoria}
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 8,
+                  background: T.surface2,
+                  border: `1px solid ${T.border2}`,
+                  color: T.textMid,
+                  fontSize: 16,
+                }}
+              >
+                X
+              </button>
+            </div>
+
+            <form onSubmit={guardarCategoria}>
+              <label style={{ display: 'block', fontSize: 11, color: T.textMid, marginBottom: 6 }}>
+                Nombre
+              </label>
+              <input
+                value={nombreCategoria}
+                onChange={(e) => setNombreCategoria(e.target.value)}
+                placeholder="Ej. Suplementos"
+                maxLength={120}
+                disabled={guardandoCategoria}
+                style={{
+                  width: '100%',
+                  background: T.bg,
+                  border: `1px solid ${T.border2}`,
+                  borderRadius: 8,
+                  padding: '10px 12px',
+                  color: T.text,
+                  fontSize: 12,
+                  fontFamily: T.font,
+                  marginBottom: 12,
+                }}
+              />
+
+              <label style={{ display: 'block', fontSize: 11, color: T.textMid, marginBottom: 6 }}>
+                Descripcion (opcional)
+              </label>
+              <textarea
+                rows={3}
+                value={descripcionCategoria}
+                onChange={(e) => setDescripcionCategoria(e.target.value)}
+                placeholder="Describe brevemente la categoria"
+                disabled={guardandoCategoria}
+                style={{
+                  width: '100%',
+                  background: T.bg,
+                  border: `1px solid ${T.border2}`,
+                  borderRadius: 8,
+                  padding: '10px 12px',
+                  color: T.text,
+                  fontSize: 12,
+                  fontFamily: T.font,
+                  resize: 'vertical',
+                  marginBottom: 12,
+                }}
+              />
+
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  background: T.surface2,
+                  border: `1px solid ${T.border2}`,
+                  borderRadius: 8,
+                  padding: '9px 12px',
+                  marginBottom: 12,
+                }}
+              >
+                <span style={{ fontSize: 12, color: T.text }}>Activa</span>
+                <button
+                  type="button"
+                  onClick={() => setActivaCategoria((prev) => !prev)}
+                  disabled={guardandoCategoria}
+                  style={{
+                    background: activaCategoria ? T.accentDim : '#ef444418',
+                    color: activaCategoria ? T.accent : '#ef4444',
+                    border: 'none',
+                    borderRadius: 999,
+                    padding: '4px 12px',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {activaCategoria ? 'SI' : 'NO'}
+                </button>
+              </div>
+
+              {errorCategoria && (
+                <div
+                  style={{
+                    marginBottom: 12,
+                    background: '#2a0d10',
+                    border: '1px solid #5a1a20',
+                    color: '#ff9aa5',
+                    borderRadius: 8,
+                    padding: '9px 10px',
+                    fontSize: 11,
+                    fontFamily: T.font,
+                  }}
+                >
+                  {errorCategoria}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={cerrarModalCategoria}
+                  disabled={guardandoCategoria}
+                  style={{
+                    background: T.surface2,
+                    border: `1px solid ${T.border2}`,
+                    borderRadius: 8,
+                    padding: '9px 14px',
+                    color: T.textMid,
+                    fontSize: 12,
+                    fontFamily: T.font,
+                    fontWeight: 600,
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn"
+                  disabled={guardandoCategoria}
+                  style={{
+                    background: T.accentDim,
+                    border: `1px solid ${T.accent}44`,
+                    borderRadius: 8,
+                    padding: '9px 14px',
+                    color: T.accent,
+                    fontSize: 12,
+                    fontFamily: T.font,
+                    fontWeight: 700,
+                  }}
+                >
+                  {guardandoCategoria ? 'Guardando...' : 'Guardar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       {confirmEliminar && (
         <div
           onClick={() => {
@@ -1150,7 +1599,7 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
               Eliminar producto
             </div>
             <div style={{ fontSize: 12, color: T.textMid, marginBottom: 16 }}>
-              {`�Eliminar ${confirmEliminar.nombre}? Esta acci�n no se puede deshacer.`}
+              {`ï¿½Eliminar ${confirmEliminar.nombre}? Esta acciï¿½n no se puede deshacer.`}
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button
@@ -1301,12 +1750,12 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
                     <tbody>
                       {previewCSV.map((row, idx) => (
                         <tr key={idx} style={{ borderTop: `1px solid ${T.border}` }}>
-                          <td style={{ padding: '7px 8px', fontSize: 11, color: T.text }}>{row.nombre || '�'}</td>
-                          <td style={{ padding: '7px 8px', fontSize: 11, color: T.accent, fontFamily: T.fontMono }}>{row.sku || '�'}</td>
-                          <td style={{ padding: '7px 8px', fontSize: 11, color: T.textMid }}>{row.precio || '�'}</td>
-                          <td style={{ padding: '7px 8px', fontSize: 11, color: T.textMid }}>{row.costo || '�'}</td>
-                          <td style={{ padding: '7px 8px', fontSize: 11, color: T.textMid }}>{row.descripcion || '�'}</td>
-                          <td style={{ padding: '7px 8px', fontSize: 11, color: T.textMid }}>{row.stock_minimo || '�'}</td>
+                          <td style={{ padding: '7px 8px', fontSize: 11, color: T.text }}>{row.nombre || 'ï¿½'}</td>
+                          <td style={{ padding: '7px 8px', fontSize: 11, color: T.accent, fontFamily: T.fontMono }}>{row.sku || 'ï¿½'}</td>
+                          <td style={{ padding: '7px 8px', fontSize: 11, color: T.textMid }}>{row.precio || 'ï¿½'}</td>
+                          <td style={{ padding: '7px 8px', fontSize: 11, color: T.textMid }}>{row.costo || 'ï¿½'}</td>
+                          <td style={{ padding: '7px 8px', fontSize: 11, color: T.textMid }}>{row.descripcion || 'ï¿½'}</td>
+                          <td style={{ padding: '7px 8px', fontSize: 11, color: T.textMid }}>{row.stock_minimo || 'ï¿½'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1372,3 +1821,4 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
 };
 
 export default ViewProductos;
+

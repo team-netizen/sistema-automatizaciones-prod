@@ -283,17 +283,177 @@ export class OperacionesService {
     }
   }
 
-  async getCategorias(empresa_id: string) {
+  async getCategorias(
+    empresa_id: string,
+    options?: { incluirInactivas?: boolean; soloActivas?: boolean },
+  ) {
     const { data, error } = await this.supabase
       .getAdminClient()
       .from('categorias')
-      .select('id, nombre')
+      .select('*')
       .eq('empresa_id', empresa_id)
-      .eq('activo', true)
       .order('nombre', { ascending: true });
 
     if (error) return { categorias: [] };
-    return { categorias: data || [] };
+
+    const incluirInactivas = Boolean(options?.incluirInactivas);
+    const soloActivas = Boolean(options?.soloActivas);
+    const categorias = Array.isArray(data) ? data : [];
+
+    const normalizadas = categorias.map((cat) => {
+      const row = cat as Record<string, unknown>;
+      const activaRaw = row.activa ?? row.activo;
+      return {
+        ...row,
+        activa:
+          typeof activaRaw === 'boolean'
+            ? activaRaw
+            : String(activaRaw ?? 'true').toLowerCase() !== 'false',
+      };
+    });
+
+    if (incluirInactivas) {
+      return { categorias: normalizadas };
+    }
+
+    if (soloActivas || !incluirInactivas) {
+      return { categorias: normalizadas.filter((cat) => Boolean(cat.activa)) };
+    }
+
+    return { categorias: normalizadas };
+  }
+
+  async crearCategoria(empresa_id: string, data: any) {
+    const nombre = String(data?.nombre ?? '').trim();
+    if (!nombre) throw new BadRequestException('nombre requerido');
+
+    const slug = nombre
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '');
+    const descripcion = String(data?.descripcion ?? '').trim() || null;
+    const activa = data?.activa ?? data?.activo ?? true;
+
+    const payloads: Array<Record<string, unknown>> = [
+      {
+        empresa_id,
+        nombre,
+        slug,
+        descripcion,
+        activa: Boolean(activa),
+      },
+      {
+        empresa_id,
+        nombre,
+        slug,
+        descripcion,
+        activo: Boolean(activa),
+      },
+      {
+        empresa_id,
+        nombre,
+        slug,
+        descripcion,
+      },
+    ];
+
+    let lastError: { message?: string } | null = null;
+    for (const payload of payloads) {
+      const { data: cat, error } = await this.supabase
+        .getAdminClient()
+        .from('categorias')
+        .insert(payload)
+        .select()
+        .single();
+
+      if (!error) {
+        return {
+          ...cat,
+          activa: Boolean((cat as Record<string, unknown>)?.activa ?? (cat as Record<string, unknown>)?.activo ?? true),
+        };
+      }
+
+      if (this.isRecoverableColumnError(error)) {
+        lastError = error;
+        continue;
+      }
+
+      throw new Error(error.message);
+    }
+
+    throw new Error(lastError?.message ?? 'No se pudo crear categoria');
+  }
+
+  async actualizarCategoria(empresa_id: string, id: string, data: any) {
+    const nombre = String(data?.nombre ?? '').trim();
+    if (!nombre) throw new BadRequestException('nombre requerido');
+
+    const slug = nombre
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '');
+    const descripcion = String(data?.descripcion ?? '').trim() || null;
+    const activa = data?.activa ?? data?.activo ?? true;
+
+    const payloads: Array<Record<string, unknown>> = [
+      {
+        nombre,
+        slug,
+        descripcion,
+        activa: Boolean(activa),
+      },
+      {
+        nombre,
+        slug,
+        descripcion,
+        activo: Boolean(activa),
+      },
+      {
+        nombre,
+        slug,
+        descripcion,
+      },
+    ];
+
+    let lastError: { message?: string } | null = null;
+    for (const payload of payloads) {
+      const { data: cat, error } = await this.supabase
+        .getAdminClient()
+        .from('categorias')
+        .update(payload)
+        .eq('id', id)
+        .eq('empresa_id', empresa_id)
+        .select()
+        .single();
+
+      if (!error) {
+        return {
+          ...cat,
+          activa: Boolean((cat as Record<string, unknown>)?.activa ?? (cat as Record<string, unknown>)?.activo ?? true),
+        };
+      }
+
+      if (this.isRecoverableColumnError(error)) {
+        lastError = error;
+        continue;
+      }
+
+      throw new Error(error.message);
+    }
+
+    throw new Error(lastError?.message ?? 'No se pudo actualizar categoria');
+  }
+
+  async eliminarCategoria(empresa_id: string, id: string) {
+    const { error } = await this.supabase
+      .getAdminClient()
+      .from('categorias')
+      .delete()
+      .eq('id', id)
+      .eq('empresa_id', empresa_id);
+
+    if (error) throw new Error(error.message);
+    return { success: true };
   }
 
   async crearProducto(empresa_id: string, data: any) {

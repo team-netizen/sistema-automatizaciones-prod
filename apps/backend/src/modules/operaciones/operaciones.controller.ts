@@ -78,10 +78,57 @@ export class OperacionesController {
 
   @Get('categorias')
   @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
-  getCategorias(@Req() req: AuthenticatedRequest) {
+  getCategorias(
+    @Req() req: AuthenticatedRequest,
+    @Query('incluir_inactivas') incluirInactivas?: string,
+    @Query('solo_activas') soloActivas?: string,
+  ) {
     const empresaId = req.perfil.empresa_id;
     if (!empresaId) return { categorias: [] };
-    return this.operacionesService.getCategorias(empresaId);
+    const incluir = ['true', '1', 'si', 'yes'].includes(
+      String(incluirInactivas ?? '').toLowerCase(),
+    );
+    const solo = ['true', '1', 'si', 'yes'].includes(
+      String(soloActivas ?? '').toLowerCase(),
+    );
+    return this.operacionesService.getCategorias(empresaId, {
+      incluirInactivas: incluir,
+      soloActivas: solo,
+    });
+  }
+
+  @Post('categorias')
+  @Roles('admin_empresa', 'super_admin')
+  async crearCategoria(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: Record<string, unknown>,
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    return this.operacionesService.crearCategoria(empresaId, body);
+  }
+
+  @Patch('categorias/:id')
+  @Roles('admin_empresa', 'super_admin')
+  async actualizarCategoria(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    return this.operacionesService.actualizarCategoria(empresaId, id, body);
+  }
+
+  @Delete('categorias/:id')
+  @Roles('admin_empresa', 'super_admin')
+  async eliminarCategoria(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    return this.operacionesService.eliminarCategoria(empresaId, id);
   }
 
   @Get('productos')
