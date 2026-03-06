@@ -103,7 +103,7 @@ export const ViewStock = ({ usuario }: ViewStockProps) => {
             || item.producto?.nombre
             || 'Sin nombre',
           sku: item.producto_sku || item.sku || item.producto?.sku || '—',
-          stock_minimo: item.stock_minimo || item.producto?.stock_minimo || 0,
+          stock_minimo: item.stock_minimo ?? item.producto?.stock_minimo ?? 0,
           sucursales: {},
           total: 0,
         });
@@ -475,4 +475,3 @@ const modalStyle = {
   flexDirection: 'column' as const,
   gap: 12,
 };
-
