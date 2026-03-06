@@ -6,6 +6,7 @@ import { ViewIntegraciones } from './ViewIntegraciones';
 import { ViewProductos } from './ViewProductos';
 import { ViewStock } from './ViewStock';
 import { ViewTransferencias } from './ViewTransferencias';
+import { ViewUsuarios } from './ViewUsuarios';
 
 // â”€â”€â”€ ICON SYSTEM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const Ico = ({ d, size = 18, color = "currentColor", stroke = 1.8 }) => (
@@ -868,7 +869,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
   );
 
   // â”€â”€ VISTA: USUARIOS â”€â”€
-  const ViewUsuarios = () => (
+  const ViewUsuariosLegacy = () => (
     <div className="fade">
       <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:14 }}>
         <button className="btn" style={{ background:T.accentDim,
@@ -986,7 +987,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
       case "transferencias": return <ViewTransferencias usuario={usuario} />;
       case "stock":          return <ViewStock usuario={usuario} />;
       case "integraciones":  return <ViewIntegraciones usuario={usuario} />;
-      case "usuarios":       return <ViewUsuarios />;
+      case "usuarios":       return <ViewUsuarios usuario={usuario} />;
       case "alertas":        return <ViewAlertas />;
       default: return <ViewPlaceholder label={NAV.find(n=>n.id===nav)?.label||nav} />;
     }

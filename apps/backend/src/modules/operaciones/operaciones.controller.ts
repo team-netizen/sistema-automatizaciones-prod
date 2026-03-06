@@ -368,4 +368,65 @@ export class OperacionesController {
     if (!empresaId) throw new ForbiddenException('empresa_id requerido');
     return this.operacionesService.desconectarIntegracion(empresaId, tipo);
   }
+
+  @Get('usuarios')
+  @Roles('admin_empresa', 'super_admin')
+  getUsuarios(@Req() req: AuthenticatedRequest) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    return this.operacionesService.getUsuarios(empresaId);
+  }
+
+  @Post('usuarios')
+  @Roles('admin_empresa', 'super_admin')
+  crearUsuario(
+    @Req() req: AuthenticatedRequest,
+    @Body()
+    body: {
+      email: string;
+      password: string;
+      rol: string;
+      sucursal_id: string | null;
+    },
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    return this.operacionesService.crearUsuario(empresaId, body);
+  }
+
+  @Patch('usuarios/reset-password')
+  @Post('usuarios/reset-password')
+  @Roles('admin_empresa', 'super_admin')
+  resetPassword(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: { email: string },
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    return this.operacionesService.resetPasswordUsuario(empresaId, body.email);
+  }
+
+  @Patch('usuarios/:id')
+  @Roles('admin_empresa', 'super_admin')
+  editarUsuario(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() body: { rol: string; sucursal_id: string | null },
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    return this.operacionesService.editarUsuario(empresaId, id, body);
+  }
+
+  @Patch('usuarios/:id/toggle')
+  @Roles('admin_empresa', 'super_admin')
+  toggleUsuario(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() body: { activo: boolean },
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    return this.operacionesService.toggleUsuario(empresaId, id, body.activo);
+  }
 }

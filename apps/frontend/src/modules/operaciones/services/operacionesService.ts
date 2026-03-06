@@ -233,6 +233,54 @@ export const operacionesService = {
     return parseOrThrow(response, 'Error al obtener integraciones');
   },
 
+  getUsuarios: async () => {
+    const response = await authFetch(`${API_URL}/operaciones/usuarios`);
+    return parseOrThrow(response, 'Error al obtener usuarios');
+  },
+
+  crearUsuario: async (data: {
+    email: string;
+    password: string;
+    rol: string;
+    sucursal_id: string | null;
+  }) => {
+    const response = await authFetch(`${API_URL}/operaciones/usuarios`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return parseOrThrow(response, 'Error al crear usuario');
+  },
+
+  editarUsuario: async (
+    id: string,
+    data: {
+      rol: string;
+      sucursal_id: string | null;
+    },
+  ) => {
+    const response = await authFetch(`${API_URL}/operaciones/usuarios/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+    return parseOrThrow(response, 'Error al editar usuario');
+  },
+
+  toggleUsuario: async (id: string, activo: boolean) => {
+    const response = await authFetch(`${API_URL}/operaciones/usuarios/${id}/toggle`, {
+      method: 'PATCH',
+      body: JSON.stringify({ activo }),
+    });
+    return parseOrThrow(response, 'Error al actualizar usuario');
+  },
+
+  resetPasswordUsuario: async (email: string) => {
+    const response = await authFetch(`${API_URL}/operaciones/usuarios/reset-password`, {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+    return parseOrThrow(response, 'Error al enviar reset');
+  },
+
   conectarIntegracion: async (data: {
     tipo: string;
     credenciales: Record<string, string>;

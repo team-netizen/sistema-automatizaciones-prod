@@ -1143,6 +1143,247 @@ export class OperacionesService {
     }
   }
 
+  async getUsuarios(empresa_id: string): Promise<any[]> {
+    try {
+      const { data: perfiles, error } = await this.supabase
+        .getAdminClient()
+        .from('perfiles')
+        .select('id, rol, sucursal_id, fecha_creacion')
+        .eq('empresa_id', empresa_id);
+
+      if (error) throw error;
+
+      const usuarios = await Promise.all(
+        (perfiles || []).map(async (perfil) => {
+          try {
+            const { data: authData, error: authError } = await this.supabase
+              .getAdminClient()
+              .auth.admin.getUserById(perfil.id);
+
+            if (authError) throw authError;
+
+            const bannedUntil = authData?.user?.banned_until;
+            const activo = !bannedUntil || String(bannedUntil).toLowerCase() === 'none';
+
+            return {
+              id: perfil.id,
+              email: authData?.user?.email || '—',
+              rol: perfil.rol,
+              sucursal_id: perfil.sucursal_id,
+              activo,
+              fecha_creacion: perfil.fecha_creacion,
+            };
+          } catch {
+            return {
+              id: perfil.id,
+              email: '—',
+              rol: perfil.rol,
+              sucursal_id: perfil.sucursal_id,
+              activo: true,
+              fecha_creacion: perfil.fecha_creacion,
+            };
+          }
+        }),
+      );
+
+      return usuarios;
+    } catch (error) {
+      this.handleError('getUsuarios', error, 'Error al obtener usuarios');
+    }
+  }
+
+  async crearUsuario(
+    empresa_id: string,
+    data: {
+      email: string;
+      password: string;
+      rol: string;
+      sucursal_id: string | null;
+    },
+  ) {
+    try {
+      const rol = String(data?.rol || '').trim();
+      if (!['admin_empresa', 'encargado_sucursal', 'vendedor'].includes(rol)) {
+        throw new BadRequestException('Rol invalido');
+      }
+      if (!data?.email || !String(data.email).includes('@')) {
+        throw new BadRequestException('Email invalido');
+      }
+      if (!data?.password || String(data.password).length < 8) {
+        throw new BadRequestException('Password debe tener minimo 8 caracteres');
+      }
+      if (rol !== 'admin_empresa' && !data?.sucursal_id) {
+        throw new BadRequestException('Debe asignar una sucursal para este rol');
+      }
+
+      if (data?.sucursal_id) {
+        const { data: sucursal, error: sucError } = await this.supabase
+          .getAdminClient()
+          .from('sucursales')
+          .select('id')
+          .eq('empresa_id', empresa_id)
+          .eq('id', data.sucursal_id)
+          .maybeSingle();
+
+        if (sucError || !sucursal) {
+          throw new BadRequestException('Sucursal invalida para la empresa autenticada');
+        }
+      }
+
+      const { data: authData, error: authError } = await this.supabase
+        .getAdminClient()
+        .auth.admin.createUser({
+          email: data.email,
+          password: data.password,
+          email_confirm: true,
+        });
+
+      if (authError) throw new BadRequestException(authError.message);
+
+      const userId = authData?.user?.id;
+      if (!userId) throw new Error('No se pudo crear el usuario en Auth');
+
+      const { error: perfilError } = await this.supabase
+        .getAdminClient()
+        .from('perfiles')
+        .insert({
+          id: userId,
+          empresa_id,
+          rol,
+          sucursal_id: rol === 'admin_empresa' ? null : data.sucursal_id || null,
+        });
+
+      if (perfilError) {
+        await this.supabase.getAdminClient().auth.admin.deleteUser(userId).catch(() => {});
+        throw new Error(perfilError.message);
+      }
+
+      return { success: true, id: userId };
+    } catch (error) {
+      this.handleError('crearUsuario', error, 'Error al crear usuario');
+    }
+  }
+
+  async editarUsuario(
+    empresa_id: string,
+    id: string,
+    data: { rol: string; sucursal_id: string | null },
+  ) {
+    try {
+      const rol = String(data?.rol || '').trim();
+      if (!['admin_empresa', 'encargado_sucursal', 'vendedor'].includes(rol)) {
+        throw new BadRequestException('Rol invalido');
+      }
+      if (rol !== 'admin_empresa' && !data?.sucursal_id) {
+        throw new BadRequestException('Debe asignar una sucursal para este rol');
+      }
+
+      const { data: perfil, error } = await this.supabase
+        .getAdminClient()
+        .from('perfiles')
+        .select('id')
+        .eq('id', id)
+        .eq('empresa_id', empresa_id)
+        .maybeSingle();
+
+      if (error || !perfil) throw new BadRequestException('Usuario no encontrado');
+
+      if (data?.sucursal_id) {
+        const { data: sucursal, error: sucError } = await this.supabase
+          .getAdminClient()
+          .from('sucursales')
+          .select('id')
+          .eq('empresa_id', empresa_id)
+          .eq('id', data.sucursal_id)
+          .maybeSingle();
+
+        if (sucError || !sucursal) {
+          throw new BadRequestException('Sucursal invalida para la empresa autenticada');
+        }
+      }
+
+      const { error: updateError } = await this.supabase
+        .getAdminClient()
+        .from('perfiles')
+        .update({
+          rol,
+          sucursal_id: rol === 'admin_empresa' ? null : data.sucursal_id || null,
+        })
+        .eq('id', id);
+
+      if (updateError) throw new Error(updateError.message);
+      return { success: true };
+    } catch (error) {
+      this.handleError('editarUsuario', error, 'Error al editar usuario');
+    }
+  }
+
+  async toggleUsuario(empresa_id: string, id: string, activo: boolean) {
+    try {
+      const { data: perfil, error } = await this.supabase
+        .getAdminClient()
+        .from('perfiles')
+        .select('id')
+        .eq('id', id)
+        .eq('empresa_id', empresa_id)
+        .maybeSingle();
+
+      if (error || !perfil) throw new BadRequestException('Usuario no encontrado');
+
+      const { error: authError } = await this.supabase
+        .getAdminClient()
+        .auth.admin.updateUserById(id, {
+          ban_duration: activo ? 'none' : '876600h',
+        });
+
+      if (authError) throw new Error(authError.message);
+      return { success: true, activo };
+    } catch (error) {
+      this.handleError('toggleUsuario', error, 'Error al actualizar usuario');
+    }
+  }
+
+  async resetPasswordUsuario(empresa_id: string, email: string) {
+    try {
+      if (!email || !String(email).includes('@')) {
+        throw new BadRequestException('Email invalido');
+      }
+
+      const { data: authUsers, error: listError } = await this.supabase
+        .getAdminClient()
+        .auth.admin.listUsers();
+
+      if (listError) throw new Error(listError.message);
+
+      const user = authUsers?.users?.find((u) => String(u?.email || '').toLowerCase() === email.toLowerCase());
+      if (!user) throw new BadRequestException('Usuario no encontrado');
+
+      const { data: perfil, error: perfilError } = await this.supabase
+        .getAdminClient()
+        .from('perfiles')
+        .select('id')
+        .eq('id', user.id)
+        .eq('empresa_id', empresa_id)
+        .maybeSingle();
+
+      if (perfilError || !perfil) {
+        throw new BadRequestException('Usuario no pertenece a esta empresa');
+      }
+
+      const { error } = await this.supabase
+        .getAdminClient()
+        .auth.admin.generateLink({
+          type: 'recovery',
+          email,
+        });
+
+      if (error) throw new Error(error.message);
+      return { success: true };
+    } catch (error) {
+      this.handleError('resetPasswordUsuario', error, 'Error al enviar reset');
+    }
+  }
+
   async crearTransferencia(
     empresa_id: string,
     usuario_id: string,
