@@ -123,8 +123,8 @@ export const ViewTransferencias = ({ usuario }: ViewTransferenciasProps) => {
       operacionesService.getSucursales(),
       operacionesService.getProductos(),
     ]).then(([_, sucRes, prodRes]) => {
-      setSucursales(sucRes?.sucursales || []);
-      setProductos(prodRes?.productos || []);
+      setSucursales(Array.isArray(sucRes) ? sucRes : sucRes?.sucursales || []);
+      setProductos(Array.isArray(prodRes) ? prodRes : prodRes?.productos || []);
     });
   }, []);
 
