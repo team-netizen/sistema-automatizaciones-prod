@@ -52,6 +52,11 @@ export class AlertasService {
         )
         .eq('empresa_id', empresa_id);
 
+      console.log('verificarStockBajo - empresa:', empresa_id);
+      console.log('verificarStockBajo - items encontrados:', data?.length);
+      console.log('verificarStockBajo - error:', error);
+      console.log('verificarStockBajo - primer item:', JSON.stringify(data?.[0]));
+
       if (error || !data) {
         if (error) {
           this.logger.error(`Error consultando stock bajo: ${error.message}`);
