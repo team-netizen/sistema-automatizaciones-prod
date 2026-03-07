@@ -53,15 +53,27 @@ function App() {
     void syncSesion();
   }, [isResetRoute]);
 
+  useEffect(() => {
+    const handleUnload = () => {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+    };
+
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
+  }, []);
+
   const handleLoginSuccess = (_data: unknown) => {
     void syncSesion();
   };
 
   const handleLogout = async () => {
     await cerrarSesion();
-    localStorage.removeItem('refresh_token');
+    localStorage.clear();
+    sessionStorage.clear();
     setIsAuthenticated(false);
     setUsuario(null);
+    window.location.replace('/');
   };
 
   if (isResetRoute) {

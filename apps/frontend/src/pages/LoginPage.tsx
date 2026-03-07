@@ -108,7 +108,7 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
 
                 {/* Panel derecho: formulario */}
                 <div className="login-form-panel">
-                    <form className="login-form" onSubmit={handleSubmit}>
+                    <form className="login-form" onSubmit={handleSubmit} autoComplete="off">
                         <div className="login-form-header">
                             <h2>Bienvenido de vuelta</h2>
                             <p>Ingresa tus credenciales para acceder al sistema</p>
@@ -136,7 +136,7 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     required
-                                    autoComplete="email"
+                                    autoComplete="off"
                                 />
                             </div>
                         </div>
@@ -154,7 +154,7 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     required
-                                    autoComplete="current-password"
+                                    autoComplete="new-password"
                                 />
                                 <button
                                     type="button"
