@@ -369,6 +369,18 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
   const alertasMostrar = alertas;
   const alertasNoLeidas = alertas.filter((a: any) => !a?.leida).length;
 
+  const navegarDesdeAlerta = (alerta: any) => {
+    const msg = alerta?.mensaje?.toLowerCase() || "";
+    if (msg.includes("stock")) {
+      setNav("stock");
+    } else if (msg.includes("transferencia")) {
+      setNav("transferencias");
+    } else if (msg.includes("pedido")) {
+      setNav("pedidos");
+    }
+    setMostrarAlertas(false);
+  };
+
   const metricas = kpisData?.metricas;
   const kpis = metricas
     ? [
@@ -653,14 +665,16 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
                     <div
                       key={alerta.id}
                       onClick={async () => {
-                        if (alerta.leida) return;
                         try {
-                          await operacionesService.marcarAlertaLeida(alerta.id);
-                          setAlertas((prev) =>
-                            prev.map((a: any) => (
-                              a.id === alerta.id ? { ...a, leida: true } : a
-                            )),
-                          );
+                          if (!alerta.leida) {
+                            await operacionesService.marcarAlertaLeida(alerta.id);
+                            setAlertas((prev) =>
+                              prev.map((a: any) => (
+                                a.id === alerta.id ? { ...a, leida: true } : a
+                              )),
+                            );
+                          }
+                          navegarDesdeAlerta(alerta);
                         } catch (error: any) {
                           setErrorAlertas(error?.message || "No se pudo actualizar la alerta.");
                         }
