@@ -831,21 +831,42 @@ export class OperacionesService {
 
   async getReporteProductos(empresa_id: string, inicio: string, fin: string) {
     try {
-      const { data, error } = await this.supabase
-        .getAdminClient()
-        .from('pedido_items')
-        .select(
-          `
-            cantidad, subtotal, sku_producto,
-            producto:productos(id, nombre, sku),
-            pedido:pedidos!inner(empresa_id, fecha_creacion, estado)
-          `,
-        )
-        .eq('pedido.empresa_id', empresa_id)
-        .gte('pedido.fecha_creacion', `${inicio}T00:00:00`)
-        .lte('pedido.fecha_creacion', `${fin}T23:59:59`);
+      const startIso = `${inicio}T00:00:00`;
+      const endIso = `${fin}T23:59:59`;
+      const buildQuery = (field: 'fecha_creacion' | 'fecha_pedido') =>
+        this.supabase
+          .getAdminClient()
+          .from('pedido_items')
+          .select(
+            `
+              id, cantidad, subtotal, precio_unitario, sku_producto,
+              producto:productos(id, nombre, sku),
+              pedido:pedidos!inner(id, empresa_id, fecha_creacion, fecha_pedido, estado)
+            `,
+          )
+          .eq('pedido.empresa_id', empresa_id)
+          .gte(`pedido.${field}`, startIso)
+          .lte(`pedido.${field}`, endIso);
 
-      if (error) throw new Error(error.message);
+      const [porFechaCreacion, porFechaPedido] = await Promise.all([
+        buildQuery('fecha_creacion'),
+        buildQuery('fecha_pedido'),
+      ]);
+
+      if (porFechaCreacion.error && porFechaPedido.error) {
+        throw new Error(porFechaCreacion.error.message || porFechaPedido.error.message);
+      }
+
+      const itemsMap = new Map<string, any>();
+      [...(porFechaCreacion.data || []), ...(porFechaPedido.data || [])].forEach((item: any) => {
+        const key = String(
+          item?.id ||
+          `${item?.pedido?.id || 'pedido'}-${item?.producto?.id || item?.sku_producto || 'sku'}-${item?.cantidad || 0}-${item?.precio_unitario || 0}`,
+        );
+        if (!itemsMap.has(key)) itemsMap.set(key, item);
+      });
+
+      const data = Array.from(itemsMap.values());
 
       const productoMap = new Map<string, any>();
 
@@ -868,7 +889,7 @@ export class OperacionesService {
 
         const row = productoMap.get(key)!;
         row.cantidad += Number(item?.cantidad || 0);
-        row.total += Number(item?.subtotal || 0);
+        row.total += Number(item?.subtotal ?? (Number(item?.cantidad || 0) * Number(item?.precio_unitario || 0)) || 0);
       });
 
       return Array.from(productoMap.values())
