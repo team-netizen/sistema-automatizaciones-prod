@@ -257,6 +257,8 @@ export const ViewReportes = ({ usuario }: { usuario?: any }) => {
     if (tipo === 'canales') exportarCSV(datosCanales || [], 'reporte_canales');
   };
 
+  const productosChart = (datosProductos || []).slice(0, 10);
+
   return (
     <div style={{ color: T.text, fontFamily: `${T.font}, sans-serif` }}>
       <div style={{ ...cardStyle, marginBottom: 16 }}>
@@ -410,22 +412,36 @@ export const ViewReportes = ({ usuario }: { usuario?: any }) => {
       {!loading && reporteActivo === 'productos' && (
         <div style={{ display: 'grid', gap: 16 }}>
           <div style={cardStyle}>
-            <div style={{ width: '100%', height: 400, minWidth: 0, overflow: 'hidden' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart layout="vertical" data={(datosProductos || []).slice(0, 10)} margin={{ left: 24 }}>
-                  <CartesianGrid stroke={T.border2} strokeDasharray="3 3" />
-                  <XAxis type="number" stroke={T.textMid} />
-                  <YAxis type="category" dataKey="nombre" width={220} stroke={T.textMid} />
-                  <Tooltip
-                    formatter={(value: any, name: string) => (
-                      name === 'total' ? money(Number(value || 0)) : Number(value || 0)
-                    )}
-                    contentStyle={{ background: T.surface2, border: `1px solid ${T.border2}` }}
-                  />
-                  <Bar dataKey="cantidad" fill={T.accent} radius={[0, 6, 6, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            {productosChart.length > 0 ? (
+              <div style={{ width: '100%', height: 400, minWidth: 0, overflow: 'hidden' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart layout="vertical" data={productosChart} margin={{ left: 24 }}>
+                    <CartesianGrid stroke={T.border2} strokeDasharray="3 3" />
+                    <XAxis type="number" stroke={T.textMid} />
+                    <YAxis type="category" dataKey="nombre" width={220} stroke={T.textMid} />
+                    <Tooltip
+                      formatter={(value: any, name: string) => (
+                        name === 'total' ? money(Number(value || 0)) : Number(value || 0)
+                      )}
+                      contentStyle={{ background: T.surface2, border: `1px solid ${T.border2}` }}
+                    />
+                    <Bar dataKey="cantidad" fill={T.accent} radius={[0, 6, 6, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div
+                style={{
+                  height: 400,
+                  display: 'grid',
+                  placeItems: 'center',
+                  color: T.textMid,
+                  fontSize: 13,
+                }}
+              >
+                No hay productos vendidos en el periodo seleccionado.
+              </div>
+            )}
           </div>
 
           <div style={cardStyle}>
@@ -438,15 +454,23 @@ export const ViewReportes = ({ usuario }: { usuario?: any }) => {
                 </tr>
               </thead>
               <tbody>
-                {(datosProductos || []).map((row: any) => (
-                  <tr key={`${row.rank}-${row.sku}`} style={{ borderTop: `1px solid ${T.border}` }}>
-                    <td style={{ padding: '10px 8px' }}>{row.rank}</td>
-                    <td style={{ padding: '10px 8px' }}>{row.nombre}</td>
-                    <td style={{ padding: '10px 8px', fontFamily: `${T.fontMono}, monospace` }}>{row.sku}</td>
-                    <td style={{ padding: '10px 8px' }}>{row.cantidad}</td>
-                    <td style={{ padding: '10px 8px' }}>{money(row.total)}</td>
+                {(datosProductos || []).length > 0 ? (
+                  (datosProductos || []).map((row: any) => (
+                    <tr key={`${row.rank}-${row.sku}`} style={{ borderTop: `1px solid ${T.border}` }}>
+                      <td style={{ padding: '10px 8px' }}>{row.rank}</td>
+                      <td style={{ padding: '10px 8px' }}>{row.nombre}</td>
+                      <td style={{ padding: '10px 8px', fontFamily: `${T.fontMono}, monospace` }}>{row.sku}</td>
+                      <td style={{ padding: '10px 8px' }}>{row.cantidad}</td>
+                      <td style={{ padding: '10px 8px' }}>{money(row.total)}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr style={{ borderTop: `1px solid ${T.border}` }}>
+                    <td colSpan={5} style={{ padding: '18px 8px', color: T.textMid, textAlign: 'center' }}>
+                      No hay datos de productos para el rango seleccionado.
+                    </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>

@@ -833,47 +833,64 @@ export class OperacionesService {
     try {
       const startIso = `${inicio}T00:00:00`;
       const endIso = `${fin}T23:59:59`;
-      const buildQuery = (field: 'fecha_creacion' | 'fecha_pedido') =>
-        this.supabase
+      const pedidosMap = new Map<string, any>();
+      let pedidosSuccess = false;
+      let lastPedidosError: unknown = null;
+
+      for (const field of ['fecha_creacion', 'fecha_pedido'] as const) {
+        const { data: pedidos, error } = await this.supabase
           .getAdminClient()
-          .from('pedido_items')
-          .select(
-            `
-              id, cantidad, subtotal, precio_unitario, sku_producto,
-              producto:productos(id, nombre, sku),
-              pedido:pedidos!inner(id, empresa_id, fecha_creacion, fecha_pedido, estado)
-            `,
-          )
-          .eq('pedido.empresa_id', empresa_id)
-          .gte(`pedido.${field}`, startIso)
-          .lte(`pedido.${field}`, endIso);
+          .from('pedidos')
+          .select(`id, estado, ${field}`)
+          .eq('empresa_id', empresa_id)
+          .gte(field, startIso)
+          .lte(field, endIso);
 
-      const [porFechaCreacion, porFechaPedido] = await Promise.all([
-        buildQuery('fecha_creacion'),
-        buildQuery('fecha_pedido'),
-      ]);
+        if (!error) {
+          pedidosSuccess = true;
+          (pedidos || []).forEach((pedido: any) => {
+            const pedidoId = String(pedido?.id || '').trim();
+            if (pedidoId) pedidosMap.set(pedidoId, pedido);
+          });
+          continue;
+        }
 
-      if (porFechaCreacion.error && porFechaPedido.error) {
-        throw new Error(porFechaCreacion.error.message || porFechaPedido.error.message);
+        if (!this.isRecoverableColumnError(error)) {
+          throw new Error(error.message);
+        }
+
+        lastPedidosError = error;
       }
 
-      const itemsMap = new Map<string, any>();
-      [...(porFechaCreacion.data || []), ...(porFechaPedido.data || [])].forEach((item: any) => {
-        const key = String(
-          item?.id ||
-          `${item?.pedido?.id || 'pedido'}-${item?.producto?.id || item?.sku_producto || 'sku'}-${item?.cantidad || 0}-${item?.precio_unitario || 0}`,
-        );
-        if (!itemsMap.has(key)) itemsMap.set(key, item);
-      });
+      if (!pedidosSuccess && lastPedidosError) {
+        throw new Error((lastPedidosError as { message?: string })?.message || 'Error obteniendo pedidos');
+      }
 
-      const data = Array.from(itemsMap.values());
+      const pedidoIds = Array.from(pedidosMap.values())
+        .filter((pedido: any) =>
+          !['cancelado', 'rechazado'].includes(String(pedido?.estado || '').toLowerCase()),
+        )
+        .map((pedido: any) => String(pedido?.id || '').trim())
+        .filter(Boolean);
+
+      if (pedidoIds.length === 0) return [];
+
+      const { data, error } = await this.supabase
+        .getAdminClient()
+        .from('pedido_items')
+        .select(
+          `
+            id, pedido_id, cantidad, subtotal, precio_unitario, sku_producto,
+            producto:productos(id, nombre, sku)
+          `,
+        )
+        .in('pedido_id', pedidoIds);
+
+      if (error) throw new Error(error.message);
 
       const productoMap = new Map<string, any>();
 
       (data || []).forEach((item: any) => {
-        const pedido = item?.pedido as any;
-        if (['cancelado', 'rechazado'].includes(String(pedido?.estado || '').toLowerCase())) return;
-
         const producto = item?.producto as any;
         const key = producto?.id || item?.sku_producto;
         if (!key) return;
