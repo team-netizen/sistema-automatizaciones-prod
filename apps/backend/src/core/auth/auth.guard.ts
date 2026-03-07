@@ -102,7 +102,8 @@ export class SupabaseAuthGuard implements CanActivate {
       throw new ForbiddenException('Empresa no encontrada');
     }
 
-    if (empresa.estado !== 'activo') {
+    const estadoEmpresa = String(empresa.estado ?? '').trim().toLowerCase();
+    if (!['activo', 'activa'].includes(estadoEmpresa)) {
       throw new ForbiddenException(
         `Acceso bloqueado: la empresa se encuentra en estado "${empresa.estado}"`,
       );
