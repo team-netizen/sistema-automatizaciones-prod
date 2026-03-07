@@ -6,6 +6,8 @@ import { type SyncResult, WooCommerceSyncService } from './woocommerce.sync.serv
 
 type WooSyncJobData = {
   empresa_id: string;
+  manual?: boolean;
+  lookback_days?: number;
 };
 
 @Processor('woocommerce-sync')
@@ -46,7 +48,10 @@ export class WooCommerceProcessor extends WorkerHost {
 
   async handleSyncPedidos(job: Job<WooSyncJobData>): Promise<void> {
     const { empresa_id } = job.data;
-    const resultado = await this.wooSyncService.sincronizarPedidosDesdeWoo(empresa_id);
+    const resultado = await this.wooSyncService.sincronizarPedidosDesdeWoo(empresa_id, {
+      manual: Boolean(job.data?.manual),
+      lookbackDays: job.data?.lookback_days,
+    });
     await this.logResultado('sync-pedidos', empresa_id, resultado);
   }
 

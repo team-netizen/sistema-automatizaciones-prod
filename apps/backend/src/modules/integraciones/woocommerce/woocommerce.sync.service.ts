@@ -34,6 +34,11 @@ type ResultadoPedido = {
   mensaje?: string;
 };
 
+type SyncPedidosOptions = {
+  manual?: boolean;
+  lookbackDays?: number;
+};
+
 @Injectable()
 export class WooCommerceSyncService {
   private readonly logger = new Logger(WooCommerceSyncService.name);
@@ -112,7 +117,10 @@ export class WooCommerceSyncService {
     }
   }
 
-  async sincronizarPedidosDesdeWoo(empresa_id: string): Promise<SyncResult> {
+  async sincronizarPedidosDesdeWoo(
+    empresa_id: string,
+    options: SyncPedidosOptions = {},
+  ): Promise<SyncResult> {
     const started = Date.now();
     const result: SyncResult = { exitosos: 0, fallidos: 0, errores: [], duracion_ms: 0 };
     let integracion_id: string | null = null;
@@ -121,7 +129,12 @@ export class WooCommerceSyncService {
       console.log('[WOO SYNC] Iniciando sync de pedidos');
       const integracion = await this.getIntegracionWooActiva(empresa_id);
       integracion_id = integracion.id;
-      const desde = this.parseUltimaSync(integracion.ultima_sincronizacion);
+      const desdeBase = this.parseUltimaSync(integracion.ultima_sincronizacion);
+      const lookbackDays = Math.max(1, Math.trunc(options.lookbackDays || 30));
+      const manualDesde = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000);
+      const desde = options.manual
+        ? new Date(Math.min(desdeBase.getTime(), manualDesde.getTime()))
+        : desdeBase;
       const pedidos = await this.wooClient.getPedidosNuevos(integracion.credenciales, desde);
 
       for (const pedido of pedidos) {
@@ -309,7 +322,10 @@ export class WooCommerceSyncService {
 
     try {
       const duplicado = await this.buscarPedidoDuplicado(empresa_id, wooOrderId);
-      if (duplicado) return { exitoso: true, duplicado: true, mensaje: `Pedido Woo ${wooOrderId} duplicado` };
+      if (duplicado) {
+        await this.backfillPedidoItemsSiFaltan(empresa_id, duplicado, integracion, wooPedido);
+        return { exitoso: true, duplicado: true, mensaje: `Pedido Woo ${wooOrderId} duplicado` };
+      }
 
       const sucursalId = await this.getSucursalParaPedido(empresa_id, wooPedido);
       const canalId = await this.resolverCanalId(empresa_id, integracion.canal_id);
@@ -873,6 +889,59 @@ export class WooCommerceSyncService {
         `Error insertando pedido_items: ${error.message}`
       );
     }
+  }
+
+  private async backfillPedidoItemsSiFaltan(
+    empresa_id: string,
+    pedido_id: string,
+    integracion: IntegracionWoo,
+    wooPedido: WooPedido,
+  ): Promise<void> {
+    const { count, error: countError } = await this.supabase
+      .getAdminClient()
+      .from('pedido_items')
+      .select('*', { count: 'exact', head: true })
+      .eq('pedido_id', pedido_id);
+
+    if (countError) {
+      throw new InternalServerErrorException(
+        `Error verificando pedido_items para pedido ${pedido_id}: ${countError.message}`,
+      );
+    }
+
+    if ((count ?? 0) > 0) return;
+
+    const { data: pedido, error: pedidoError } = await this.supabase
+      .getAdminClient()
+      .from('pedidos')
+      .select('id, sucursal_id, sucursal_asignada_id')
+      .eq('id', pedido_id)
+      .eq('empresa_id', empresa_id)
+      .maybeSingle();
+
+    if (pedidoError || !pedido) {
+      throw new InternalServerErrorException(
+        `No se pudo cargar pedido duplicado ${pedido_id} para backfill`,
+      );
+    }
+
+    const pedidoRow = pedido as Record<string, unknown>;
+    const sucursalId =
+      this.readString(pedidoRow.sucursal_id) ||
+      this.readString(pedidoRow.sucursal_asignada_id) ||
+      null;
+
+    if (!sucursalId) {
+      throw new InternalServerErrorException(
+        `Pedido duplicado ${pedido_id} sin sucursal asociada para insertar items`,
+      );
+    }
+
+    const items = await this.mapearItemsPedido(empresa_id, wooPedido, integracion.id);
+    if (items.length === 0) return;
+
+    console.log('[WOO ITEMS] Backfill de items para pedido duplicado:', pedido_id, 'cantidad items:', items.length);
+    await this.insertarPedidoItems(pedido_id, empresa_id, sucursalId, items);
   }
 
   private async descontarStockSucursal(

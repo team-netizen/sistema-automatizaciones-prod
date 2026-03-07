@@ -128,7 +128,7 @@ export class WooCommerceClient {
         const { data } = await client.get<unknown[]>('/orders', {
           params: {
             after: desde.toISOString(),
-            status: 'processing,pending',
+            status: 'processing,pending,completed',
             per_page: 100,
             page,
           },

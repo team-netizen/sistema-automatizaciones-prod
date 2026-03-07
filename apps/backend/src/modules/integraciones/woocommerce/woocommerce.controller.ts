@@ -39,6 +39,8 @@ type AuthenticatedRequest = Request & {
 
 type WooSyncJobData = {
   empresa_id: string;
+  manual?: boolean;
+  lookback_days?: number;
 };
 
 type EstadoIntegracion = {
@@ -194,7 +196,7 @@ export class WooCommerceController {
       ),
       this.wooQueue.add(
         'sync-pedidos',
-        { empresa_id },
+        { empresa_id, manual: true, lookback_days: 30 },
         {
           jobId: `woocommerce-${empresa_id}-sync-pedidos-manual-${Date.now()}`,
           removeOnComplete: true,
