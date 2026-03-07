@@ -3,6 +3,7 @@ import './index.css';
 import { LoginPage } from './pages/LoginPage';
 import { SuperAdminDashboard } from './components/dashboard/SuperAdminDashboard';
 import AdminEmpresaDashboard from './components/dashboard/AdminEmpresaDashboard';
+import { EncargadoDashboard } from './components/dashboard/EncargadoDashboard';
 import { cerrarSesion, type PerfilUsuario, verificarSesion } from './lib/auth';
 import ResetPassword from './pages/ResetPassword';
 
@@ -91,7 +92,7 @@ function App() {
   }
 
   if (usuario?.rol === 'encargado_sucursal') {
-    return <AdminEmpresaDashboard usuario={usuario} onLogout={handleLogout} />;
+    return <EncargadoDashboard usuario={usuario} />;
   }
 
   if (usuario?.rol === 'vendedor') {

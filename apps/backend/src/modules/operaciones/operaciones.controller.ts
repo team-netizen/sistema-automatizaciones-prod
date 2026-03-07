@@ -44,6 +44,17 @@ export class OperacionesController {
     return this.operacionesService.getDashboardMetrics(empresaId);
   }
 
+  @Get('encargado/dashboard')
+  @Roles('encargado_sucursal', 'admin_empresa', 'super_admin')
+  getDashboardEncargado(@Req() req: AuthenticatedRequest) {
+    const empresaId = req.perfil.empresa_id;
+    const sucursalId = req.perfil.sucursal_id;
+    if (!empresaId || !sucursalId) {
+      throw new ForbiddenException('empresa_id y sucursal_id requeridos');
+    }
+    return this.operacionesService.getDashboardEncargado(empresaId, sucursalId);
+  }
+
   @Get('productos/criticos')
   @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
   getProductosCriticos(@Req() req: AuthenticatedRequest) {
@@ -278,8 +289,31 @@ export class OperacionesController {
     return this.operacionesService.verificarStockBajoEmpresa(empresaId);
   }
 
+  @Get('movimientos')
+  @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
+  getMovimientos(
+    @Req() req: AuthenticatedRequest,
+    @Query('sucursal_id') sucursalId?: string,
+    @Query('inicio') inicio?: string,
+    @Query('fin') fin?: string,
+    @Query('tipo') tipo?: string,
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    const sucursalEncargado = req.perfil.sucursal_id || undefined;
+    if (req.perfil.rol === 'encargado_sucursal' && !sucursalEncargado) {
+      throw new ForbiddenException('sucursal_id requerido para encargado_sucursal');
+    }
+
+    const sucursalFinal = req.perfil.rol === 'encargado_sucursal'
+      ? sucursalEncargado
+      : sucursalId;
+
+    return this.operacionesService.getMovimientos(empresaId, sucursalFinal, inicio, fin, tipo);
+  }
+
   @Get('transferencias')
-  @Roles('admin_empresa', 'super_admin')
+  @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
   async getTransferencias(
     @Req() req: AuthenticatedRequest,
     @Query('estado') estado?: string,
@@ -287,14 +321,21 @@ export class OperacionesController {
   ) {
     const empresaId = req.perfil.empresa_id;
     if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    const sucursalEncargado = req.perfil.sucursal_id || undefined;
+    if (req.perfil.rol === 'encargado_sucursal' && !sucursalEncargado) {
+      throw new ForbiddenException('sucursal_id requerido para encargado_sucursal');
+    }
+    const sucursalFinal = req.perfil.rol === 'encargado_sucursal'
+      ? sucursalEncargado
+      : sucursalId;
     return this.operacionesService.getTransferencias(empresaId, {
       estado,
-      sucursalId,
+      sucursalId: sucursalFinal,
     });
   }
 
   @Post('transferencias')
-  @Roles('admin_empresa', 'super_admin')
+  @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
   async crearTransferencia(
     @Req() req: AuthenticatedRequest,
     @Body() body: any,
@@ -302,7 +343,16 @@ export class OperacionesController {
     const empresaId = req.perfil.empresa_id;
     const usuarioId = req.perfil.id;
     if (!empresaId) throw new ForbiddenException('empresa_id requerido');
-    return this.operacionesService.crearTransferencia(empresaId, usuarioId, body);
+    const sucursalEncargado = req.perfil.sucursal_id || undefined;
+    if (req.perfil.rol === 'encargado_sucursal' && !sucursalEncargado) {
+      throw new ForbiddenException('sucursal_id requerido para encargado_sucursal');
+    }
+
+    const payload = req.perfil.rol === 'encargado_sucursal'
+      ? { ...body, sucursal_origen_id: sucursalEncargado }
+      : body;
+
+    return this.operacionesService.crearTransferencia(empresaId, usuarioId, payload);
   }
 
   @Post('transferencias/:id/aprobar')
@@ -327,6 +377,27 @@ export class OperacionesController {
     const empresaId = req.perfil.empresa_id;
     if (!empresaId) throw new ForbiddenException('empresa_id requerido');
     return this.operacionesService.rechazarTransferencia(empresaId, id, body.motivo);
+  }
+
+  @Patch('transferencias/:id/completar')
+  @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
+  completarTransferencia(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    const usuarioId = req.perfil.id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    const sucursalEncargado = req.perfil.sucursal_id || undefined;
+    if (req.perfil.rol === 'encargado_sucursal' && !sucursalEncargado) {
+      throw new ForbiddenException('sucursal_id requerido para encargado_sucursal');
+    }
+    return this.operacionesService.completarTransferencia(
+      empresaId,
+      id,
+      usuarioId,
+      req.perfil.rol === 'encargado_sucursal' ? sucursalEncargado : undefined,
+    );
   }
 
   @Get('stock')
@@ -356,7 +427,7 @@ export class OperacionesController {
   }
 
   @Patch('stock/ajuste')
-  @Roles('admin_empresa', 'super_admin')
+  @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
   async ajustarStock(
     @Req() req: AuthenticatedRequest,
     @Body()
@@ -371,7 +442,16 @@ export class OperacionesController {
     const empresaId = req.perfil.empresa_id;
     const usuarioId = req.perfil.id;
     if (!empresaId) throw new ForbiddenException('empresa_id requerido');
-    return this.operacionesService.ajustarStock(empresaId, usuarioId, body);
+    const sucursalEncargado = req.perfil.sucursal_id || undefined;
+    if (req.perfil.rol === 'encargado_sucursal' && !sucursalEncargado) {
+      throw new ForbiddenException('sucursal_id requerido para encargado_sucursal');
+    }
+
+    const payload = req.perfil.rol === 'encargado_sucursal'
+      ? { ...body, sucursal_id: sucursalEncargado as string }
+      : body;
+
+    return this.operacionesService.ajustarStock(empresaId, usuarioId, payload);
   }
 
   @Get('reportes/ventas')
