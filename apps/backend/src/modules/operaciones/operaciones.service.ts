@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { parse } from 'csv-parse/sync';
 import { SupabaseService } from '../../shared/supabase/supabase.service';
+import { AlertasService } from './alertas.service';
 
 type DashboardMetricas = {
   total_productos: number;
@@ -34,7 +35,10 @@ type SucursalPayload = {
 export class OperacionesService {
   private readonly logger = new Logger(OperacionesService.name);
 
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly alertasService: AlertasService,
+  ) {}
 
   async getDashboardMetrics(empresa_id: string): Promise<{ metricas: DashboardMetricas }> {
     try {
@@ -727,8 +731,16 @@ export class OperacionesService {
     }
   }
 
-  async getAlertas(empresa_id: string, filters?: any): Promise<any[]> {
+  async getAlertas(
+    empresa_id: string,
+    filtersOrLimit?: Record<string, unknown> | number,
+    soloNoLeidas = false,
+  ): Promise<any[]> {
     try {
+      const filters =
+        typeof filtersOrLimit === 'number'
+          ? { limit: filtersOrLimit, solo_no_leidas: soloNoLeidas }
+          : (filtersOrLimit ?? {});
       const limit = this.toPositiveInt(filters?.limit, 100);
       const page = this.toPositiveInt(filters?.page, 1);
       const offset = (page - 1) * limit;
@@ -743,7 +755,9 @@ export class OperacionesService {
         query = query.eq('nivel', String(filters.nivel));
       }
 
-      if (filters?.leida !== undefined) {
+      if (String(filters?.solo_no_leidas ?? '').toLowerCase() === 'true') {
+        query = query.eq('leida', false);
+      } else if (filters?.leida !== undefined) {
         const leida = String(filters.leida).toLowerCase() === 'true';
         query = query.eq('leida', leida);
       }
@@ -955,16 +969,24 @@ export class OperacionesService {
         if (error) throw new Error(error.message);
       }
 
-      return {
+      const result = {
         success: true,
         cantidad_anterior: cantidadActual,
         cantidad_nueva: nuevaCantidad,
         tipo: data.tipo,
         motivo: data.motivo,
       };
+
+      this.alertasService.verificarStockBajo(empresa_id).catch(() => {});
+
+      return result;
     } catch (error) {
       this.handleError('ajustarStock', error, 'Error al ajustar stock');
     }
+  }
+
+  async verificarStockBajoEmpresa(empresa_id: string) {
+    return this.alertasService.verificarStockBajo(empresa_id);
   }
 
   async getIntegraciones(empresa_id: string): Promise<any[]> {
@@ -1513,6 +1535,16 @@ export class OperacionesService {
         throw itemsError;
       }
 
+      if (Boolean(transferencia.aprobacion_requerida ?? true)) {
+        const ruta = await this.getTransferenciaRutaTexto(
+          empresa_id,
+          data.sucursal_origen_id,
+          data.sucursal_destino_id,
+        );
+        const mensaje = `Transferencia pendiente: ${ruta} (${data.items.length} producto(s))`;
+        this.alertasService.generarAlerta(empresa_id, mensaje, 'warning').catch(() => {});
+      }
+
       if (!Boolean(transferencia.aprobacion_requerida ?? true)) {
         await this.supabase
           .getAdminClient()
@@ -1527,6 +1559,7 @@ export class OperacionesService {
           .eq('empresa_id', empresa_id);
 
         await this.ejecutarTransferencia(empresa_id, transferenciaId, usuario_id);
+        this.alertasService.verificarStockBajo(empresa_id).catch(() => {});
       }
 
       return {
@@ -1571,6 +1604,16 @@ export class OperacionesService {
       if (updateError) throw updateError;
 
       const resultado = await this.ejecutarTransferencia(empresa_id, id, usuario_id);
+      const ruta = await this.getTransferenciaRutaTexto(
+        empresa_id,
+        this.readString(transferencia as Record<string, unknown>, 'sucursal_origen_id'),
+        this.readString(transferencia as Record<string, unknown>, 'sucursal_destino_id'),
+      );
+      this.alertasService
+        .generarAlerta(empresa_id, `Transferencia aprobada: ${ruta}`, 'info')
+        .catch(() => {});
+      this.alertasService.verificarStockBajo(empresa_id).catch(() => {});
+
       if (resultado.parcial) {
         return {
           success: true,
@@ -1590,7 +1633,7 @@ export class OperacionesService {
       const { data: transferencia, error } = await this.supabase
         .getAdminClient()
         .from('transferencias')
-        .select('estado')
+        .select('estado, sucursal_origen_id, sucursal_destino_id')
         .eq('id', id)
         .eq('empresa_id', empresa_id)
         .maybeSingle();
@@ -1615,6 +1658,14 @@ export class OperacionesService {
         .eq('empresa_id', empresa_id);
 
       if (rejectError) throw rejectError;
+      const ruta = await this.getTransferenciaRutaTexto(
+        empresa_id,
+        this.readString(transferencia as Record<string, unknown>, 'sucursal_origen_id'),
+        this.readString(transferencia as Record<string, unknown>, 'sucursal_destino_id'),
+      );
+      this.alertasService
+        .generarAlerta(empresa_id, `Transferencia rechazada: ${ruta}`, 'info')
+        .catch(() => {});
       return { success: true, message: 'Transferencia rechazada' };
     } catch (error) {
       this.handleError('rechazarTransferencia', error, 'Error al rechazar transferencia');
@@ -1969,6 +2020,22 @@ export class OperacionesService {
     }
 
     return map;
+  }
+
+  private async getTransferenciaRutaTexto(
+    empresa_id: string,
+    sucursalOrigenId: string | null,
+    sucursalDestinoId: string | null,
+  ): Promise<string> {
+    const ids = [sucursalOrigenId, sucursalDestinoId].filter(
+      (id): id is string => typeof id === 'string' && id.length > 0,
+    );
+    const sucursalesMap = await this.getSucursalesMap(empresa_id, ids);
+    const origen = sucursalOrigenId ? sucursalesMap.get(sucursalOrigenId) ?? sucursalOrigenId : 'Origen';
+    const destino = sucursalDestinoId
+      ? sucursalesMap.get(sucursalDestinoId) ?? sucursalDestinoId
+      : 'Destino';
+    return `${origen} -> ${destino}`;
   }
 
   private uniqueIds(rows: Array<Record<string, unknown>>, key: string): string[] {

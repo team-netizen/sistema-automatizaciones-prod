@@ -19,6 +19,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { EmpresaGuard } from '../../core/auth/empresa.guard';
 import { Roles } from '../../core/auth/roles.decorator';
 import { PerfilUsuario, RolesGuard } from '../../core/auth/roles.guard';
+import { AlertasService } from './alertas.service';
 import { OperacionesService } from './operaciones.service';
 
 type AuthenticatedRequest = Request & {
@@ -28,7 +29,10 @@ type AuthenticatedRequest = Request & {
 @Controller('operaciones')
 @UseGuards(RolesGuard, EmpresaGuard)
 export class OperacionesController {
-  constructor(private readonly operacionesService: OperacionesService) {}
+  constructor(
+    private readonly operacionesService: OperacionesService,
+    private readonly alertasService: AlertasService,
+  ) {}
 
   @Get('dashboard')
   @Roles('admin_empresa', 'super_admin')
@@ -227,13 +231,51 @@ export class OperacionesController {
   @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
   getAlertas(
     @Req() req: AuthenticatedRequest,
-    @Query() filters: Record<string, string>,
+    @Query('limit') limit?: string,
+    @Query('solo_no_leidas') soloNoLeidas?: string,
   ) {
     const empresaId = req.perfil.empresa_id;
     if (!empresaId) {
-      throw new ForbiddenException('super_admin debe especificar empresa_id');
+      throw new ForbiddenException('empresa_id requerido');
     }
-    return this.operacionesService.getAlertas(empresaId, filters);
+    return this.operacionesService.getAlertas(
+      empresaId,
+      limit ? parseInt(limit, 10) : 20,
+      soloNoLeidas === 'true',
+    );
+  }
+
+  @Patch('alertas/:id/leer')
+  @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
+  marcarAlertaLeida(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) {
+      throw new ForbiddenException('empresa_id requerido');
+    }
+    return this.alertasService.marcarLeida(empresaId, id);
+  }
+
+  @Patch('alertas/leer-todas')
+  @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
+  marcarTodasLeidas(@Req() req: AuthenticatedRequest) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) {
+      throw new ForbiddenException('empresa_id requerido');
+    }
+    return this.alertasService.marcarTodasLeidas(empresaId);
+  }
+
+  @Post('alertas/verificar-stock')
+  @Roles('admin_empresa', 'super_admin')
+  verificarStockBajo(@Req() req: AuthenticatedRequest) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) {
+      throw new ForbiddenException('empresa_id requerido');
+    }
+    return this.operacionesService.verificarStockBajoEmpresa(empresaId);
   }
 
   @Get('transferencias')

@@ -165,9 +165,32 @@ export const operacionesService = {
     return parseOrThrow(response, 'Error al obtener pedidos');
   },
 
-  getAlertas: async () => {
-    const response = await authFetch(`${API_URL}/operaciones/alertas`);
+  getAlertas: async (filters?: { limit?: number; solo_no_leidas?: boolean }) => {
+    const response = await authFetch(
+      `${API_URL}/operaciones/alertas${buildQueryString(filters as QueryFilters)}`,
+    );
     return parseOrThrow(response, 'Error al obtener alertas');
+  },
+
+  marcarAlertaLeida: async (id: string) => {
+    const response = await authFetch(`${API_URL}/operaciones/alertas/${id}/leer`, {
+      method: 'PATCH',
+    });
+    return parseOrThrow(response, 'Error al marcar alerta');
+  },
+
+  marcarTodasAlertasLeidas: async () => {
+    const response = await authFetch(`${API_URL}/operaciones/alertas/leer-todas`, {
+      method: 'PATCH',
+    });
+    return parseOrThrow(response, 'Error al marcar alertas');
+  },
+
+  verificarStockBajo: async () => {
+    const response = await authFetch(`${API_URL}/operaciones/alertas/verificar-stock`, {
+      method: 'POST',
+    });
+    return parseOrThrow(response, 'Error al verificar stock');
   },
 
   getReportes: async () => {

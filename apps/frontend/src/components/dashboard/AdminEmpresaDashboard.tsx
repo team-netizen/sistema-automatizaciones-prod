@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react';
 import { operacionesService } from '../../modules/operaciones/services/operacionesService';
 import WooCommerceModal from '../integraciones/WooCommerceModal';
 import { ViewIntegraciones } from './ViewIntegraciones';
-import { NotificacionesBell } from './NotificacionesBell';
 import { ViewProductos } from './ViewProductos';
 import { ViewStock } from './ViewStock';
 import { ViewTransferencias } from './ViewTransferencias';
@@ -182,6 +181,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
   const [integraciones, setIntegraciones] = useState<any[]>([]);
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [alertas, setAlertas] = useState<any[]>([]);
+  const [mostrarAlertas, setMostrarAlertas] = useState(false);
   const [errorAlertas, setErrorAlertas] = useState("");
   const [kpisData, setKpisData] = useState<any>(null);
   const [search, setSearch]   = useState("");
@@ -280,10 +280,27 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
   }, []);
 
   useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target?.closest("[data-alertas-dropdown]")) {
+        setMostrarAlertas(false);
+      }
+    };
+
+    if (mostrarAlertas) {
+      document.addEventListener("click", handleClick);
+    }
+
+    return () => document.removeEventListener("click", handleClick);
+  }, [mostrarAlertas]);
+
+  useEffect(() => {
     const loadAll = async () => {
       setLoading(true);
       setErrorAlertas("");
       try {
+        await operacionesService.verificarStockBajo().catch(() => {});
+
         const [
           statsRes,
           pedidosRes,
@@ -297,7 +314,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
           operacionesService.getSucursales(),
           operacionesService.getTransferencias(),
           operacionesService.getIntegraciones(),
-          operacionesService.getAlertas(),
+          operacionesService.getAlertas({ limit: 20 }),
         ]);
 
         if (statsRes.status === "fulfilled") {
@@ -350,6 +367,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
   const integracionesMostrar = integraciones.length > 0 ? integraciones : MOCK.integraciones;
   const usuariosMostrar = usuarios.length > 0 ? usuarios : MOCK.usuarios;
   const alertasMostrar = alertas;
+  const alertasNoLeidas = alertas.filter((a: any) => !a?.leida).length;
 
   const metricas = kpisData?.metricas;
   const kpis = metricas
@@ -407,11 +425,14 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
   });
 
   const normalizeAlerta = (a: any) => ({
+    id: a?.id ?? `${a?.mensaje ?? "alerta"}-${a?.fecha_generada ?? a?.created_at ?? ""}`,
     tipo: a?.tipo ?? "alerta",
     mensaje: a?.mensaje ?? a?.descripcion ?? "Alerta",
     nivel: a?.nivel ?? "info",
-    tiempo: a?.tiempo ?? a?.created_at ?? "-",
+    tiempo: a?.tiempo ?? a?.fecha_generada ?? a?.created_at ?? "-",
     sucursal: a?.sucursal ?? a?.sucursal_nombre ?? "-",
+    leida: Boolean(a?.leida),
+    fecha_generada: a?.fecha_generada ?? a?.created_at ?? null,
   });
 
   const DATA = {
@@ -531,14 +552,163 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
         <span style={{ fontFamily:T.fontMono, fontSize:11, color:T.textDim }}>
           {time.toLocaleTimeString("es-PE",{hour:"2-digit",minute:"2-digit"})}
         </span>
-        <NotificacionesBell
-          iconColor={T.textMid}
-          panelBackground={T.surface2}
-          panelBorder={T.border}
-          textColor={T.text}
-          mutedColor={T.textMid}
-          accentColor={T.accent}
-        />
+        <div data-alertas-dropdown>
+          <button
+            type="button"
+            onClick={() => setMostrarAlertas(!mostrarAlertas)}
+            style={{
+              position:"relative",
+              background:"none",
+              border:"none",
+              cursor:"pointer",
+              width:20,
+              height:20,
+              display:"grid",
+              placeItems:"center",
+              padding:0,
+            }}
+            aria-label="Abrir notificaciones"
+          >
+            <Ico d={IC.bell} size={17} color={T.textMid} />
+            {alertasNoLeidas > 0 && (
+              <span style={{
+                position:"absolute",
+                top:-4,
+                right:-6,
+                background:"#ef4444",
+                color:"#fff",
+                borderRadius:"50%",
+                minWidth:16,
+                height:16,
+                fontSize:10,
+                fontWeight:700,
+                display:"flex",
+                alignItems:"center",
+                justifyContent:"center",
+                padding:"0 4px",
+              }}>
+                {alertasNoLeidas > 9 ? "9+" : alertasNoLeidas}
+              </span>
+            )}
+          </button>
+
+          {mostrarAlertas && (
+            <div style={{
+              position:"absolute",
+              top:56,
+              right:16,
+              width:360,
+              maxWidth:"calc(100vw - 32px)",
+              maxHeight:480,
+              overflowY:"auto",
+              background:T.surface,
+              border:`1px solid ${T.border2}`,
+              borderRadius:12,
+              zIndex:1000,
+              boxShadow:"0 8px 32px #000a",
+            }}>
+              <div style={{
+                display:"flex",
+                justifyContent:"space-between",
+                alignItems:"center",
+                padding:"12px 16px",
+                borderBottom:`1px solid ${T.border}`,
+              }}>
+                <span style={{ fontWeight:700, fontSize:14, color:T.text }}>
+                  Notificaciones
+                </span>
+                {alertasNoLeidas > 0 && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await operacionesService.marcarTodasAlertasLeidas();
+                        setAlertas((prev) => prev.map((a: any) => ({ ...a, leida: true })));
+                      } catch (error: any) {
+                        setErrorAlertas(error?.message || "No se pudieron marcar las alertas.");
+                      }
+                    }}
+                    style={{
+                      background:"none",
+                      border:"none",
+                      cursor:"pointer",
+                      color:T.accent,
+                      fontSize:12,
+                    }}
+                  >
+                    Marcar todas como leidas
+                  </button>
+                )}
+              </div>
+
+              {alertas.length === 0 ? (
+                <div style={{ padding:24, textAlign:"center", color:T.textMid, fontSize:13 }}>
+                  Sin notificaciones
+                </div>
+              ) : (
+                alertas
+                  .map(normalizeAlerta)
+                  .slice(0, 20)
+                  .map((alerta: any) => (
+                    <div
+                      key={alerta.id}
+                      onClick={async () => {
+                        if (alerta.leida) return;
+                        try {
+                          await operacionesService.marcarAlertaLeida(alerta.id);
+                          setAlertas((prev) =>
+                            prev.map((a: any) => (
+                              a.id === alerta.id ? { ...a, leida: true } : a
+                            )),
+                          );
+                        } catch (error: any) {
+                          setErrorAlertas(error?.message || "No se pudo actualizar la alerta.");
+                        }
+                      }}
+                      style={{
+                        padding:"12px 16px",
+                        borderBottom:`1px solid ${T.border}`,
+                        background:alerta.leida ? "transparent" : T.surface2,
+                        cursor:alerta.leida ? "default" : "pointer",
+                        display:"flex",
+                        gap:10,
+                        alignItems:"flex-start",
+                      }}
+                    >
+                      <span style={{ fontSize:16, flexShrink:0 }}>
+                        {alerta.nivel === "critico" ? "🔴" :
+                         alerta.nivel === "warning" ? "⚠️" : "ℹ️"}
+                      </span>
+                      <div style={{ flex:1 }}>
+                        <div style={{
+                          fontSize:12,
+                          color: alerta.leida ? T.textMid : T.text,
+                          lineHeight:1.4,
+                        }}>
+                          {alerta.mensaje}
+                        </div>
+                        <div style={{ fontSize:10, color:T.textMid, marginTop:4 }}>
+                          {alerta.fecha_generada
+                            ? new Date(alerta.fecha_generada).toLocaleString("es-PE")
+                            : "-"}
+                        </div>
+                      </div>
+                      {!alerta.leida && (
+                        <div style={{
+                          width:8,
+                          height:8,
+                          borderRadius:"50%",
+                          background:T.accent,
+                          flexShrink:0,
+                          marginTop:4,
+                        }} />
+                      )}
+                    </div>
+                  ))
+              )}
+            </div>
+          )}
+        </div>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
           <div style={{ textAlign:"right" }}>
             <div style={{ fontSize:11, fontWeight:600, color:T.text }}>
