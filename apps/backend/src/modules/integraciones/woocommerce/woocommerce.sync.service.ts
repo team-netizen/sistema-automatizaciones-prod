@@ -118,6 +118,7 @@ export class WooCommerceSyncService {
     let integracion_id: string | null = null;
 
     try {
+      console.log('[WOO SYNC] Iniciando sync de pedidos');
       const integracion = await this.getIntegracionWooActiva(empresa_id);
       integracion_id = integracion.id;
       const desde = this.parseUltimaSync(integracion.ultima_sincronizacion);
@@ -834,6 +835,8 @@ export class WooCommerceSyncService {
   ): Promise<void> {
     if (items.length === 0) return;
 
+    console.log('[WOO ITEMS] Insertando items para pedido:', pedido_id, 'cantidad items:', items.length);
+
     // Mantiene la firma actual sin persistir sucursal_id en pedido_items.
     void sucursal_id;
 
@@ -865,6 +868,7 @@ export class WooCommerceSyncService {
       );
 
     if (error) {
+      console.error('[WOO ITEMS ERROR]', JSON.stringify(error));
       throw new InternalServerErrorException(
         `Error insertando pedido_items: ${error.message}`
       );
