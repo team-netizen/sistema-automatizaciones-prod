@@ -17,11 +17,19 @@ export class WooCommerceScheduler implements OnModuleInit {
     @InjectQueue('woocommerce-sync')
     private readonly woocommerceQueue: Queue<WooSyncJobData>,
     private readonly supabase: SupabaseService,
-  ) {}
+  ) {
+    console.log('[WOO SCHEDULER] constructor ejecutado');
+  }
 
   async onModuleInit(): Promise<void> {
-    console.log('[WOO SCHEDULER] onModuleInit iniciado');
-    await this.registrarJobsActivos();
+    try {
+      console.log('[WOO SCHEDULER] onModuleInit iniciado');
+      await this.registrarJobsActivos();
+      console.log('[WOO SCHEDULER] onModuleInit completado');
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      console.error('[WOO SCHEDULER ERROR]', error.message, error.stack);
+    }
   }
 
   async registrarJobsActivos(): Promise<void> {
