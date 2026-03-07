@@ -364,7 +364,7 @@ export const ViewReportes = ({ usuario }: { usuario?: any }) => {
           </div>
 
           <div style={cardStyle}>
-            <div style={{ width: '100%', height: 320, minWidth: 0 }}>
+            <div style={{ width: '100%', height: 320, minWidth: 0, overflow: 'hidden' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={datosVentas?.porDia || []}>
                   <CartesianGrid stroke={T.border2} strokeDasharray="3 3" />
@@ -410,7 +410,7 @@ export const ViewReportes = ({ usuario }: { usuario?: any }) => {
       {!loading && reporteActivo === 'productos' && (
         <div style={{ display: 'grid', gap: 16 }}>
           <div style={cardStyle}>
-            <div style={{ width: '100%', height: 400, minWidth: 0 }}>
+            <div style={{ width: '100%', height: 400, minWidth: 0, overflow: 'hidden' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart layout="vertical" data={(datosProductos || []).slice(0, 10)} margin={{ left: 24 }}>
                   <CartesianGrid stroke={T.border2} strokeDasharray="3 3" />
@@ -519,7 +519,7 @@ export const ViewReportes = ({ usuario }: { usuario?: any }) => {
       {!loading && reporteActivo === 'canales' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: 16 }}>
           <div style={cardStyle}>
-            <div style={{ width: '100%', height: 360, minWidth: 0 }}>
+            <div style={{ width: '100%', height: 360, minWidth: 0, overflow: 'hidden' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
