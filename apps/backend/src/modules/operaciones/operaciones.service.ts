@@ -1535,6 +1535,13 @@ export class OperacionesService {
         throw itemsError;
       }
 
+      console.log(
+        'TRANSFERENCIA aprobacion_requerida:',
+        transferencia.aprobacion_requerida,
+        'data.aprobacion_requerida:',
+        data.aprobacion_requerida,
+      );
+
       if (Boolean(transferencia.aprobacion_requerida ?? true)) {
         const ruta = await this.getTransferenciaRutaTexto(
           empresa_id,
