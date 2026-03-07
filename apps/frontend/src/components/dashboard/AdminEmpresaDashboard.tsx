@@ -182,6 +182,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
   const [integraciones, setIntegraciones] = useState<any[]>([]);
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [alertas, setAlertas] = useState<any[]>([]);
+  const [errorAlertas, setErrorAlertas] = useState("");
   const [kpisData, setKpisData] = useState<any>(null);
   const [search, setSearch]   = useState("");
   const [filterEstado, setFilterEstado] = useState("todos");
@@ -281,6 +282,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
   useEffect(() => {
     const loadAll = async () => {
       setLoading(true);
+      setErrorAlertas("");
       try {
         const [
           statsRes,
@@ -324,6 +326,13 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
         if (alertasRes.status === "fulfilled") {
           const rows = toRows(alertasRes.value, ["alertas", "data", "items"]);
           setAlertas(rows);
+          setErrorAlertas("");
+        } else {
+          setAlertas([]);
+          const reasonMsg =
+            (alertasRes as PromiseRejectedResult)?.reason?.message ||
+            "No se pudieron cargar alertas reales.";
+          setErrorAlertas(String(reasonMsg));
         }
       } catch (err) {
         console.error("Error cargando dashboard:", err);
@@ -340,7 +349,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
   const transferenciasMostrar = transferencias.length > 0 ? transferencias : MOCK.transferencias;
   const integracionesMostrar = integraciones.length > 0 ? integraciones : MOCK.integraciones;
   const usuariosMostrar = usuarios.length > 0 ? usuarios : MOCK.usuarios;
-  const alertasMostrar = alertas.length > 0 ? alertas : MOCK.alertas;
+  const alertasMostrar = alertas;
 
   const metricas = kpisData?.metricas;
   const kpis = metricas
@@ -402,7 +411,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     mensaje: a?.mensaje ?? a?.descripcion ?? "Alerta",
     nivel: a?.nivel ?? "info",
     tiempo: a?.tiempo ?? a?.created_at ?? "-",
-    sucursal: a?.sucursal ?? a?.sucursal_nombre ?? "Ã¢â‚¬â€",
+    sucursal: a?.sucursal ?? a?.sucursal_nombre ?? "-",
   });
 
   const DATA = {
@@ -941,6 +950,30 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
   // â”€â”€ VISTA: ALERTAS â”€â”€
   const ViewAlertas = () => (
     <div className="fade" style={{ display:"flex", flexDirection:"column", gap:10 }}>
+      {errorAlertas && (
+        <div style={{
+          background:"#1a0500",
+          border:"1px solid #ef444433",
+          borderRadius:8,
+          padding:"10px 14px",
+          color:"#ef4444",
+          fontSize:11
+        }}>
+          {errorAlertas}
+        </div>
+      )}
+      {DATA.alertas.length === 0 && !errorAlertas && (
+        <div style={{
+          background:T.surface,
+          border:`1px solid ${T.border}`,
+          borderRadius:8,
+          padding:"14px 20px",
+          color:T.textMid,
+          fontSize:11
+        }}>
+          No hay alertas registradas para tu empresa.
+        </div>
+      )}
       {DATA.alertas.map((a,i) => {
         const c = a.nivel==="critico"?"#ef4444":a.nivel==="warning"?"#f59e0b":"#38bdf8";
         return (
@@ -954,7 +987,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
               <div style={{ fontSize:12, fontWeight:600, color:T.text,
                 marginBottom:3 }}>{a.mensaje}</div>
               <div style={{ fontSize:10, color:T.textMid, fontFamily:T.fontMono }}>
-                {a.sucursal !== "â€”" && `${a.sucursal} Â· `}{a.tiempo}
+                {a.sucursal !== "-" && `${a.sucursal} · `}{a.tiempo}
               </div>
             </div>
             <span style={{ background:`${c}15`, color:c, padding:"3px 10px",
