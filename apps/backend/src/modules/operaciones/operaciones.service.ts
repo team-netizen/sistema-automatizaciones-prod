@@ -889,7 +889,8 @@ export class OperacionesService {
 
         const row = productoMap.get(key)!;
         row.cantidad += Number(item?.cantidad || 0);
-        row.total += Number(item?.subtotal ?? (Number(item?.cantidad || 0) * Number(item?.precio_unitario || 0)) || 0);
+        const subtotal = item?.subtotal ?? (Number(item?.cantidad || 0) * Number(item?.precio_unitario || 0));
+        row.total += Number(subtotal || 0);
       });
 
       return Array.from(productoMap.values())
