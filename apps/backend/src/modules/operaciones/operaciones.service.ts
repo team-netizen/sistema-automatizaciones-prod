@@ -1518,6 +1518,13 @@ export class OperacionesService {
         cantidad_recibida: 0,
       }));
 
+      console.log(
+        'ANTES INSERT ITEMS - transferenciaId:',
+        transferenciaId,
+        'items:',
+        JSON.stringify(data.items),
+      );
+
       const { data: itemsInsertados, error: itemsError } = await this.supabase
         .getAdminClient()
         .from('transferencia_items')
