@@ -92,7 +92,7 @@ function App() {
   }
 
   if (usuario?.rol === 'encargado_sucursal') {
-    return <EncargadoDashboard usuario={usuario} />;
+    return <EncargadoDashboard usuario={usuario} onLogout={handleLogout} />;
   }
 
   if (usuario?.rol === 'vendedor') {

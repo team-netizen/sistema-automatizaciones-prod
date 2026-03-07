@@ -113,7 +113,7 @@ function PlaceholderView({ title, detail }: { title: string; detail: string }) {
   );
 }
 
-export const EncargadoDashboard = ({ usuario }: { usuario?: any }) => {
+export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLogout?: () => void }) => {
   const [view, setView] = useState('home');
   const [loading, setLoading] = useState(true);
   const [stockRows, setStockRows] = useState<any[]>([]);
@@ -127,11 +127,6 @@ export const EncargadoDashboard = ({ usuario }: { usuario?: any }) => {
   const empresaNombre = usuario?.empresa_nombre || usuario?.empresa || 'Sistema';
   const usuarioNombre = usuario?.nombre || usuario?.email || 'Usuario';
   const sucursalId = String(usuario?.sucursal_id || '');
-
-  const handleLogout = () => {
-    localStorage.clear();
-    window.location.href = '/login';
-  };
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -580,7 +575,7 @@ export const EncargadoDashboard = ({ usuario }: { usuario?: any }) => {
 
         <div style={{ borderTop: `1px solid ${T.border}`, marginTop: 'auto', paddingTop: 16 }}>
           <button
-            onClick={handleLogout}
+            onClick={onLogout}
             type="button"
             style={{
               alignItems: 'center',
