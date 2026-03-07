@@ -120,7 +120,7 @@ export const EncargadoDashboard = ({ usuario }: { usuario?: any }) => {
   const [pedidos, setPedidos] = useState<any[]>([]);
   const [transferencias, setTransferencias] = useState<any[]>([]);
   const [alertas, setAlertas] = useState<any[]>([]);
-  const [sucursalNombre, setSucursalNombre] = useState('Sucursal asignada');
+  const [nombreSucursal, setNombreSucursal] = useState('Cargando...');
   const [mostrarAlertas, setMostrarAlertas] = useState(false);
   const [errorAlertas, setErrorAlertas] = useState('');
 
@@ -147,6 +147,22 @@ export const EncargadoDashboard = ({ usuario }: { usuario?: any }) => {
 
     return () => document.removeEventListener('click', handleClick);
   }, [mostrarAlertas]);
+
+  useEffect(() => {
+    const cargarSucursal = async () => {
+      if (!usuario?.sucursal_id) {
+        setNombreSucursal('Sin sucursal');
+        return;
+      }
+
+      const sucursales = await operacionesService.getSucursales();
+      const rows = Array.isArray(sucursales) ? sucursales : sucursales?.sucursales || [];
+      const sucursal = rows.find((s: any) => s.id === usuario.sucursal_id);
+      setNombreSucursal(sucursal?.nombre || 'Sin sucursal');
+    };
+
+    void cargarSucursal();
+  }, [usuario?.sucursal_id]);
 
   useEffect(() => {
     const load = async () => {
@@ -182,11 +198,6 @@ export const EncargadoDashboard = ({ usuario }: { usuario?: any }) => {
           setErrorAlertas(alertasRes.reason?.message || 'No se pudieron cargar alertas.');
         }
 
-        if (sucursalesRes.status === 'fulfilled') {
-          const rows = toRows(sucursalesRes.value, ['sucursales', 'data', 'items']);
-          const actual = rows.find((row: any) => String(row?.id || '') === sucursalId);
-          if (actual?.nombre) setSucursalNombre(actual.nombre);
-        }
       } finally {
         setLoading(false);
       }
@@ -614,7 +625,7 @@ export const EncargadoDashboard = ({ usuario }: { usuario?: any }) => {
 
           <div style={badgeStyle}>
             <span>📍</span>
-            <span>{sucursalNombre}</span>
+            <span>{nombreSucursal}</span>
           </div>
 
           <div style={{ alignItems: 'center', display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
