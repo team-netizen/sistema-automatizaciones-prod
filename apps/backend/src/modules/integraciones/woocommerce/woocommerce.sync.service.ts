@@ -834,8 +834,22 @@ export class WooCommerceSyncService {
   ): Promise<void> {
     if (items.length === 0) return;
 
-    void empresa_id;
+    // Mantiene la firma actual sin persistir sucursal_id en pedido_items.
     void sucursal_id;
+
+    const { data: pedido, error: pedidoError } = await this.supabase
+      .getAdminClient()
+      .from('pedidos')
+      .select('id')
+      .eq('id', pedido_id)
+      .eq('empresa_id', empresa_id)
+      .maybeSingle();
+
+    if (pedidoError || !pedido) {
+      throw new InternalServerErrorException(
+        `Pedido ${pedido_id} no pertenece a empresa ${empresa_id}`
+      );
+    }
 
     const { error } = await this.supabase.getAdminClient()
       .from('pedido_items')
