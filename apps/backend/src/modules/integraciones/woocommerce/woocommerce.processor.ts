@@ -22,6 +22,7 @@ export class WooCommerceProcessor extends WorkerHost {
   }
 
   async process(job: Job<WooSyncJobData>): Promise<void> {
+    console.log('[WOO PROCESSOR] Job recibido:', job.name, 'empresa:', job.data?.empresa_id);
     switch (job.name) {
       case 'sync-stock':
         await this.handleSyncStock(job);

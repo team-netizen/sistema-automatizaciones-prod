@@ -20,6 +20,7 @@ export class WooCommerceScheduler implements OnModuleInit {
   ) {}
 
   async onModuleInit(): Promise<void> {
+    console.log('[WOO SCHEDULER] onModuleInit iniciado');
     await this.registrarJobsActivos();
   }
 
