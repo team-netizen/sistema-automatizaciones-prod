@@ -779,6 +779,173 @@ export class OperacionesService {
     }
   }
 
+  async getReporteVentas(empresa_id: string, inicio: string, fin: string) {
+    try {
+      const finDia = `${fin}T23:59:59`;
+
+      const { data: pedidos, error } = await this.supabase
+        .getAdminClient()
+        .from('pedidos')
+        .select('id, total, fecha_creacion, fecha_pedido, estado')
+        .eq('empresa_id', empresa_id)
+        .gte('fecha_creacion', `${inicio}T00:00:00`)
+        .lte('fecha_creacion', finDia)
+        .order('fecha_creacion', { ascending: true });
+
+      if (error) throw new Error(error.message);
+
+      const pedidosFiltrados = (pedidos || []).filter((pedido: any) =>
+        !['cancelado', 'rechazado'].includes(String(pedido?.estado || '').toLowerCase()),
+      );
+
+      const porDiaMap = new Map<string, { fecha: string; pedidos: number; total: number }>();
+
+      pedidosFiltrados.forEach((pedido: any) => {
+        const fecha = String(pedido?.fecha_creacion || pedido?.fecha_pedido || '').split('T')[0];
+        if (!fecha) return;
+
+        if (!porDiaMap.has(fecha)) {
+          porDiaMap.set(fecha, { fecha, pedidos: 0, total: 0 });
+        }
+
+        const dia = porDiaMap.get(fecha)!;
+        dia.pedidos += 1;
+        dia.total += Number(pedido?.total || 0);
+      });
+
+      const porDia = Array.from(porDiaMap.values()).sort((a, b) => a.fecha.localeCompare(b.fecha));
+      const total = pedidosFiltrados.reduce((sum: number, pedido: any) => sum + Number(pedido?.total || 0), 0);
+      const totalPedidos = pedidosFiltrados.length;
+      const ticketPromedio = totalPedidos > 0 ? Math.round(total / totalPedidos) : 0;
+
+      return {
+        total: Math.round(total),
+        totalPedidos,
+        ticketPromedio,
+        porDia,
+      };
+    } catch (error) {
+      this.handleError('getReporteVentas', error, 'Error al obtener reporte de ventas');
+    }
+  }
+
+  async getReporteProductos(empresa_id: string, inicio: string, fin: string) {
+    try {
+      const { data, error } = await this.supabase
+        .getAdminClient()
+        .from('pedido_items')
+        .select(
+          `
+            cantidad, subtotal, sku_producto,
+            producto:productos(id, nombre, sku),
+            pedido:pedidos!inner(empresa_id, fecha_creacion, estado)
+          `,
+        )
+        .eq('pedido.empresa_id', empresa_id)
+        .gte('pedido.fecha_creacion', `${inicio}T00:00:00`)
+        .lte('pedido.fecha_creacion', `${fin}T23:59:59`);
+
+      if (error) throw new Error(error.message);
+
+      const productoMap = new Map<string, any>();
+
+      (data || []).forEach((item: any) => {
+        const pedido = item?.pedido as any;
+        if (['cancelado', 'rechazado'].includes(String(pedido?.estado || '').toLowerCase())) return;
+
+        const producto = item?.producto as any;
+        const key = producto?.id || item?.sku_producto;
+        if (!key) return;
+
+        if (!productoMap.has(key)) {
+          productoMap.set(key, {
+            nombre: producto?.nombre || item?.sku_producto || 'Sin nombre',
+            sku: producto?.sku || item?.sku_producto || '-',
+            cantidad: 0,
+            total: 0,
+          });
+        }
+
+        const row = productoMap.get(key)!;
+        row.cantidad += Number(item?.cantidad || 0);
+        row.total += Number(item?.subtotal || 0);
+      });
+
+      return Array.from(productoMap.values())
+        .sort((a, b) => b.cantidad - a.cantidad)
+        .slice(0, 20)
+        .map((producto, index) => ({
+          rank: index + 1,
+          ...producto,
+          total: Math.round(Number(producto.total || 0)),
+        }));
+    } catch (error) {
+      this.handleError('getReporteProductos', error, 'Error al obtener reporte de productos');
+    }
+  }
+
+  async getReporteCanales(empresa_id: string, inicio: string, fin: string) {
+    try {
+      const { data: pedidos, error } = await this.supabase
+        .getAdminClient()
+        .from('pedidos')
+        .select('canal_id, total, estado, medio_pedido')
+        .eq('empresa_id', empresa_id)
+        .gte('fecha_creacion', `${inicio}T00:00:00`)
+        .lte('fecha_creacion', `${fin}T23:59:59`);
+
+      if (error) throw new Error(error.message);
+
+      const canalIds = [...new Set((pedidos || []).map((pedido: any) => pedido?.canal_id).filter(Boolean))];
+      const canalesMap = new Map<string, string>();
+
+      if (canalIds.length > 0) {
+        const { data: canales, error: canalesError } = await this.supabase
+          .getAdminClient()
+          .from('canales_venta')
+          .select('id, nombre')
+          .in('id', canalIds);
+
+        if (canalesError) throw new Error(canalesError.message);
+
+        (canales || []).forEach((canal: any) => {
+          if (canal?.id) {
+            canalesMap.set(String(canal.id), String(canal?.nombre || 'Desconocido'));
+          }
+        });
+      }
+
+      const canalMap = new Map<string, { canal: string; pedidos: number; total: number }>();
+
+      (pedidos || [])
+        .filter((pedido: any) => !['cancelado', 'rechazado'].includes(String(pedido?.estado || '').toLowerCase()))
+        .forEach((pedido: any) => {
+          const canal = pedido?.canal_id
+            ? canalesMap.get(String(pedido.canal_id)) || 'Desconocido'
+            : pedido?.medio_pedido || 'Fisico';
+
+          if (!canalMap.has(canal)) {
+            canalMap.set(canal, { canal, pedidos: 0, total: 0 });
+          }
+
+          const row = canalMap.get(canal)!;
+          row.pedidos += 1;
+          row.total += Number(pedido?.total || 0);
+        });
+
+      const resultado = Array.from(canalMap.values()).sort((a, b) => b.total - a.total);
+      const totalGeneral = resultado.reduce((sum, canal) => sum + canal.total, 0);
+
+      return resultado.map((canal) => ({
+        ...canal,
+        total: Math.round(canal.total),
+        porcentaje: totalGeneral > 0 ? Math.round((canal.total / totalGeneral) * 100) : 0,
+      }));
+    } catch (error) {
+      this.handleError('getReporteCanales', error, 'Error al obtener reporte de canales');
+    }
+  }
+
   async getTransferencias(empresa_id: string, filtros: any = {}): Promise<{ transferencias: any[] }> {
     try {
       let query = this.supabase

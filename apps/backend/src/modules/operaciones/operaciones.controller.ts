@@ -374,6 +374,42 @@ export class OperacionesController {
     return this.operacionesService.ajustarStock(empresaId, usuarioId, body);
   }
 
+  @Get('reportes/ventas')
+  @Roles('admin_empresa', 'super_admin')
+  getReporteVentas(
+    @Req() req: AuthenticatedRequest,
+    @Query('inicio') inicio: string,
+    @Query('fin') fin: string,
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    return this.operacionesService.getReporteVentas(empresaId, inicio, fin);
+  }
+
+  @Get('reportes/productos')
+  @Roles('admin_empresa', 'super_admin')
+  getReporteProductos(
+    @Req() req: AuthenticatedRequest,
+    @Query('inicio') inicio: string,
+    @Query('fin') fin: string,
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    return this.operacionesService.getReporteProductos(empresaId, inicio, fin);
+  }
+
+  @Get('reportes/canales')
+  @Roles('admin_empresa', 'super_admin')
+  getReporteCanales(
+    @Req() req: AuthenticatedRequest,
+    @Query('inicio') inicio: string,
+    @Query('fin') fin: string,
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    return this.operacionesService.getReporteCanales(empresaId, inicio, fin);
+  }
+
   @Get('integraciones')
   @Roles('admin_empresa', 'super_admin')
   getIntegraciones(@Req() req: AuthenticatedRequest) {

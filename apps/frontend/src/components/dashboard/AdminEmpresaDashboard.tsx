@@ -4,6 +4,7 @@ import { operacionesService } from '../../modules/operaciones/services/operacion
 import WooCommerceModal from '../integraciones/WooCommerceModal';
 import { ViewIntegraciones } from './ViewIntegraciones';
 import { ViewProductos } from './ViewProductos';
+import { ViewReportes } from './ViewReportes';
 import { ViewStock } from './ViewStock';
 import { ViewTransferencias } from './ViewTransferencias';
 import { ViewUsuarios } from './ViewUsuarios';
@@ -1223,6 +1224,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
       case "integraciones":  return <ViewIntegraciones usuario={usuario} />;
       case "usuarios":       return <ViewUsuarios usuario={usuario} />;
       case "alertas":        return <ViewAlertas />;
+      case "reportes":       return <ViewReportes usuario={usuario} />;
       default: return <ViewPlaceholder label={NAV.find(n=>n.id===nav)?.label||nav} />;
     }
   };

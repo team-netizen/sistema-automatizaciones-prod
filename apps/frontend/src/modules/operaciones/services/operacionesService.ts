@@ -198,6 +198,27 @@ export const operacionesService = {
     return parseOrThrow(response, 'Error al obtener reportes');
   },
 
+  getReporteVentas: async (inicio: string, fin: string) => {
+    const response = await authFetch(
+      `${API_URL}/operaciones/reportes/ventas?inicio=${inicio}&fin=${fin}`,
+    );
+    return parseOrThrow(response, 'Error al obtener reporte ventas');
+  },
+
+  getReporteProductos: async (inicio: string, fin: string) => {
+    const response = await authFetch(
+      `${API_URL}/operaciones/reportes/productos?inicio=${inicio}&fin=${fin}`,
+    );
+    return parseOrThrow(response, 'Error al obtener reporte productos');
+  },
+
+  getReporteCanales: async (inicio: string, fin: string) => {
+    const response = await authFetch(
+      `${API_URL}/operaciones/reportes/canales?inicio=${inicio}&fin=${fin}`,
+    );
+    return parseOrThrow(response, 'Error al obtener reporte canales');
+  },
+
   getSucursales: async () => {
     const response = await authFetch(`${API_URL}/operaciones/sucursales`);
     return parseOrThrow(response, 'Error al obtener sucursales');
