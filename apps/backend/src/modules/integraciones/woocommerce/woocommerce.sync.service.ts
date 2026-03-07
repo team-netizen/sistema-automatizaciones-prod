@@ -834,31 +834,26 @@ export class WooCommerceSyncService {
   ): Promise<void> {
     if (items.length === 0) return;
 
-    const full = await this.supabase.getAdminClient().from('pedido_items').insert(
-      items.map((item) => ({
-        pedido_id,
-        empresa_id,
-        sucursal_id,
-        producto_id: item.producto_id,
-        cantidad: item.cantidad,
-        precio_unitario: item.precio_unitario,
-        sku_producto: item.sku_producto,
-      })),
-    );
+    void empresa_id;
+    void sucursal_id;
 
-    if (!full.error) return;
+    const { error } = await this.supabase.getAdminClient()
+      .from('pedido_items')
+      .insert(
+        items.map((item) => ({
+          pedido_id,
+          producto_id: item.producto_id || null,
+          cantidad: item.cantidad,
+          precio_unitario: item.precio_unitario,
+          subtotal: item.cantidad * item.precio_unitario,
+          sku_producto: item.sku_producto || null,
+        })),
+      );
 
-    const compact = await this.supabase.getAdminClient().from('pedido_items').insert(
-      items.map((item) => ({
-        pedido_id,
-        producto_id: item.producto_id,
-        cantidad: item.cantidad,
-        precio_unitario: item.precio_unitario,
-      })),
-    );
-
-    if (compact.error) {
-      throw new InternalServerErrorException(`Error insertando pedido_items: ${compact.error.message}`);
+    if (error) {
+      throw new InternalServerErrorException(
+        `Error insertando pedido_items: ${error.message}`
+      );
     }
   }
 
