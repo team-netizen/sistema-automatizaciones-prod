@@ -1542,7 +1542,7 @@ export class OperacionesService {
           data.sucursal_destino_id,
         );
         const mensaje = `Transferencia pendiente: ${ruta} (${data.items.length} producto(s))`;
-        this.alertasService.generarAlerta(empresa_id, mensaje, 'warning').catch(() => {});
+        this.alertasService.generarAlerta(empresa_id, mensaje, 'advertencia').catch(() => {});
       }
 
       if (!Boolean(transferencia.aprobacion_requerida ?? true)) {
@@ -1610,7 +1610,7 @@ export class OperacionesService {
         this.readString(transferencia as Record<string, unknown>, 'sucursal_destino_id'),
       );
       this.alertasService
-        .generarAlerta(empresa_id, `Transferencia aprobada: ${ruta}`, 'info')
+        .generarAlerta(empresa_id, `Transferencia aprobada: ${ruta}`, 'informativa')
         .catch(() => {});
       this.alertasService.verificarStockBajo(empresa_id).catch(() => {});
 
@@ -1664,7 +1664,7 @@ export class OperacionesService {
         this.readString(transferencia as Record<string, unknown>, 'sucursal_destino_id'),
       );
       this.alertasService
-        .generarAlerta(empresa_id, `Transferencia rechazada: ${ruta}`, 'info')
+        .generarAlerta(empresa_id, `Transferencia rechazada: ${ruta}`, 'informativa')
         .catch(() => {});
       return { success: true, message: 'Transferencia rechazada' };
     } catch (error) {

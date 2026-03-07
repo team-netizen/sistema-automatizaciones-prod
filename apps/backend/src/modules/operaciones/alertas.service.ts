@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../../shared/supabase/supabase.service';
 
-type NivelAlerta = 'info' | 'warning' | 'critico';
+type NivelAlerta = 'informativa' | 'advertencia' | 'critica';
 
 @Injectable()
 export class AlertasService {
@@ -70,7 +70,7 @@ export class AlertasService {
         const stockMinimo = producto?.stock_minimo ?? 0;
 
         if (stockMinimo > 0 && item.cantidad < stockMinimo) {
-          const nivel: NivelAlerta = item.cantidad === 0 ? 'critico' : 'warning';
+          const nivel: NivelAlerta = item.cantidad === 0 ? 'critica' : 'advertencia';
           const mensaje =
             item.cantidad === 0
               ? `Sin stock: ${producto?.nombre} en ${sucursal?.nombre}`
