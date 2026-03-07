@@ -128,6 +128,11 @@ export const EncargadoDashboard = ({ usuario }: { usuario?: any }) => {
   const usuarioNombre = usuario?.nombre || usuario?.email || 'Usuario';
   const sucursalId = String(usuario?.sucursal_id || '');
 
+  const handleLogout = () => {
+    localStorage.clear();
+    window.location.href = '/login';
+  };
+
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement | null;
@@ -561,6 +566,32 @@ export const EncargadoDashboard = ({ usuario }: { usuario?: any }) => {
             );
           })}
         </nav>
+
+        <div style={{ borderTop: `1px solid ${T.border}`, marginTop: 'auto', paddingTop: 16 }}>
+          <button
+            onClick={handleLogout}
+            type="button"
+            style={{
+              alignItems: 'center',
+              background: 'transparent',
+              border: '1px solid transparent',
+              borderRadius: 12,
+              color: T.textMid,
+              cursor: 'pointer',
+              display: 'flex',
+              fontSize: 14,
+              fontWeight: 600,
+              gap: 10,
+              justifyContent: 'flex-start',
+              padding: '12px 14px',
+              textAlign: 'left',
+              width: '100%',
+            }}
+          >
+            <span>↩</span>
+            <span>Cerrar sesión</span>
+          </button>
+        </div>
       </aside>
 
       <div style={{ display: 'flex', flex: 1, flexDirection: 'column', minWidth: 0 }}>
