@@ -66,7 +66,7 @@ export class OperacionesController {
   }
 
   @Get('sucursales')
-  @Roles('admin_empresa', 'super_admin')
+  @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
   getSucursales(@Req() req: AuthenticatedRequest) {
     const empresaId = req.perfil.empresa_id;
     if (!empresaId) {
