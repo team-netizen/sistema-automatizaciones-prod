@@ -361,6 +361,20 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     void loadAll();
   }, []);
 
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const data = await operacionesService.getAlertas();
+        const rows = toRows(data, ["alertas", "data", "items"]);
+        setAlertas(rows);
+      } catch {
+        // noop
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   const pedidosMostrar = pedidos.length > 0 ? pedidos : MOCK.pedidos;
   const sucursalesMostrar = sucursales.length > 0 ? sucursales : MOCK.sucursales;
   const transferenciasMostrar = transferencias.length > 0 ? transferencias : MOCK.transferencias;
