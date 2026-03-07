@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { operacionesService } from '../../modules/operaciones/services/operacionesService';
 import WooCommerceModal from '../integraciones/WooCommerceModal';
 import { ViewIntegraciones } from './ViewIntegraciones';
+import { NotificacionesBell } from './NotificacionesBell';
 import { ViewProductos } from './ViewProductos';
 import { ViewStock } from './ViewStock';
 import { ViewTransferencias } from './ViewTransferencias';
@@ -521,12 +522,14 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
         <span style={{ fontFamily:T.fontMono, fontSize:11, color:T.textDim }}>
           {time.toLocaleTimeString("es-PE",{hour:"2-digit",minute:"2-digit"})}
         </span>
-        <div style={{ position:"relative", cursor:"pointer" }}>
-          <Ico d={IC.bell} size={17} color={T.textMid} />
-          {DATA.alertas.length > 0 && <span style={{ position:"absolute", top:-3, right:-3,
-            width:7, height:7, background:"#ef4444", borderRadius:"50%",
-            border:`1px solid ${T.surface}` }} />}
-        </div>
+        <NotificacionesBell
+          iconColor={T.textMid}
+          panelBackground={T.surface2}
+          panelBorder={T.border}
+          textColor={T.text}
+          mutedColor={T.textMid}
+          accentColor={T.accent}
+        />
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
           <div style={{ textAlign:"right" }}>
             <div style={{ fontSize:11, fontWeight:600, color:T.text }}>

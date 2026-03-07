@@ -25,6 +25,10 @@ export class NotificacionesController {
 
     @Patch(':id/leida')
     async marcarLeida(@Param('id') id: string, @Request() req: any) {
-        return this.notificacionesService.marcarLeida(id, req.user.empresa_id);
+        return this.notificacionesService.marcarLeida(
+            id,
+            req.user.empresa_id,
+            req.user.usuario_id,
+        );
     }
 }
