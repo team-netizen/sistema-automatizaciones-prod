@@ -33,8 +33,8 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
             }
 
             // [SECURITY FIX] Guardar solo tokens, nunca rol/perfil manipulable en cliente.
-            localStorage.setItem('access_token', data.sesion.access_token);
-            localStorage.setItem('refresh_token', data.sesion.refresh_token);
+            sessionStorage.setItem('access_token', data.sesion.access_token);
+            sessionStorage.setItem('refresh_token', data.sesion.refresh_token);
 
             onLoginSuccess(data);
         } catch {

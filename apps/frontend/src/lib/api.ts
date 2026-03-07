@@ -56,8 +56,8 @@ const isAccessTokenExpired = (token: string): boolean => {
 };
 
 const clearAuthStorage = () => {
-    localStorage.removeItem(ACCESS_TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+    sessionStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
 };
 
@@ -68,7 +68,7 @@ export const refreshAccessToken = async (): Promise<string | null> => {
 
     refreshPromise = (async () => {
         try {
-            const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+            const refreshToken = sessionStorage.getItem(REFRESH_TOKEN_KEY);
             if (!refreshToken) return null;
 
             const response = await fetch(`${AUTH_URL}/refresh`, {
@@ -91,9 +91,9 @@ export const refreshAccessToken = async (): Promise<string | null> => {
                 return null;
             }
 
-            localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+            sessionStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
             if (nextRefreshToken) {
-                localStorage.setItem(REFRESH_TOKEN_KEY, nextRefreshToken);
+                sessionStorage.setItem(REFRESH_TOKEN_KEY, nextRefreshToken);
             }
 
             return accessToken;
@@ -109,7 +109,7 @@ export const refreshAccessToken = async (): Promise<string | null> => {
 };
 
 export const getValidAccessToken = async (): Promise<string | null> => {
-    const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+    const token = sessionStorage.getItem(ACCESS_TOKEN_KEY);
     if (!token) return null;
 
     if (!isAccessTokenExpired(token)) {
@@ -120,7 +120,7 @@ export const getValidAccessToken = async (): Promise<string | null> => {
 };
 
 export const getAuthHeaders = () => {
-    const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+    const token = sessionStorage.getItem(ACCESS_TOKEN_KEY);
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
     };

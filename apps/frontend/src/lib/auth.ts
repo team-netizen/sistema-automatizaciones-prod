@@ -56,8 +56,8 @@ function isPerfilUsuario(value: unknown): value is PerfilUsuario {
 }
 
 function getStoredTokens() {
-  const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
-  const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+  const accessToken = sessionStorage.getItem(ACCESS_TOKEN_KEY);
+  const refreshToken = sessionStorage.getItem(REFRESH_TOKEN_KEY);
 
   return {
     accessToken: typeof accessToken === 'string' && accessToken.length > 0 ? accessToken : null,
@@ -95,6 +95,7 @@ export function safeParseJSON(value: string | null): any {
   try {
     return JSON.parse(value);
   } catch {
+    sessionStorage.clear();
     localStorage.clear();
     return null;
   }
@@ -144,5 +145,6 @@ export async function cerrarSesion(): Promise<void> {
     await client.auth.signOut();
   }
 
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  sessionStorage.clear();
+  localStorage.clear();
 }
