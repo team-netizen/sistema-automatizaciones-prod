@@ -4,11 +4,14 @@ import { LoginPage } from './pages/LoginPage';
 import { SuperAdminDashboard } from './components/dashboard/SuperAdminDashboard';
 import AdminEmpresaDashboard from './components/dashboard/AdminEmpresaDashboard';
 import { EncargadoDashboard } from './components/dashboard/EncargadoDashboard';
+import VendedorDashboard from './components/dashboard/VendedorDashboard';
 import { cerrarSesion, type PerfilUsuario, verificarSesion } from './lib/auth';
 import ResetPassword from './pages/ResetPassword';
 
 type UsuarioSesion = PerfilUsuario & {
   email?: string;
+  nombre?: string;
+  sucursal_nombre?: string;
 };
 
 function isSuperAdminRole(rol?: PerfilUsuario['rol'] | null): boolean {
@@ -99,35 +102,19 @@ function App() {
 
   if (usuario?.rol === 'vendedor') {
     return (
-      <div
-        style={{
-          display: 'flex',
-          height: '100vh',
-          background: '#07090b',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexDirection: 'column',
-          gap: 16,
+      <VendedorDashboard
+        usuario={{
+          id: usuario.id,
+          nombre: usuario.nombre || usuario.email || 'Vendedor',
+          email: usuario.email || '',
+          rol: usuario.rol,
+          empresa_id: usuario.empresa_id,
+          sucursal_id: usuario.sucursal_id || '',
+          sucursal_nombre: usuario.sucursal_nombre || '',
         }}
-      >
-        <div style={{ color: '#00e87b', fontFamily: 'monospace', fontSize: 24, fontWeight: 800 }}>POS</div>
-        <div style={{ color: '#4d6b58', fontSize: 12 }}>Modulo Vendedor - proximamente</div>
-        <button
-          onClick={handleLogout}
-          style={{
-            marginTop: 16,
-            background: 'none',
-            border: '1px solid #1c2830',
-            borderRadius: 8,
-            padding: '8px 16px',
-            color: '#4d6b58',
-            cursor: 'pointer',
-            fontSize: 12,
-          }}
-        >
-          Cerrar Sesion
-        </button>
-      </div>
+        token={sessionStorage.getItem('access_token') || ''}
+        onLogout={handleLogout}
+      />
     );
   }
 

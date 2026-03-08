@@ -832,6 +832,453 @@ export class OperacionesService {
     return { success: true };
   }
 
+  async buscarProductosParaVenta(q: string, sucursalId: string, empresaId: string) {
+    const term = String(q || '').trim();
+    if (!term) return [];
+
+    await this.assertSucursalEmpresa(empresaId, sucursalId);
+
+    const safeTerm = term.replace(/[%(),]/g, ' ').trim();
+    const searchValue = safeTerm || term;
+    const searchQuery = searchValue.replace(/\s+/g, ' ');
+
+    const { data: productos, error } = await this.supabase
+      .getAdminClient()
+      .from('productos')
+      .select('id, nombre, sku, precio, stock_minimo, activo')
+      .eq('empresa_id', empresaId)
+      .or(`nombre.ilike.%${searchQuery}%,sku.ilike.%${searchQuery}%`)
+      .order('nombre', { ascending: true })
+      .limit(20);
+
+    if (error) {
+      this.logger.error(`[buscarProductosParaVenta] ${JSON.stringify(error)}`);
+      throw new InternalServerErrorException(error.message);
+    }
+
+    const rows = (productos ?? []).filter((row: any) => row?.activo !== false);
+    if (rows.length === 0) return [];
+
+    const productoIds = rows
+      .map((row: any) => this.readString(row, 'id'))
+      .filter((value): value is string => Boolean(value));
+
+    const { data: stockRows, error: stockError } = await this.supabase
+      .getAdminClient()
+      .from('stock_por_sucursal')
+      .select('producto_id, cantidad')
+      .eq('empresa_id', empresaId)
+      .eq('sucursal_id', sucursalId)
+      .in('producto_id', productoIds);
+
+    if (stockError) {
+      this.logger.error(`[buscarProductosParaVenta][stock] ${JSON.stringify(stockError)}`);
+      throw new InternalServerErrorException(stockError.message);
+    }
+
+    const stockMap = new Map<string, number>();
+    for (const row of stockRows ?? []) {
+      const productoId = this.readString(row as Record<string, unknown>, 'producto_id');
+      if (!productoId) continue;
+      stockMap.set(productoId, this.readNumber(row as Record<string, unknown>, 'cantidad'));
+    }
+
+    return rows.map((row: any) => {
+      const id = String(row?.id || '');
+      return {
+        id,
+        nombre: String(row?.nombre || 'Producto'),
+        sku: String(row?.sku || '-'),
+        precio: Number(row?.precio || 0),
+        stock_minimo: Number(row?.stock_minimo || 0),
+        stock_disponible: Number(stockMap.get(id) || 0),
+      };
+    });
+  }
+
+  async getResumenTurno(sucursalId: string, empresaId: string, vendedorId: string) {
+    await this.assertSucursalEmpresa(empresaId, sucursalId);
+
+    const hoy = new Date().toISOString().split('T')[0];
+    const inicioIso = `${hoy}T00:00:00`;
+    const finIso = `${hoy}T23:59:59`;
+
+    const { data: movimientos, error: movimientosError } = await this.supabase
+      .getAdminClient()
+      .from('movimientos_stock')
+      .select('referencia_id, fecha_creacion')
+      .eq('empresa_id', empresaId)
+      .eq('sucursal_id', sucursalId)
+      .eq('creado_por', vendedorId)
+      .eq('tipo', 'venta')
+      .eq('referencia_tipo', 'pedido')
+      .gte('fecha_creacion', inicioIso)
+      .lte('fecha_creacion', finIso)
+      .order('fecha_creacion', { ascending: false });
+
+    if (movimientosError) {
+      this.logger.error(`[getResumenTurno][movimientos] ${JSON.stringify(movimientosError)}`);
+      throw new InternalServerErrorException(movimientosError.message);
+    }
+
+    const pedidoIds = [
+      ...new Set(
+        (movimientos ?? [])
+          .map((row: any) => this.readString(row, 'referencia_id'))
+          .filter((value): value is string => Boolean(value)),
+      ),
+    ];
+
+    let pedidos: any[] = [];
+    if (pedidoIds.length > 0) {
+      const { data: pedidosRows, error: pedidosError } = await this.supabase
+        .getAdminClient()
+        .from('pedidos')
+        .select('id, numero, nombre_cliente, total, metodo_pago, estado, fecha_pedido')
+        .eq('empresa_id', empresaId)
+        .eq('sucursal_id', sucursalId)
+        .in('id', pedidoIds)
+        .order('fecha_pedido', { ascending: false });
+
+      if (pedidosError) {
+        this.logger.error(`[getResumenTurno][pedidos] ${JSON.stringify(pedidosError)}`);
+        throw new InternalServerErrorException(pedidosError.message);
+      }
+
+      pedidos = pedidosRows ?? [];
+    }
+
+    const { data: stockItems, error: stockError } = await this.supabase
+      .getAdminClient()
+      .from('stock_por_sucursal')
+      .select('cantidad, producto:productos(stock_minimo)')
+      .eq('empresa_id', empresaId)
+      .eq('sucursal_id', sucursalId);
+
+    if (stockError) {
+      this.logger.error(`[getResumenTurno][stock] ${JSON.stringify(stockError)}`);
+      throw new InternalServerErrorException(stockError.message);
+    }
+
+    const { count: alertasPendientes, error: alertasError } = await this.supabase
+      .getAdminClient()
+      .from('notificaciones')
+      .select('*', { count: 'exact', head: true })
+      .eq('empresa_id', empresaId)
+      .eq('usuario_id', vendedorId)
+      .eq('leida', false);
+
+    if (alertasError) {
+      this.logger.error(`[getResumenTurno][notificaciones] ${JSON.stringify(alertasError)}`);
+      throw new InternalServerErrorException(alertasError.message);
+    }
+
+    const ventasValidas = pedidos.filter((pedido: any) => String(pedido?.estado || '').toLowerCase() !== 'cancelado');
+    const totalVentas = ventasValidas.length;
+    const totalIngresos = ventasValidas.reduce((sum: number, pedido: any) => sum + Number(pedido?.total || 0), 0);
+    const stockTotal = (stockItems ?? []).length;
+    const stockOk = (stockItems ?? []).filter((row: any) => {
+      const cantidad = Number(row?.cantidad || 0);
+      const producto = Array.isArray(row?.producto) ? row.producto[0] : row?.producto;
+      const minimo = Number(producto?.stock_minimo || 0);
+      return cantidad > 0 && (minimo <= 0 || cantidad >= minimo);
+    }).length;
+
+    return {
+      ventasHoy: totalVentas,
+      ingresosHoy: totalIngresos,
+      stockOk,
+      stockTotal,
+      alertasPendientes: alertasPendientes ?? 0,
+      ultimasVentas: pedidos.slice(0, 5).map((pedido: any) => ({
+        id: String(pedido?.id || ''),
+        numero: String(pedido?.numero || `#${String(pedido?.id || '').slice(0, 8)}`),
+        nombre_cliente: String(pedido?.nombre_cliente || 'Cliente ocasional'),
+        total: Number(pedido?.total || 0),
+        metodo_pago: String(pedido?.metodo_pago || 'sin_definir'),
+        estado: String(pedido?.estado || 'pendiente'),
+        fecha_pedido: String(pedido?.fecha_pedido || ''),
+      })),
+    };
+  }
+
+  async crearPedidoVendedor(dto: {
+    empresaId: string;
+    sucursalId: string;
+    vendedorId: string;
+    items: { productoId: string; cantidad: number; precioUnitario: number }[];
+    cliente: { nombre?: string; telefono?: string; dni?: string; email?: string };
+    metodoPago: string;
+    montoRecibido?: number;
+    observaciones?: string;
+  }) {
+    if (!dto?.empresaId || !dto?.sucursalId || !dto?.vendedorId) {
+      throw new BadRequestException('empresaId, sucursalId y vendedorId son obligatorios');
+    }
+
+    if (!Array.isArray(dto.items) || dto.items.length === 0) {
+      throw new BadRequestException('Debes agregar al menos un producto');
+    }
+
+    if (!['efectivo', 'tarjeta', 'yape_plin', 'transferencia'].includes(String(dto.metodoPago || ''))) {
+      throw new BadRequestException('Metodo de pago invalido');
+    }
+
+    await this.assertSucursalEmpresa(dto.empresaId, dto.sucursalId);
+
+    const productoIds = [
+      ...new Set(
+        dto.items
+          .map((item) => String(item?.productoId || '').trim())
+          .filter((value) => value.length > 0),
+      ),
+    ];
+
+    const { data: productos, error: productosError } = await this.supabase
+      .getAdminClient()
+      .from('productos')
+      .select('id, nombre, sku, precio')
+      .eq('empresa_id', dto.empresaId)
+      .in('id', productoIds);
+
+    if (productosError) {
+      this.logger.error(`[crearPedidoVendedor][productos] ${JSON.stringify(productosError)}`);
+      throw new InternalServerErrorException(productosError.message);
+    }
+
+    const productosMap = new Map<string, any>();
+    for (const producto of productos ?? []) {
+      productosMap.set(String((producto as any).id || ''), producto);
+    }
+
+    if (productosMap.size !== productoIds.length) {
+      throw new BadRequestException('Uno o mas productos no pertenecen a la empresa');
+    }
+
+    const { data: stockRows, error: stockError } = await this.supabase
+      .getAdminClient()
+      .from('stock_por_sucursal')
+      .select('id, producto_id, cantidad')
+      .eq('empresa_id', dto.empresaId)
+      .eq('sucursal_id', dto.sucursalId)
+      .in('producto_id', productoIds);
+
+    if (stockError) {
+      this.logger.error(`[crearPedidoVendedor][stock] ${JSON.stringify(stockError)}`);
+      throw new InternalServerErrorException(stockError.message);
+    }
+
+    const stockMap = new Map<string, { id: string; cantidad: number }>();
+    for (const row of stockRows ?? []) {
+      stockMap.set(String((row as any).producto_id || ''), {
+        id: String((row as any).id || ''),
+        cantidad: Number((row as any).cantidad || 0),
+      });
+    }
+
+    for (const item of dto.items) {
+      const productoId = String(item?.productoId || '');
+      const cantidad = Number(item?.cantidad || 0);
+      if (!productoId || !Number.isFinite(cantidad) || cantidad <= 0) {
+        throw new BadRequestException('Items invalidos para el pedido');
+      }
+
+      const stockActual = Number(stockMap.get(productoId)?.cantidad || 0);
+      if (stockActual < cantidad) {
+        const producto = productosMap.get(productoId);
+        throw new BadRequestException(
+          `Stock insuficiente para ${producto?.nombre || productoId}. Disponible: ${stockActual}`,
+        );
+      }
+    }
+
+    const total = dto.items.reduce(
+      (sum, item) => sum + Number(item.cantidad || 0) * Number(item.precioUnitario || 0),
+      0,
+    );
+
+    if (dto.metodoPago === 'efectivo' && Number(dto.montoRecibido || 0) < total) {
+      throw new BadRequestException('El monto recibido no cubre el total de la venta');
+    }
+
+    const now = new Date().toISOString();
+    const numero = `VTA-${Date.now().toString().slice(-6)}`;
+
+    const { data: pedido, error: pedidoError } = await this.supabase
+      .getAdminClient()
+      .from('pedidos')
+      .insert({
+        empresa_id: dto.empresaId,
+        sucursal_id: dto.sucursalId,
+        sucursal_asignada_id: dto.sucursalId,
+        numero,
+        estado: 'entregado',
+        total,
+        metodo_pago: dto.metodoPago,
+        nombre_cliente: dto.cliente?.nombre ?? null,
+        telefono_cliente: dto.cliente?.telefono ?? null,
+        dni_cliente: dto.cliente?.dni ?? null,
+        email_cliente: dto.cliente?.email ?? null,
+        observaciones: dto.observaciones ?? null,
+        medio_pedido: 'pos',
+        fecha_pedido: now,
+        fecha_creacion: now,
+        procesado: false,
+        id_externo: null,
+      })
+      .select('id, numero, total')
+      .single();
+
+    if (pedidoError) {
+      this.logger.error(`[crearPedidoVendedor][pedido] ${JSON.stringify(pedidoError)}`);
+      throw new InternalServerErrorException(pedidoError.message);
+    }
+
+    const itemsPayload = dto.items.map((item) => ({
+      pedido_id: pedido.id,
+      producto_id: item.productoId,
+      cantidad: Number(item.cantidad || 0),
+      precio_unitario: Number(item.precioUnitario || 0),
+      subtotal: Number(item.cantidad || 0) * Number(item.precioUnitario || 0),
+    }));
+
+    const { error: itemsError } = await this.supabase
+      .getAdminClient()
+      .from('pedido_items')
+      .insert(itemsPayload);
+
+    if (itemsError) {
+      this.logger.error(`[crearPedidoVendedor][items] ${JSON.stringify(itemsError)}`);
+      throw new InternalServerErrorException(itemsError.message);
+    }
+
+    for (const item of dto.items) {
+      const stockActual = stockMap.get(item.productoId);
+      if (!stockActual?.id) continue;
+
+      const { error: updateStockError } = await this.supabase
+        .getAdminClient()
+        .from('stock_por_sucursal')
+        .update({
+          cantidad: Math.max(0, Number(stockActual.cantidad || 0) - Number(item.cantidad || 0)),
+          ultima_actualizacion: now,
+        })
+        .eq('id', stockActual.id);
+
+      if (updateStockError) {
+        this.logger.error(`[crearPedidoVendedor][update_stock] ${JSON.stringify(updateStockError)}`);
+        throw new InternalServerErrorException(updateStockError.message);
+      }
+    }
+
+    const movimientos = dto.items.map((item) => ({
+      empresa_id: dto.empresaId,
+      sucursal_id: dto.sucursalId,
+      producto_id: item.productoId,
+      tipo: 'venta',
+      cantidad: -Number(item.cantidad || 0),
+      referencia_tipo: 'pedido',
+      referencia_id: pedido.id,
+      creado_por: dto.vendedorId,
+      fecha_creacion: now,
+    }));
+
+    const { error: movimientosError } = await this.supabase
+      .getAdminClient()
+      .from('movimientos_stock')
+      .insert(movimientos);
+
+    if (movimientosError) {
+      this.logger.error(`[crearPedidoVendedor][movimientos] ${JSON.stringify(movimientosError)}`);
+      throw new InternalServerErrorException(movimientosError.message);
+    }
+
+    return { success: true, pedido: { id: pedido.id, numero: pedido.numero, total } };
+  }
+
+  async getMisVentas(
+    vendedorId: string,
+    sucursalId: string,
+    empresaId: string,
+    desde: string,
+    hasta: string,
+  ) {
+    await this.assertSucursalEmpresa(empresaId, sucursalId);
+    const { inicioIso, finIso } = this.normalizeDateRange(desde, hasta);
+
+    const { data: movimientos, error: movimientosError } = await this.supabase
+      .getAdminClient()
+      .from('movimientos_stock')
+      .select('referencia_id, fecha_creacion')
+      .eq('empresa_id', empresaId)
+      .eq('sucursal_id', sucursalId)
+      .eq('creado_por', vendedorId)
+      .eq('tipo', 'venta')
+      .eq('referencia_tipo', 'pedido')
+      .gte('fecha_creacion', inicioIso)
+      .lte('fecha_creacion', finIso)
+      .order('fecha_creacion', { ascending: false });
+
+    if (movimientosError) {
+      this.logger.error(`[getMisVentas][movimientos] ${JSON.stringify(movimientosError)}`);
+      throw new InternalServerErrorException(movimientosError.message);
+    }
+
+    const pedidoIds = [
+      ...new Set(
+        (movimientos ?? [])
+          .map((row: any) => this.readString(row, 'referencia_id'))
+          .filter((value): value is string => Boolean(value)),
+      ),
+    ];
+
+    if (pedidoIds.length === 0) return [];
+
+    const { data: pedidos, error: pedidosError } = await this.supabase
+      .getAdminClient()
+      .from('pedidos')
+      .select('id, numero, nombre_cliente, total, metodo_pago, estado, fecha_pedido, medio_pedido')
+      .eq('empresa_id', empresaId)
+      .eq('sucursal_id', sucursalId)
+      .eq('medio_pedido', 'pos')
+      .in('id', pedidoIds)
+      .order('fecha_pedido', { ascending: false });
+
+    if (pedidosError) {
+      this.logger.error(`[getMisVentas][pedidos] ${JSON.stringify(pedidosError)}`);
+      throw new InternalServerErrorException(pedidosError.message);
+    }
+
+    const { data: items, error: itemsError } = await this.supabase
+      .getAdminClient()
+      .from('pedido_items')
+      .select('pedido_id')
+      .in('pedido_id', pedidoIds);
+
+    if (itemsError) {
+      this.logger.error(`[getMisVentas][items] ${JSON.stringify(itemsError)}`);
+      throw new InternalServerErrorException(itemsError.message);
+    }
+
+    const itemsCountMap: Record<string, number> = {};
+    for (const item of items ?? []) {
+      const pedidoId = String((item as any).pedido_id || '');
+      itemsCountMap[pedidoId] = (itemsCountMap[pedidoId] ?? 0) + 1;
+    }
+
+    return (pedidos ?? []).map((row: any) => ({
+      id: String(row?.id || ''),
+      numero: String(row?.numero || `#${String(row?.id || '').slice(0, 8)}`),
+      nombre_cliente: String(row?.nombre_cliente || 'Cliente ocasional'),
+      total: Number(row?.total || 0),
+      metodo_pago: String(row?.metodo_pago || 'sin_definir'),
+      estado: String(row?.estado || 'pendiente'),
+      fecha_pedido: String(row?.fecha_pedido || ''),
+      medio_pedido: String(row?.medio_pedido || 'pos'),
+      items_count: itemsCountMap[String(row?.id || '')] ?? 0,
+    }));
+  }
+
   async getDashboardEncargado(empresa_id: string, sucursal_id: string) {
     try {
       const hoy = new Date().toISOString().split('T')[0];

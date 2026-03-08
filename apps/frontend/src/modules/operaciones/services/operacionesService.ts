@@ -27,6 +27,56 @@ export const operacionesService = {
     return parseOrThrow(response, 'Error al obtener metricas del dashboard');
   },
 
+  getResumenTurnoVendedor: async (filters: {
+    sucursalId: string;
+    empresaId: string;
+    vendedorId: string;
+  }) => {
+    const response = await authFetch(
+      `${API_URL}/operaciones/vendedor/resumen-turno${buildQueryString(filters as QueryFilters)}`,
+    );
+    return parseOrThrow(response, 'Error al obtener resumen del turno');
+  },
+
+  crearPedidoVendedor: async (data: {
+    empresaId: string;
+    sucursalId: string;
+    vendedorId: string;
+    items: { productoId: string; cantidad: number; precioUnitario: number }[];
+    cliente: { nombre?: string; telefono?: string; dni?: string; email?: string };
+    metodoPago: 'efectivo' | 'tarjeta' | 'yape_plin' | 'transferencia';
+    montoRecibido?: number;
+    observaciones?: string;
+  }) => {
+    const response = await authFetch(`${API_URL}/operaciones/vendedor/crear-pedido`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return parseOrThrow(response, 'Error al crear venta');
+  },
+
+  getMisVentasVendedor: async (filters: {
+    vendedorId: string;
+    sucursalId: string;
+    empresaId: string;
+    desde: string;
+    hasta: string;
+  }) => {
+    const response = await authFetch(
+      `${API_URL}/operaciones/vendedor/mis-ventas${buildQueryString(filters as QueryFilters)}`,
+    );
+    return parseOrThrow(response, 'Error al obtener ventas del vendedor');
+  },
+
+  buscarProductosParaVenta: async (filters: {
+    q: string;
+    sucursalId: string;
+    empresaId: string;
+  }) => {
+    const response = await authFetch(`${API_URL}/productos/buscar${buildQueryString(filters as QueryFilters)}`);
+    return parseOrThrow(response, 'Error al buscar productos');
+  },
+
   getProductosCriticos: async () => {
     const response = await authFetch(`${API_URL}/operaciones/productos/criticos`);
     return parseOrThrow(response, 'Error al obtener productos criticos');

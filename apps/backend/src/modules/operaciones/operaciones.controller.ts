@@ -672,6 +672,114 @@ export class OperacionesController {
     return this.operacionesService.getReporteCanales(empresaId, inicio, fin);
   }
 
+  @Get('vendedor/resumen-turno')
+  @Roles('vendedor', 'admin_empresa', 'super_admin')
+  getResumenTurnoVendedor(
+    @Req() req: AuthenticatedRequest,
+    @Query('sucursalId') sucursalId?: string,
+    @Query('empresaId') empresaIdParam?: string,
+    @Query('vendedorId') vendedorId?: string,
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    if (empresaIdParam && empresaIdParam !== empresaId) {
+      throw new ForbiddenException('empresa_id no valido para la sesion');
+    }
+
+    const sucursalAutorizada = req.perfil.rol === 'vendedor' ? req.perfil.sucursal_id : sucursalId;
+    const vendedorAutorizado = req.perfil.rol === 'vendedor' ? req.perfil.id : vendedorId;
+
+    if (!sucursalAutorizada || !vendedorAutorizado) {
+      throw new ForbiddenException('sucursalId y vendedorId son requeridos');
+    }
+
+    if (req.perfil.rol === 'vendedor') {
+      if (sucursalId && sucursalId !== req.perfil.sucursal_id) {
+        throw new ForbiddenException('No puedes consultar otra sucursal');
+      }
+      if (vendedorId && vendedorId !== req.perfil.id) {
+        throw new ForbiddenException('No puedes consultar otro vendedor');
+      }
+    }
+
+    return this.operacionesService.getResumenTurno(sucursalAutorizada, empresaId, vendedorAutorizado);
+  }
+
+  @Post('vendedor/crear-pedido')
+  @Roles('vendedor', 'admin_empresa', 'super_admin')
+  crearPedidoVendedor(
+    @Req() req: AuthenticatedRequest,
+    @Body()
+    body: {
+      empresaId: string;
+      sucursalId: string;
+      vendedorId: string;
+      items: { productoId: string; cantidad: number; precioUnitario: number }[];
+      cliente: { nombre?: string; telefono?: string; dni?: string; email?: string };
+      metodoPago: 'efectivo' | 'tarjeta' | 'yape_plin' | 'transferencia';
+      montoRecibido?: number;
+      observaciones?: string;
+    },
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+
+    const payload = req.perfil.rol === 'vendedor'
+      ? {
+          ...body,
+          empresaId,
+          sucursalId: req.perfil.sucursal_id as string,
+          vendedorId: req.perfil.id,
+        }
+      : {
+          ...body,
+          empresaId,
+        };
+
+    return this.operacionesService.crearPedidoVendedor(payload);
+  }
+
+  @Get('vendedor/mis-ventas')
+  @Roles('vendedor', 'admin_empresa', 'super_admin')
+  getMisVentasVendedor(
+    @Req() req: AuthenticatedRequest,
+    @Query('vendedorId') vendedorId?: string,
+    @Query('sucursalId') sucursalId?: string,
+    @Query('empresaId') empresaIdParam?: string,
+    @Query('desde') desde?: string,
+    @Query('hasta') hasta?: string,
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    if (empresaIdParam && empresaIdParam !== empresaId) {
+      throw new ForbiddenException('empresa_id no valido para la sesion');
+    }
+
+    const sucursalAutorizada = req.perfil.rol === 'vendedor' ? req.perfil.sucursal_id : sucursalId;
+    const vendedorAutorizado = req.perfil.rol === 'vendedor' ? req.perfil.id : vendedorId;
+
+    if (!sucursalAutorizada || !vendedorAutorizado) {
+      throw new ForbiddenException('sucursalId y vendedorId son requeridos');
+    }
+
+    if (req.perfil.rol === 'vendedor') {
+      if (sucursalId && sucursalId !== req.perfil.sucursal_id) {
+        throw new ForbiddenException('No puedes consultar otra sucursal');
+      }
+      if (vendedorId && vendedorId !== req.perfil.id) {
+        throw new ForbiddenException('No puedes consultar otro vendedor');
+      }
+    }
+
+    return this.operacionesService.getMisVentas(
+      vendedorAutorizado,
+      sucursalAutorizada,
+      empresaId,
+      String(desde || ''),
+      String(hasta || ''),
+    );
+  }
+
   @Get('integraciones')
   @Roles('admin_empresa', 'super_admin')
   getIntegraciones(@Req() req: AuthenticatedRequest) {
