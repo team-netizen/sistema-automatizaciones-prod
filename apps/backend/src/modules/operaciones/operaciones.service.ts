@@ -1123,7 +1123,7 @@ export class OperacionesService {
         canal_id: CANAL_POS_ID,
         id_orden: `POS-${Date.now()}`,
         numero,
-        estado: 'entregado',
+        estado: 'confirmado',
         total,
         metodo_pago: dto.metodoPago,
         nombre_cliente: dto.cliente?.nombre ?? null,
