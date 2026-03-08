@@ -284,7 +284,85 @@ export default function VendedorDashboard({ usuario, token, onLogout }: Vendedor
         <main style={{ flex: 1, minWidth: 0, overflowY: 'auto', height: '100%', padding: 24 }}>
           <div style={{ marginBottom: 20 }}><div style={{ color: T.text, fontSize: 28, fontWeight: 800, marginBottom: 6 }}>Dashboard de vendedor</div><div style={{ color: T.textMuted, fontSize: 14 }}>Gestiona ventas POS, consulta stock y revisa tus notificaciones.</div></div>
 
-          {section === 'inicio' && (resumenLoading ? <div style={{ ...cardStyle, display: 'grid', justifyItems: 'center', minHeight: 220, padding: 24, rowGap: 12 }}><Spinner /><div style={{ color: T.textMuted, fontSize: 13 }}>Cargando resumen...</div></div> : resumenError ? <div style={{ ...cardStyle, color: T.danger, fontSize: 13, fontWeight: 700, padding: 20 }}>{resumenError}</div> : <div style={{ display: 'grid', gap: 16 }}><div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>{[{ label: 'Ventas hoy', value: String(resumen?.ventasHoy || 0), hint: 'pedidos' }, { label: 'Total S/', value: money(resumen?.ingresosHoy || 0), hint: 'en ventas' }, { label: 'Productos con stock OK', value: `${resumen?.stockOk || 0} / ${resumen?.stockTotal || 0}`, hint: 'en sucursal' }, { label: 'Alertas pendientes', value: String(resumen?.alertasPendientes || 0), hint: 'sin leer' }].map((item) => <div key={item.label} style={{ ...cardStyle, display: 'grid', gap: 8, padding: '20px 22px' }}><div style={{ color: T.textMuted, fontSize: 13, fontWeight: 700 }}>{item.label}</div><div style={{ color: T.text, fontSize: 28, fontWeight: 800 }}>{item.value}</div><div style={{ color: T.textMuted, fontSize: 12 }}>{item.hint}</div></div>)}</div><div style={{ ...cardStyle, overflow: 'hidden' }}><div style={{ overflowX: 'auto' }}><table style={{ borderCollapse: 'collapse', width: '100%' }}><thead><tr style={{ background: '#f9fbfc' }}>{['N Pedido', 'Cliente', 'Total', 'Metodo pago', 'Estado', 'Hora'].map((label) => <th key={label} style={{ color: T.textMuted, fontSize: 12, fontWeight: 800, padding: '14px 16px', textAlign: 'left' }}>{label}</th>)}</tr></thead><tbody>{resumen?.ultimasVentas?.length ? resumen.ultimasVentas.map((row: any) => { const badge = badgeTone(row.estado); return <tr key={row.id} style={{ borderTop: `1px solid ${T.border}` }}><td style={{ color: T.text, fontWeight: 700, padding: '14px 16px' }}>{row.numero}</td><td style={{ color: T.textMuted, padding: '14px 16px' }}>{row.nombre_cliente}</td><td style={{ color: T.text, padding: '14px 16px' }}>{money(row.total)}</td><td style={{ color: T.textMuted, padding: '14px 16px' }}>{String(row.metodo_pago || '').replace('_', '/')}</td><td style={{ padding: '14px 16px' }}><span style={{ background: badge.bg, borderRadius: 999, color: badge.color, display: 'inline-flex', fontSize: 12, fontWeight: 700, padding: '5px 10px', textTransform: 'capitalize' }}>{row.estado}</span></td><td style={{ color: T.textMuted, padding: '14px 16px' }}>{formatDate(row.fecha_pedido)}</td></tr>; }) : <tr><td colSpan={6} style={{ color: T.textMuted, padding: '24px 16px', textAlign: 'center' }}>Aun no registras ventas hoy.</td></tr>}</tbody></table></div></div></div>)}
+          {section === 'inicio' && (
+            resumenLoading ? (
+              <div style={{ ...cardStyle, display: 'grid', justifyItems: 'center', minHeight: 220, padding: 24, rowGap: 12 }}>
+                <Spinner />
+                <div style={{ color: T.textMuted, fontSize: 13 }}>Cargando resumen...</div>
+              </div>
+            ) : resumenError ? (
+              <div style={{ ...cardStyle, color: T.danger, fontSize: 13, fontWeight: 700, padding: 20 }}>{resumenError}</div>
+            ) : (
+              <div style={{ display: 'grid', gap: 16 }}>
+                <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
+                  {[
+                    { label: 'Ventas hoy', value: String(resumen?.ventasHoy || 0), hint: 'pedidos' },
+                    { label: 'Total S/', value: money(resumen?.ingresosHoy || 0), hint: 'en ventas' },
+                    { label: 'Productos con stock OK', value: `${resumen?.stockOk || 0} / ${resumen?.stockTotal || 0}`, hint: 'en sucursal' },
+                    { label: 'Alertas pendientes', value: String(resumen?.alertasPendientes || 0), hint: 'sin leer' },
+                  ].map((item) => (
+                    <div key={item.label} style={{ ...cardStyle, display: 'grid', gap: 8, padding: '20px 22px' }}>
+                      <div style={{ color: T.textMuted, fontSize: 13, fontWeight: 700 }}>{item.label}</div>
+                      <div style={{ color: T.text, fontSize: 28, fontWeight: 800 }}>{item.value}</div>
+                      <div style={{ color: T.textMuted, fontSize: 12 }}>{item.hint}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ ...cardStyle, overflow: 'hidden' }}>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+                      <thead>
+                        <tr style={{ background: '#f9fbfc' }}>
+                          {['N Pedido', 'Cliente', 'Total', 'Metodo pago', 'Estado', 'Hora', 'Detalle'].map((label) => (
+                            <th key={label} style={{ color: T.textMuted, fontSize: 12, fontWeight: 800, padding: '14px 16px', textAlign: 'left' }}>
+                              {label}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {resumen?.ultimasVentas?.length ? (
+                          resumen.ultimasVentas.map((row: any) => {
+                            const badge = badgeTone(row.estado);
+                            return (
+                              <tr
+                                key={row.id}
+                                onClick={() => void handleVerDetalle(row.id)}
+                                onMouseEnter={(event) => { event.currentTarget.style.background = '#f5f6fa'; }}
+                                onMouseLeave={(event) => { event.currentTarget.style.background = 'transparent'; }}
+                                style={{ borderTop: `1px solid ${T.border}`, cursor: 'pointer', transition: 'background 0.1s' }}
+                              >
+                                <td style={{ color: T.text, fontWeight: 700, padding: '14px 16px' }}>{row.numero}</td>
+                                <td style={{ color: T.textMuted, padding: '14px 16px' }}>{row.nombre_cliente}</td>
+                                <td style={{ color: T.text, padding: '14px 16px' }}>{money(row.total)}</td>
+                                <td style={{ color: T.textMuted, padding: '14px 16px' }}>{String(row.metodo_pago || '').replace('_', '/')}</td>
+                                <td style={{ padding: '14px 16px' }}>
+                                  <span style={{ background: badge.bg, borderRadius: 999, color: badge.color, display: 'inline-flex', fontSize: 12, fontWeight: 700, padding: '5px 10px', textTransform: 'capitalize' }}>
+                                    {row.estado}
+                                  </span>
+                                </td>
+                                <td style={{ color: T.textMuted, padding: '14px 16px' }}>{formatDate(row.fecha_pedido)}</td>
+                                <td style={{ color: '#2d6a4f', fontSize: 12, fontWeight: 700, padding: '12px 14px' }}>
+                                  Ver detalle →
+                                </td>
+                              </tr>
+                            );
+                          })
+                        ) : (
+                          <tr>
+                            <td colSpan={7} style={{ color: T.textMuted, padding: '24px 16px', textAlign: 'center' }}>
+                              Aun no registras ventas hoy.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )
+          )}
 
           {section === 'nueva_venta' && <div style={{ display: 'grid', gap: 16 }}><div style={{ ...cardStyle, display: 'grid', gap: 16, padding: 20 }}><div style={{ color: T.text, fontSize: 25, fontWeight: 800 }}>Nueva venta</div><div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 999, display: 'flex', gap: 8, padding: 6 }}>{[1, 2, 3].map((step) => <button key={step} onClick={() => { if (step === 1 || cart.length) setVentaStep(step as VentaStep); }} type="button" style={{ background: ventaStep === step ? T.surface : 'transparent', border: `1px solid ${ventaStep === step ? T.border : 'transparent'}`, borderRadius: 999, boxShadow: ventaStep === step ? '0 6px 20px rgba(15, 23, 42, 0.08)' : 'none', color: ventaStep === step ? T.text : T.textMuted, cursor: 'pointer', fontSize: 13, fontWeight: 800, padding: '10px 14px' }}>{step}. {step === 1 ? 'Productos' : step === 2 ? 'Cliente' : 'Cobro'}</button>)}</div></div>{ventaStep === 1 && <div style={{ display: 'grid', gap: 16, gridTemplateColumns: '1.1fr 0.9fr' }}><div style={{ ...cardStyle, display: 'grid', gap: 12, padding: 20 }}><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar SKU o producto" style={inputStyle} /><div style={{ display: 'grid', gap: 10 }}>{results.map((row) => <div key={row.id} style={{ alignItems: 'center', border: `1px solid ${T.border}`, borderRadius: T.radiusSm, display: 'grid', gap: 10, gridTemplateColumns: '1fr auto', padding: '12px 14px' }}><div><div style={{ color: T.text, fontWeight: 800 }}>{row.nombre}</div><div style={{ color: T.textMuted, fontSize: 12 }}>{row.sku} · {money(row.precio)} · stock {row.stock_disponible}</div></div><button disabled={row.stock_disponible <= 0} onClick={() => addToCart(row)} type="button" style={{ background: row.stock_disponible <= 0 ? '#edf0f4' : T.accent, border: 'none', borderRadius: T.radiusSm, color: row.stock_disponible <= 0 ? T.textMuted : '#fff', cursor: row.stock_disponible <= 0 ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 800, padding: '10px 12px' }}>Agregar</button></div>)}</div></div><div style={{ ...cardStyle, display: 'grid', gap: 12, padding: 20 }}><div style={{ color: T.text, fontSize: 18, fontWeight: 800 }}>Carrito</div><div style={{ color: T.textMuted, fontSize: 13 }}>{cart.length} item(s) · {money(totalCart)}</div><div style={{ display: 'grid', gap: 10 }}>{cart.length ? cart.map((row) => <div key={row.id} style={{ border: `1px solid ${T.border}`, borderRadius: T.radiusSm, display: 'grid', gap: 8, padding: '12px 14px' }}><div style={{ alignItems: 'center', display: 'flex', justifyContent: 'space-between' }}><div><div style={{ color: T.text, fontWeight: 800 }}>{row.nombre}</div><div style={{ color: T.textMuted, fontSize: 12 }}>{money(row.precio)}</div></div><div style={{ color: T.text, fontWeight: 800 }}>{money(row.cantidad * row.precio)}</div></div><div style={{ alignItems: 'center', display: 'flex', gap: 8 }}><button onClick={() => updateQty(row.id, -1)} style={ghostButton} type="button">-</button><div style={{ color: T.text, fontWeight: 800, minWidth: 28, textAlign: 'center' }}>{row.cantidad}</div><button onClick={() => updateQty(row.id, 1)} style={ghostButton} type="button">+</button></div></div>) : <div style={{ color: T.textMuted, fontSize: 13 }}>El carrito esta vacio.</div>}</div><button disabled={!cart.length} onClick={() => setVentaStep(2)} type="button" style={{ background: !cart.length ? '#edf0f4' : T.accent, border: 'none', borderRadius: T.radiusSm, color: !cart.length ? T.textMuted : '#fff', cursor: !cart.length ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 800, padding: '11px 14px' }}>Continuar</button></div></div>}{ventaStep === 2 && <div style={{ ...cardStyle, display: 'grid', gap: 12, maxWidth: 760, padding: 20 }}><div style={{ color: T.text, fontSize: 18, fontWeight: 800 }}>Datos del cliente</div><div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>{['nombre', 'telefono', 'dni', 'email'].map((field) => <input key={field} placeholder={field[0].toUpperCase() + field.slice(1)} style={inputStyle} value={(cliente as any)[field]} onChange={(e) => setCliente((prev) => ({ ...prev, [field]: e.target.value }))} />)}</div><div style={{ display: 'flex', gap: 10, justifyContent: 'space-between' }}><button onClick={() => setVentaStep(1)} style={ghostButton} type="button">Volver</button><button onClick={() => setVentaStep(3)} type="button" style={{ ...ghostButton, background: T.accent, border: 'none', color: '#fff' }}>Continuar</button></div></div>}{ventaStep === 3 && <div style={{ display: 'grid', gap: 16, gridTemplateColumns: '1fr 0.95fr' }}><div style={{ ...cardStyle, display: 'grid', gap: 10, padding: 20 }}><div style={{ color: T.text, fontSize: 18, fontWeight: 800 }}>Resumen del pedido</div>{cart.map((row) => <div key={row.id} style={{ alignItems: 'center', border: `1px solid ${T.border}`, borderRadius: T.radiusSm, display: 'grid', gap: 8, gridTemplateColumns: '1fr auto', padding: '12px 14px' }}><div><div style={{ color: T.text, fontWeight: 700 }}>{row.nombre}</div><div style={{ color: T.textMuted, fontSize: 12 }}>{row.cantidad} x {money(row.precio)}</div></div><div style={{ color: T.text, fontWeight: 800 }}>{money(row.cantidad * row.precio)}</div></div>)}<div style={{ color: T.text, fontSize: 22, fontWeight: 800 }}>Total: {money(totalCart)}</div></div><div style={{ ...cardStyle, display: 'grid', gap: 12, padding: 20 }}><div style={{ color: T.text, fontSize: 18, fontWeight: 800 }}>Cobro</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>{['efectivo', 'tarjeta', 'yape_plin', 'transferencia'].map((item) => <button key={item} onClick={() => setMetodoPago(item as MetodoPago)} type="button" style={{ background: metodoPago === item ? T.accentLight : T.bg, border: `1px solid ${metodoPago === item ? '#b7e4c7' : T.border}`, borderRadius: 999, color: metodoPago === item ? T.accent : T.textMuted, cursor: 'pointer', fontSize: 13, fontWeight: 700, padding: '9px 12px', textTransform: 'capitalize' }}>{item.replace('_', '/')}</button>)}</div>{metodoPago === 'efectivo' && <><input type="number" min={0} placeholder="Monto recibido" style={inputStyle} value={montoRecibido} onChange={(e) => setMontoRecibido(e.target.value)} /><div style={{ color: T.textMuted, fontSize: 13 }}>Vuelto: {money(Math.max(0, Number(montoRecibido || 0) - totalCart))}</div></>}<textarea placeholder="Observaciones" style={{ ...inputStyle, minHeight: 96, resize: 'vertical' }} value={observaciones} onChange={(e) => setObservaciones(e.target.value)} />{ventaError && <div style={{ color: T.danger, fontSize: 12 }}>{ventaError}</div>}<div style={{ display: 'flex', gap: 10, justifyContent: 'space-between' }}><button onClick={() => setVentaStep(2)} style={ghostButton} type="button">Volver</button><button onClick={() => void confirmarVenta()} type="button" style={{ background: T.accent, border: 'none', borderRadius: T.radiusSm, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 800, padding: '11px 14px' }}>Confirmar venta</button></div></div></div>}{ventaOk && <div onClick={() => setVentaOk(null)} style={{ alignItems: 'center', background: 'rgba(15, 23, 42, 0.32)', display: 'flex', inset: 0, justifyContent: 'center', padding: 24, position: 'fixed', zIndex: 120 }}><div onClick={(e) => e.stopPropagation()} style={{ ...cardStyle, display: 'grid', gap: 14, maxWidth: 420, padding: 24, textAlign: 'center', width: '100%' }}><div style={{ color: T.text, fontSize: 22, fontWeight: 800 }}>Venta registrada</div><div style={{ color: T.textMuted, fontSize: 14 }}>Pedido generado: <strong>{ventaOk.numero}</strong></div><div style={{ color: T.textMuted, fontSize: 14 }}>Total: {money(ventaOk.total)}</div><button onClick={resetVenta} type="button" style={{ background: T.accent, border: 'none', borderRadius: T.radiusSm, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 800, padding: '11px 14px' }}>Nueva venta</button></div></div>}</div>}
 
