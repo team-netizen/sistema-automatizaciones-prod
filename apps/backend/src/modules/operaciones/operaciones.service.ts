@@ -919,7 +919,7 @@ export class OperacionesService {
       .eq('empresa_id', empresaId)
       .eq('sucursal_id', sucursalId)
       .eq('creado_por', vendedorId)
-      .eq('tipo', 'venta')
+      .eq('tipo', 'salida')
       .eq('referencia_tipo', 'pedido')
       .gte('fecha_creacion', inicioIso)
       .lte('fecha_creacion', finIso)
@@ -1186,7 +1186,7 @@ export class OperacionesService {
       empresa_id: dto.empresaId,
       sucursal_id: dto.sucursalId,
       producto_id: item.productoId,
-      tipo: 'venta',
+      tipo: 'salida',
       cantidad: -Number(item.cantidad || 0),
       referencia_tipo: 'pedido',
       referencia_id: pedido.id,
@@ -1224,7 +1224,7 @@ export class OperacionesService {
       .eq('empresa_id', empresaId)
       .eq('sucursal_id', sucursalId)
       .eq('creado_por', vendedorId)
-      .eq('tipo', 'venta')
+      .eq('tipo', 'salida')
       .eq('referencia_tipo', 'pedido')
       .gte('fecha_creacion', inicioIso)
       .lte('fecha_creacion', finIso)
@@ -1251,7 +1251,7 @@ export class OperacionesService {
       .select('id, numero, nombre_cliente, total, metodo_pago, estado, fecha_pedido, medio_pedido')
       .eq('empresa_id', empresaId)
       .eq('sucursal_id', sucursalId)
-      .eq('medio_pedido', 'pos')
+      .eq('medio_pedido', 'fisico')
       .in('id', pedidoIds)
       .order('fecha_pedido', { ascending: false });
 
@@ -1285,7 +1285,7 @@ export class OperacionesService {
       metodo_pago: String(row?.metodo_pago || 'sin_definir'),
       estado: String(row?.estado || 'pendiente'),
       fecha_pedido: String(row?.fecha_pedido || ''),
-      medio_pedido: String(row?.medio_pedido || 'pos'),
+      medio_pedido: String(row?.medio_pedido || 'fisico'),
       items_count: itemsCountMap[String(row?.id || '')] ?? 0,
     }));
   }
@@ -2162,7 +2162,7 @@ export class OperacionesService {
           empresa_id,
           producto_id: data.producto_id,
           sucursal_id: data.sucursal_id,
-          tipo: data.tipo === 'entrada' ? 'ajuste_entrada' : 'ajuste_salida',
+          tipo: 'ajuste',
           cantidad: data.tipo === 'entrada' ? Number(data.cantidad) : -Number(data.cantidad),
           referencia_tipo: 'ajuste_manual',
           referencia_id: null,
@@ -2935,7 +2935,7 @@ export class OperacionesService {
             empresa_id,
             producto_id: item.producto_id,
             sucursal_id: (transferencia as any).sucursal_destino_id,
-            tipo: 'transferencia_entrada',
+            tipo: 'entrada',
             cantidad: item.cantidad_enviada,
             referencia_tipo: 'transferencia',
             referencia_id: transferencia_id,
