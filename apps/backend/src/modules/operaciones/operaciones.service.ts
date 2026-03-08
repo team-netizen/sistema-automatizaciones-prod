@@ -915,83 +915,12 @@ export class OperacionesService {
     desde?: string,
     hasta?: string,
   ) {
-    try {
-      await this.assertSucursalEmpresa(empresa_id, sucursal_id);
-      const { inicioIso, finIso } = this.normalizeDateRange(desde, hasta);
-
-      const fullSelect = await this.supabase
-        .getAdminClient()
-        .from('movimientos_stock')
-        .select(
-          `
-            id, tipo, cantidad, cantidad_anterior, cantidad_nueva, diferencia, motivo, referencia_tipo, fecha_creacion,
-            producto:productos(nombre, sku),
-            usuario:perfiles(nombre)
-          `,
-        )
-        .eq('empresa_id', empresa_id)
-        .eq('sucursal_id', sucursal_id)
-        .gte('fecha_creacion', inicioIso)
-        .lte('fecha_creacion', finIso)
-        .order('fecha_creacion', { ascending: false });
-
-      let data: any[] | null = fullSelect.data as any[] | null;
-      let error = fullSelect.error;
-
-      if (error && this.isRecoverableColumnError(error)) {
-        const fallback = await this.supabase
-          .getAdminClient()
-          .from('movimientos_stock')
-          .select(
-            `
-              id, tipo, cantidad, referencia_tipo, fecha_creacion,
-              producto:productos(nombre, sku),
-              usuario:perfiles(nombre)
-            `,
-          )
-          .eq('empresa_id', empresa_id)
-          .eq('sucursal_id', sucursal_id)
-          .gte('fecha_creacion', inicioIso)
-          .lte('fecha_creacion', finIso)
-          .order('fecha_creacion', { ascending: false });
-
-        data = fallback.data;
-        error = fallback.error;
-      }
-
-      if (error) throw error;
-
-      return (Array.isArray(data) ? data : []).map((row: any) => {
-        const producto = Array.isArray(row?.producto) ? row.producto[0] : row?.producto;
-        const usuario = Array.isArray(row?.usuario) ? row.usuario[0] : row?.usuario;
-        const diferencia = this.readOptionalNumber(row, 'diferencia') ?? this.readNumber(row, 'cantidad');
-        const cantidadNueva =
-          this.readOptionalNumber(row, 'cantidad_nueva')
-          ?? Math.max(0, diferencia);
-        const cantidadAnterior =
-          this.readOptionalNumber(row, 'cantidad_anterior')
-          ?? Math.max(0, cantidadNueva - diferencia);
-
-        return {
-          id: String(row?.id || ''),
-          created_at: String(row?.fecha_creacion || ''),
-          tipo: String(row?.tipo || row?.referencia_tipo || 'ajuste_manual'),
-          producto_nombre: String(producto?.nombre || 'Producto'),
-          sku: String(producto?.sku || '-'),
-          cantidad_anterior: cantidadAnterior,
-          cantidad_nueva: cantidadNueva,
-          diferencia,
-          motivo: String(row?.motivo || row?.referencia_tipo || '-'),
-          usuario_nombre: String(usuario?.nombre || 'Sistema'),
-        };
-      });
-    } catch (error) {
-      this.handleError(
-        'getReporteMovimientosSucursal',
-        error,
-        'Error al obtener reporte de movimientos',
-      );
-    }
+    return this.getMovimientosSucursal(
+      sucursal_id,
+      empresa_id,
+      String(desde || ''),
+      String(hasta || ''),
+    );
   }
 
   async getReporteTransferenciasSucursal(
@@ -1140,14 +1069,17 @@ export class OperacionesService {
     hasta: string,
   ) {
     try {
+      await this.assertSucursalEmpresa(empresaId, sucursalId);
+      const { inicioIso, finIso } = this.normalizeDateRange(desde, hasta);
+
       const { data: movimientos, error } = await this.supabase
         .getAdminClient()
         .from('movimientos_stock')
         .select('id, fecha_creacion, tipo, cantidad, referencia_tipo, referencia_id, creado_por, producto_id')
         .eq('sucursal_id', sucursalId)
         .eq('empresa_id', empresaId)
-        .gte('fecha_creacion', `${desde}T00:00:00`)
-        .lte('fecha_creacion', `${hasta}T23:59:59`)
+        .gte('fecha_creacion', inicioIso)
+        .lte('fecha_creacion', finIso)
         .order('fecha_creacion', { ascending: false });
 
       if (error) {
@@ -1474,29 +1406,51 @@ export class OperacionesService {
     tipo?: string,
   ) {
     try {
+      const { inicioIso, finIso } = this.normalizeDateRange(inicio, fin);
       let query = this.supabase
         .getAdminClient()
         .from('movimientos_stock')
-        .select(
-          `
-            id, tipo, cantidad, referencia_tipo, fecha_creacion,
-            producto:productos(nombre, sku),
-            sucursal:sucursales(nombre),
-            usuario:perfiles(nombre)
-          `,
-        )
+        .select('id, fecha_creacion, tipo, cantidad, referencia_tipo, referencia_id, creado_por, producto_id, sucursal_id, empresa_id')
         .eq('empresa_id', empresa_id)
         .order('fecha_creacion', { ascending: false })
         .limit(200);
 
       if (sucursal_id) query = query.eq('sucursal_id', sucursal_id);
       if (tipo && tipo !== 'todos') query = query.eq('tipo', tipo);
-      if (inicio) query = query.gte('fecha_creacion', `${inicio}T00:00:00`);
-      if (fin) query = query.lte('fecha_creacion', `${fin}T23:59:59`);
+      query = query.gte('fecha_creacion', inicioIso);
+      query = query.lte('fecha_creacion', finIso);
 
-      const { data, error } = await query;
+      const { data: rows, error } = await query;
       if (error) throw new Error(error.message);
-      return data ?? [];
+
+      if (!rows?.length) return [];
+
+      const productoIds = [...new Set(rows.map((row: any) => row.producto_id).filter(Boolean))];
+      const usuarioIds = [...new Set(rows.map((row: any) => row.creado_por).filter(Boolean))];
+
+      const [{ data: productos }, { data: usuarios }] = await Promise.all([
+        productoIds.length
+          ? this.supabase.getAdminClient().from('productos').select('id, nombre, sku').in('id', productoIds)
+          : Promise.resolve({ data: [] }),
+        usuarioIds.length
+          ? this.supabase.getAdminClient().from('usuarios').select('id, nombre, email').in('id', usuarioIds)
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      const prodMap = Object.fromEntries((productos ?? []).map((producto: any) => [producto.id, producto]));
+      const userMap = Object.fromEntries((usuarios ?? []).map((usuario: any) => [usuario.id, usuario]));
+
+      return rows.map((row: any) => ({
+        id: row.id,
+        fecha: row.fecha_creacion,
+        tipo: row.tipo,
+        cantidad: row.cantidad,
+        referencia_tipo: row.referencia_tipo ?? '-',
+        referencia_id: row.referencia_id,
+        producto_nombre: prodMap[row.producto_id]?.nombre ?? '-',
+        sku: prodMap[row.producto_id]?.sku ?? '-',
+        responsable: userMap[row.creado_por]?.nombre ?? userMap[row.creado_por]?.email ?? '-',
+      }));
     } catch (error) {
       this.handleError('getMovimientos', error, 'Error al obtener movimientos');
     }

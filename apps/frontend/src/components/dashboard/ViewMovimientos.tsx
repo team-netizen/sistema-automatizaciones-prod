@@ -104,13 +104,13 @@ function tipoBadge(tipo: string) {
 function normalizeRows(payload: any) {
   const rows = Array.isArray(payload) ? payload : payload?.data || payload?.items || [];
   return rows.map((row: any) => ({
-    fecha: row?.fecha_creacion || row?.created_at || null,
-    producto: row?.producto?.nombre || row?.producto_nombre || 'Producto',
-    sku: row?.producto?.sku || row?.sku || '-',
+    fecha: row?.fecha || row?.fecha_creacion || row?.created_at || null,
+    producto: row?.producto_nombre || row?.producto?.nombre || 'Producto',
+    sku: row?.sku || row?.producto?.sku || '-',
     tipo: row?.tipo || '-',
-    cantidad: Number(row?.cantidad || 0),
-    referencia: row?.referencia_tipo || '-',
-    usuario: row?.usuario?.nombre || row?.creado_por_nombre || '-',
+    cantidad: Number(row?.cantidad ?? row?.diferencia ?? 0),
+    referencia_tipo: row?.referencia_tipo || row?.motivo || '-',
+    responsable: row?.responsable || row?.usuario_nombre || row?.usuario?.nombre || '-',
   }));
 }
 
@@ -149,8 +149,8 @@ export const ViewMovimientos = ({ usuario }: { usuario?: any }) => {
         sku: row.sku,
         tipo: row.tipo,
         cantidad: row.cantidad,
-        referencia: row.referencia,
-        usuario: row.usuario,
+        referencia_tipo: row.referencia_tipo,
+        responsable: row.responsable,
       })),
     [rows],
   );
@@ -266,8 +266,8 @@ export const ViewMovimientos = ({ usuario }: { usuario?: any }) => {
                       <td style={{ color: row.cantidad < 0 ? T.danger : T.accent, fontWeight: 700, padding: '14px 16px' }}>
                         {row.cantidad}
                       </td>
-                      <td style={{ color: T.textMid, padding: '14px 16px' }}>{row.referencia}</td>
-                      <td style={{ color: T.textMid, padding: '14px 16px' }}>{row.usuario}</td>
+                      <td style={{ color: T.textMid, padding: '14px 16px' }}>{row.referencia_tipo}</td>
+                      <td style={{ color: T.textMid, padding: '14px 16px' }}>{row.responsable}</td>
                     </tr>
                   );
                 })}
