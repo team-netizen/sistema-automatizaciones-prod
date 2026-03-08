@@ -1131,7 +1131,7 @@ export class OperacionesService {
         dni_cliente: dto.cliente?.dni ?? null,
         email_cliente: dto.cliente?.email ?? null,
         observaciones: dto.observaciones ?? null,
-        medio_pedido: 'pos',
+        medio_pedido: 'fisico',
         fecha_pedido: now,
         fecha_creacion: now,
         procesado: false,
