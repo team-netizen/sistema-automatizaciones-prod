@@ -1140,63 +1140,57 @@ export class OperacionesService {
     hasta: string,
   ) {
     try {
-      const { data: movimientos, error: err1 } = await this.supabase
+      const { data: movimientos, error } = await this.supabase
         .getAdminClient()
         .from('movimientos_stock')
-        .select('id, created_at, tipo, cantidad_anterior, cantidad_nueva, diferencia, motivo, producto_id, usuario_id')
+        .select('id, fecha_creacion, tipo, cantidad, referencia_tipo, referencia_id, creado_por, producto_id')
         .eq('sucursal_id', sucursalId)
         .eq('empresa_id', empresaId)
-        .gte('created_at', `${desde}T00:00:00`)
-        .lte('created_at', `${hasta}T23:59:59`)
-        .order('created_at', { ascending: false });
+        .gte('fecha_creacion', `${desde}T00:00:00`)
+        .lte('fecha_creacion', `${hasta}T23:59:59`)
+        .order('fecha_creacion', { ascending: false });
 
-      if (err1) {
-        this.logger.error(`[getMovimientosSucursal] Supabase error: ${JSON.stringify(err1)}`);
-        throw new InternalServerErrorException(err1.message);
+      if (error) {
+        this.logger.error(`[getMovimientosSucursal] Supabase error: ${JSON.stringify(error)}`);
+        throw new InternalServerErrorException(error.message);
       }
 
       if (!movimientos?.length) return [];
 
       const productoIds = [...new Set(movimientos.map((m: any) => m.producto_id).filter(Boolean))];
-      const usuarioIds = [...new Set(movimientos.map((m: any) => m.usuario_id).filter(Boolean))];
+      const usuarioIds = [...new Set(movimientos.map((m: any) => m.creado_por).filter(Boolean))];
 
-      const [{ data: productos, error: err2 }, { data: usuarios, error: err3 }] = await Promise.all([
+      const [{ data: productos }, { data: usuarios }] = await Promise.all([
         productoIds.length
           ? this.supabase.getAdminClient().from('productos').select('id, nombre, sku').in('id', productoIds)
-          : Promise.resolve({ data: [], error: null }),
+          : Promise.resolve({ data: [] }),
         usuarioIds.length
           ? this.supabase.getAdminClient().from('usuarios').select('id, nombre, email').in('id', usuarioIds)
-          : Promise.resolve({ data: [], error: null }),
+          : Promise.resolve({ data: [] }),
       ]);
-
-      if (err2) this.logger.warn(`[getMovimientosSucursal] productos warn: ${JSON.stringify(err2)}`);
-      if (err3) this.logger.warn(`[getMovimientosSucursal] usuarios warn: ${JSON.stringify(err3)}`);
 
       const prodMap = Object.fromEntries((productos ?? []).map((p: any) => [p.id, p]));
       const userMap = Object.fromEntries((usuarios ?? []).map((u: any) => [u.id, u]));
 
       return movimientos.map((row: any) => {
         const prod = prodMap[row.producto_id];
-        const user = userMap[row.usuario_id];
-        const diferencia = row.diferencia != null
-          ? row.diferencia
-          : (row.cantidad_nueva ?? 0) - (row.cantidad_anterior ?? 0);
+        const user = userMap[row.creado_por];
 
         return {
           id: row.id,
-          created_at: row.created_at,
-          tipo: row.tipo ?? 'ajuste_manual',
+          created_at: row.fecha_creacion,
+          tipo: row.tipo ?? '-',
           producto_nombre: prod?.nombre ?? '-',
           sku: prod?.sku ?? '-',
-          cantidad_anterior: row.cantidad_anterior ?? 0,
-          cantidad_nueva: row.cantidad_nueva ?? 0,
-          diferencia,
-          motivo: row.motivo ?? '',
+          cantidad_anterior: null,
+          cantidad_nueva: null,
+          diferencia: row.cantidad ?? 0,
+          motivo: row.referencia_tipo ?? '',
           usuario_nombre: user?.nombre ?? user?.email ?? '-',
         };
       });
     } catch (e: any) {
-      this.logger.error(`[getMovimientosSucursal] EXCEPTION: ${e?.message ?? JSON.stringify(e)}`);
+      this.logger.error(`[getMovimientosSucursal] EXCEPTION: ${e?.message}`);
       throw new InternalServerErrorException('Error al obtener reporte de movimientos');
     }
   }
@@ -1217,33 +1211,19 @@ export class OperacionesService {
     hasta: string,
   ) {
     try {
-      const { data: sample, error: sampleErr } = await this.supabase
+      const { data: pedidos, error } = await this.supabase
         .getAdminClient()
         .from('pedidos')
-        .select('id, sucursal_id')
+        .select('id, fecha_creacion, fecha_pedido, numero, estado, total, medio_pedido, canal_id, sucursal_id')
         .eq('empresa_id', empresaId)
-        .limit(1);
+        .eq('sucursal_id', sucursalId)
+        .gte('fecha_pedido', `${desde}T00:00:00`)
+        .lte('fecha_pedido', `${hasta}T23:59:59`)
+        .order('fecha_pedido', { ascending: false });
 
-      const tieneSucursalId = !sampleErr && sample !== null;
-
-      let queryBuilder = this.supabase
-        .getAdminClient()
-        .from('pedidos')
-        .select('id, created_at, numero_pedido, canal, estado, total')
-        .eq('empresa_id', empresaId)
-        .gte('created_at', `${desde}T00:00:00`)
-        .lte('created_at', `${hasta}T23:59:59`)
-        .order('created_at', { ascending: false });
-
-      if (tieneSucursalId) {
-        queryBuilder = queryBuilder.eq('sucursal_id', sucursalId);
-      }
-
-      const { data: pedidos, error: err1 } = await queryBuilder;
-
-      if (err1) {
-        this.logger.error(`[getPedidosSucursal] Supabase error: ${JSON.stringify(err1)}`);
-        throw new InternalServerErrorException(err1.message);
+      if (error) {
+        this.logger.error(`[getPedidosSucursal] Supabase error: ${JSON.stringify(error)}`);
+        throw new InternalServerErrorException(error.message);
       }
 
       if (!pedidos?.length) return [];
@@ -1267,15 +1247,15 @@ export class OperacionesService {
 
       return pedidos.map((row: any) => ({
         id: row.id,
-        created_at: row.created_at,
-        numero_pedido: row.numero_pedido ?? `#${String(row.id).slice(0, 8)}`,
-        canal: row.canal ?? 'manual',
+        created_at: row.fecha_pedido ?? row.fecha_creacion,
+        numero_pedido: row.numero ?? `#${String(row.id).slice(0, 8)}`,
+        canal: row.medio_pedido ?? 'manual',
         estado: row.estado ?? 'pendiente',
         total: row.total ?? 0,
         items_count: itemsCountMap[row.id] ?? 0,
       }));
     } catch (e: any) {
-      this.logger.error(`[getPedidosSucursal] EXCEPTION: ${e?.message ?? JSON.stringify(e)}`);
+      this.logger.error(`[getPedidosSucursal] EXCEPTION: ${e?.message}`);
       throw new InternalServerErrorException('Error al obtener reporte de pedidos');
     }
   }
