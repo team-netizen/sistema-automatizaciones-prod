@@ -14,6 +14,16 @@ type UsuarioSesion = PerfilUsuario & {
   sucursal_nombre?: string;
 };
 
+function getNombreSesion(metadata: unknown): string | undefined {
+  if (!metadata || typeof metadata !== 'object') return undefined;
+
+  const row = metadata as Record<string, unknown>;
+  const candidates = [row.nombre, row.full_name, row.name];
+  const nombre = candidates.find((value) => typeof value === 'string' && value.trim().length > 0);
+
+  return typeof nombre === 'string' ? nombre : undefined;
+}
+
 function isSuperAdminRole(rol?: PerfilUsuario['rol'] | null): boolean {
   return rol === 'super_admin';
 }
@@ -39,7 +49,13 @@ function App() {
 
       const perfil = resultado.perfil;
       const email = resultado.session.user.email;
-      const usuarioSesion: UsuarioSesion = { ...perfil, email };
+      const nombre = getNombreSesion(resultado.session.user.user_metadata);
+      const usuarioSesion: UsuarioSesion = {
+        ...perfil,
+        email,
+        nombre,
+        sucursal_nombre: perfil.sucursal_nombre || 'Mi sucursal',
+      };
 
       setUsuario(usuarioSesion);
       setIsAuthenticated(true);
@@ -110,7 +126,7 @@ function App() {
           rol: usuario.rol,
           empresa_id: usuario.empresa_id,
           sucursal_id: usuario.sucursal_id || '',
-          sucursal_nombre: usuario.sucursal_nombre || '',
+          sucursal_nombre: usuario.sucursal_nombre || 'Mi sucursal',
         }}
         token={sessionStorage.getItem('access_token') || ''}
         onLogout={handleLogout}

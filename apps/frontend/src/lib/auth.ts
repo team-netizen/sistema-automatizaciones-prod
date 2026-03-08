@@ -6,6 +6,7 @@ export type PerfilUsuario = {
   empresa_id: string;
   rol: 'super_admin' | 'admin_empresa' | 'encargado_sucursal' | 'vendedor';
   sucursal_id: string | null;
+  sucursal_nombre?: string | null;
 };
 
 type VerificacionSesion = {
@@ -108,6 +109,21 @@ export function safeParseJSON(value: string | null): any {
   }
 }
 
+async function getSucursalNombre(client: SupabaseClient, sucursalId: string): Promise<string | null> {
+  const { data, error } = await client
+    .from('sucursales')
+    .select('nombre')
+    .eq('id', sucursalId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn('[auth] Could not fetch sucursal:', error.message);
+    return null;
+  }
+
+  return typeof data?.nombre === 'string' && data.nombre.trim().length > 0 ? data.nombre : null;
+}
+
 export async function getPerfilUsuario(): Promise<PerfilUsuario | null> {
   const client = getSupabaseClient();
   if (!client) return null;
@@ -129,7 +145,12 @@ export async function getPerfilUsuario(): Promise<PerfilUsuario | null> {
   }
 
   if (!isPerfilUsuario(data)) return null;
-  return data;
+
+  const sucursalNombre = data.sucursal_id ? await getSucursalNombre(client, data.sucursal_id) : null;
+  return {
+    ...data,
+    sucursal_nombre: sucursalNombre,
+  };
 }
 
 export async function verificarSesion(): Promise<VerificacionSesion | null> {
