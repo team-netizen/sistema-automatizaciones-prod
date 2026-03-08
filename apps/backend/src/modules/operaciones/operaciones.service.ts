@@ -1139,7 +1139,66 @@ export class OperacionesService {
     desde: string,
     hasta: string,
   ) {
-    return this.getReporteMovimientosSucursal(empresaId, sucursalId, desde, hasta);
+    try {
+      const { data: movimientos, error: err1 } = await this.supabase
+        .getAdminClient()
+        .from('movimientos_stock')
+        .select('id, created_at, tipo, cantidad_anterior, cantidad_nueva, diferencia, motivo, producto_id, usuario_id')
+        .eq('sucursal_id', sucursalId)
+        .eq('empresa_id', empresaId)
+        .gte('created_at', `${desde}T00:00:00`)
+        .lte('created_at', `${hasta}T23:59:59`)
+        .order('created_at', { ascending: false });
+
+      if (err1) {
+        this.logger.error(`[getMovimientosSucursal] Supabase error: ${JSON.stringify(err1)}`);
+        throw new InternalServerErrorException(err1.message);
+      }
+
+      if (!movimientos?.length) return [];
+
+      const productoIds = [...new Set(movimientos.map((m: any) => m.producto_id).filter(Boolean))];
+      const usuarioIds = [...new Set(movimientos.map((m: any) => m.usuario_id).filter(Boolean))];
+
+      const [{ data: productos, error: err2 }, { data: usuarios, error: err3 }] = await Promise.all([
+        productoIds.length
+          ? this.supabase.getAdminClient().from('productos').select('id, nombre, sku').in('id', productoIds)
+          : Promise.resolve({ data: [], error: null }),
+        usuarioIds.length
+          ? this.supabase.getAdminClient().from('usuarios').select('id, nombre, email').in('id', usuarioIds)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+
+      if (err2) this.logger.warn(`[getMovimientosSucursal] productos warn: ${JSON.stringify(err2)}`);
+      if (err3) this.logger.warn(`[getMovimientosSucursal] usuarios warn: ${JSON.stringify(err3)}`);
+
+      const prodMap = Object.fromEntries((productos ?? []).map((p: any) => [p.id, p]));
+      const userMap = Object.fromEntries((usuarios ?? []).map((u: any) => [u.id, u]));
+
+      return movimientos.map((row: any) => {
+        const prod = prodMap[row.producto_id];
+        const user = userMap[row.usuario_id];
+        const diferencia = row.diferencia != null
+          ? row.diferencia
+          : (row.cantidad_nueva ?? 0) - (row.cantidad_anterior ?? 0);
+
+        return {
+          id: row.id,
+          created_at: row.created_at,
+          tipo: row.tipo ?? 'ajuste_manual',
+          producto_nombre: prod?.nombre ?? '-',
+          sku: prod?.sku ?? '-',
+          cantidad_anterior: row.cantidad_anterior ?? 0,
+          cantidad_nueva: row.cantidad_nueva ?? 0,
+          diferencia,
+          motivo: row.motivo ?? '',
+          usuario_nombre: user?.nombre ?? user?.email ?? '-',
+        };
+      });
+    } catch (e: any) {
+      this.logger.error(`[getMovimientosSucursal] EXCEPTION: ${e?.message ?? JSON.stringify(e)}`);
+      throw new InternalServerErrorException('Error al obtener reporte de movimientos');
+    }
   }
 
   async getTransferenciasSucursal(
@@ -1157,7 +1216,68 @@ export class OperacionesService {
     desde: string,
     hasta: string,
   ) {
-    return this.getReportePedidosSucursal(empresaId, sucursalId, desde, hasta);
+    try {
+      const { data: sample, error: sampleErr } = await this.supabase
+        .getAdminClient()
+        .from('pedidos')
+        .select('id, sucursal_id')
+        .eq('empresa_id', empresaId)
+        .limit(1);
+
+      const tieneSucursalId = !sampleErr && sample !== null;
+
+      let queryBuilder = this.supabase
+        .getAdminClient()
+        .from('pedidos')
+        .select('id, created_at, numero_pedido, canal, estado, total')
+        .eq('empresa_id', empresaId)
+        .gte('created_at', `${desde}T00:00:00`)
+        .lte('created_at', `${hasta}T23:59:59`)
+        .order('created_at', { ascending: false });
+
+      if (tieneSucursalId) {
+        queryBuilder = queryBuilder.eq('sucursal_id', sucursalId);
+      }
+
+      const { data: pedidos, error: err1 } = await queryBuilder;
+
+      if (err1) {
+        this.logger.error(`[getPedidosSucursal] Supabase error: ${JSON.stringify(err1)}`);
+        throw new InternalServerErrorException(err1.message);
+      }
+
+      if (!pedidos?.length) return [];
+
+      const pedidoIds = pedidos.map((p: any) => p.id);
+      const itemsCountMap: Record<string, number> = {};
+
+      const { data: items, error: itemsErr } = await this.supabase
+        .getAdminClient()
+        .from('pedido_items')
+        .select('pedido_id')
+        .in('pedido_id', pedidoIds);
+
+      if (itemsErr) {
+        this.logger.warn(`[getPedidosSucursal] pedido_items warn: ${JSON.stringify(itemsErr)}`);
+      } else {
+        (items ?? []).forEach((item: any) => {
+          itemsCountMap[item.pedido_id] = (itemsCountMap[item.pedido_id] ?? 0) + 1;
+        });
+      }
+
+      return pedidos.map((row: any) => ({
+        id: row.id,
+        created_at: row.created_at,
+        numero_pedido: row.numero_pedido ?? `#${String(row.id).slice(0, 8)}`,
+        canal: row.canal ?? 'manual',
+        estado: row.estado ?? 'pendiente',
+        total: row.total ?? 0,
+        items_count: itemsCountMap[row.id] ?? 0,
+      }));
+    } catch (e: any) {
+      this.logger.error(`[getPedidosSucursal] EXCEPTION: ${e?.message ?? JSON.stringify(e)}`);
+      throw new InternalServerErrorException('Error al obtener reporte de pedidos');
+    }
   }
 
   async getReporteVentas(empresa_id: string, inicio: string, fin: string) {
