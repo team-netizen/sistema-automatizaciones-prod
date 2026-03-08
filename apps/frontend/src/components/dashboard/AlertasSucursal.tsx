@@ -125,7 +125,7 @@ export default function AlertasSucursal({
     if (!usuarioId || !empresaId || !token) {
       setAlertas([]);
       setLoading(false);
-      return;
+      return false;
     }
 
     if (!options?.silent) {
@@ -144,6 +144,12 @@ export default function AlertasSucursal({
         },
       });
 
+      if (response.status === 401) {
+        setAlertas([]);
+        setError('Sesion expirada. Vuelve a iniciar sesion.');
+        return false;
+      }
+
       if (!response.ok) {
         let message = 'No se pudieron cargar las alertas.';
         try {
@@ -158,12 +164,14 @@ export default function AlertasSucursal({
       const payload = await response.json();
       setAlertas(Array.isArray(payload) ? payload : []);
       setError('');
+      return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error de red al cargar alertas.';
       if (!options?.silent) {
         setAlertas([]);
         setError(message);
       }
+      return true;
     } finally {
       if (!options?.silent) {
         setLoading(false);
@@ -172,10 +180,25 @@ export default function AlertasSucursal({
   };
 
   useEffect(() => {
-    void fetchAlertas();
+    let pollingActivo = true;
 
-    const interval = window.setInterval(() => {
-      void fetchAlertas({ silent: true });
+    void fetchAlertas().then((shouldContinue) => {
+      if (shouldContinue === false) {
+        pollingActivo = false;
+      }
+    });
+
+    const interval = window.setInterval(async () => {
+      if (!pollingActivo) {
+        window.clearInterval(interval);
+        return;
+      }
+
+      const shouldContinue = await fetchAlertas({ silent: true });
+      if (shouldContinue === false) {
+        pollingActivo = false;
+        window.clearInterval(interval);
+      }
     }, 30000);
 
     return () => window.clearInterval(interval);

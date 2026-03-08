@@ -1121,6 +1121,7 @@ export class OperacionesService {
         sucursal_id: dto.sucursalId,
         sucursal_asignada_id: dto.sucursalId,
         canal_id: CANAL_POS_ID,
+        id_orden: `POS-${Date.now()}`,
         numero,
         estado: 'entregado',
         total,
