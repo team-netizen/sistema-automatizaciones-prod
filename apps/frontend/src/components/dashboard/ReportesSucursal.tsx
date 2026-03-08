@@ -488,6 +488,7 @@ export default function ReportesSucursal({
         display: 'grid',
         gap: 16,
         fontFamily: "'DM Sans', 'Nunito', sans-serif",
+        paddingBottom: '40px',
       }}
     >
       <style>
@@ -674,7 +675,6 @@ export default function ReportesSucursal({
           border: `1px solid ${T.border}`,
           borderRadius: T.radius,
           boxShadow: T.shadow,
-          overflow: 'hidden',
         }}
       >
         {loading ? (

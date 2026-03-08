@@ -531,7 +531,7 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
   };
 
   return (
-    <div style={{ background: T.bg, color: T.text, display: 'flex', minHeight: '100vh' }}>
+    <div style={{ background: T.bg, color: T.text, display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <aside
         style={{
           background: T.surface,
@@ -539,6 +539,9 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
           boxShadow: '6px 0 18px rgba(0,0,0,0.04)',
           display: 'flex',
           flexDirection: 'column',
+          flexShrink: 0,
+          height: '100vh',
+          overflowY: 'auto',
           padding: 20,
           width: 220,
         }}
@@ -606,7 +609,7 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
         </div>
       </aside>
 
-      <div style={{ display: 'flex', flex: 1, flexDirection: 'column', minWidth: 0 }}>
+      <div style={{ display: 'flex', flex: 1, flexDirection: 'column', height: '100vh', minWidth: 0, overflow: 'hidden' }}>
         <header
           style={{
             alignItems: 'center',
@@ -772,7 +775,7 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
           </div>
         </header>
 
-        <main style={{ flex: 1, minWidth: 0, padding: 24 }}>
+        <main style={{ flex: 1, minWidth: 0, overflowY: 'auto', height: '100%', padding: 24 }}>
           <div style={{ marginBottom: 20 }}>
             <div style={{ color: T.text, fontSize: 28, fontWeight: 800, marginBottom: 6 }}>
               Dashboard de sucursal
