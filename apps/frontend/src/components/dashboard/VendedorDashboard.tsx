@@ -209,7 +209,7 @@ export default function VendedorDashboard({ usuario, token, onLogout }: Vendedor
         <div style={{ borderTop: `1px solid ${T.border}`, marginTop: 'auto', paddingTop: 16 }}><button onClick={onLogout} type="button" style={{ alignItems: 'center', background: 'transparent', border: '1px solid transparent', borderRadius: 12, color: T.textMuted, cursor: 'pointer', display: 'flex', fontSize: 14, fontWeight: 600, gap: 10, padding: '12px 14px', width: '100%' }}><span>↩</span><span>Cerrar sesion</span></button></div>
       </aside>
       <div style={{ display: 'flex', flex: 1, flexDirection: 'column', height: '100vh', minWidth: 0, overflow: 'hidden' }}>
-        <header style={{ alignItems: 'center', background: '#ffffff', borderBottom: '1.5px solid #e8ecf0', display: 'grid', gridTemplateColumns: '1fr auto 1fr', height: 56, padding: '0 24px', position: 'sticky', top: 0, zIndex: 10 }}>
+        <header style={{ alignItems: 'center', background: '#ffffff', borderBottom: '1.5px solid #e8ecf0', display: 'grid', gridTemplateColumns: '1fr auto 1fr', minHeight: 60, padding: '2px 24px 8px', position: 'sticky', top: 0, zIndex: 10 }}>
           <span style={{ color: '#1a1a2e', fontSize: 14, fontWeight: 600 }}>SIS AUTO / Panel de vendedor</span>
           <div style={{ alignItems: 'center', background: '#d1fae5', borderRadius: '20px', color: '#2d6a4f', display: 'flex', fontSize: 13, fontWeight: 600, gap: '6px', padding: '6px 14px' }}>
             <span>📍</span>
