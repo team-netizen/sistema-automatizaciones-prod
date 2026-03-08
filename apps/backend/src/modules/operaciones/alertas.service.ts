@@ -137,7 +137,7 @@ export class AlertasService {
 
     const { data: admins, error } = await this.supabase
       .getAdminClient()
-      .from('usuarios')
+      .from('perfiles')
       .select('id')
       .eq('empresa_id', empresaId)
       .eq('rol', 'admin_empresa');
@@ -147,7 +147,7 @@ export class AlertasService {
     const alertasPayload = admins.map((admin) => ({
       empresa_id: empresaId,
       usuario_id: admin.id,
-      tipo: 'ajuste_stock_manual',
+      tipo: 'alerta',
       titulo: `Ajuste manual de stock en ${sucursalNombre}`,
       mensaje: `${encargadoNombre} (${encargadoEmail}) ajusto el stock de "${productoNombre}" (SKU: ${sku}) en ${sucursalNombre}. Cambio: ${cantidadAnterior} -> ${cantidadNueva} (${signo}${diferencia} unidades, ${tipo}). Motivo: "${motivo}".`,
       metadata: {

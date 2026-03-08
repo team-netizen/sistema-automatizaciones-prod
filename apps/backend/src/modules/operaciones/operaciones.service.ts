@@ -837,20 +837,24 @@ export class OperacionesService {
   private async notificarVendedoresSucursal(params: {
     empresaId: string;
     sucursalId: string;
-    tipo: string;
+    tipo: 'sistema' | 'alerta' | 'informativa';
     titulo: string;
     mensaje: string;
   }) {
     try {
       const { data: vendedores, error } = await this.supabase
         .getAdminClient()
-        .from('usuarios')
+        .from('perfiles')
         .select('id')
         .eq('empresa_id', params.empresaId)
         .eq('sucursal_id', params.sucursalId)
         .eq('rol', 'vendedor');
 
-      if (error || !vendedores?.length) return;
+      if (error) {
+        this.logger.warn(`[notificarVendedoresSucursal] perfiles error: ${JSON.stringify(error)}`);
+        return;
+      }
+      if (!vendedores?.length) return;
 
       const notificaciones = vendedores.map((vendedor: any) => ({
         empresa_id: params.empresaId,
@@ -869,10 +873,10 @@ export class OperacionesService {
         .insert(notificaciones);
 
       if (insertError) {
-        this.logger.warn(`[notificarVendedoresSucursal] ${insertError.message}`);
+        this.logger.warn(`[notificarVendedoresSucursal] insert error: ${JSON.stringify(insertError)}`);
       }
     } catch (error: any) {
-      this.logger.warn(`[notificarVendedoresSucursal] ${error?.message}`);
+      this.logger.warn(`[notificarVendedoresSucursal] exception: ${error?.message}`);
     }
   }
 
@@ -889,7 +893,7 @@ export class OperacionesService {
     await this.notificarVendedoresSucursal({
       empresaId: dto.empresaId,
       sucursalId: dto.sucursalId,
-      tipo: 'mensaje_encargado',
+      tipo: 'informativa',
       titulo: String(dto.titulo).trim(),
       mensaje: String(dto.mensaje).trim(),
     });
@@ -1769,7 +1773,7 @@ export class OperacionesService {
           ? this.supabase.getAdminClient().from('productos').select('id, nombre, sku').in('id', productoIds)
           : Promise.resolve({ data: [] }),
         usuarioIds.length
-          ? this.supabase.getAdminClient().from('usuarios').select('id, nombre, email').in('id', usuarioIds)
+          ? this.supabase.getAdminClient().from('perfiles').select('id, rol, sucursal_id').in('id', usuarioIds)
           : Promise.resolve({ data: [] }),
       ]);
 
@@ -1790,7 +1794,7 @@ export class OperacionesService {
           cantidad_nueva: null,
           diferencia: row.cantidad ?? 0,
           motivo: row.referencia_tipo ?? '',
-          usuario_nombre: user?.nombre ?? user?.email ?? '-',
+          usuario_nombre: user?.rol ?? (row.creado_por ? `Usuario ${String(row.creado_por).slice(0, 8)}` : '-'),
         };
       });
     } catch (e: any) {
@@ -2105,7 +2109,7 @@ export class OperacionesService {
           ? this.supabase.getAdminClient().from('productos').select('id, nombre, sku').in('id', productoIds)
           : Promise.resolve({ data: [] }),
         usuarioIds.length
-          ? this.supabase.getAdminClient().from('usuarios').select('id, nombre, email').in('id', usuarioIds)
+          ? this.supabase.getAdminClient().from('perfiles').select('id, rol, sucursal_id').in('id', usuarioIds)
           : Promise.resolve({ data: [] }),
       ]);
 
@@ -2121,7 +2125,7 @@ export class OperacionesService {
         referencia_id: row.referencia_id,
         producto_nombre: prodMap[row.producto_id]?.nombre ?? '-',
         sku: prodMap[row.producto_id]?.sku ?? '-',
-        responsable: userMap[row.creado_por]?.nombre ?? userMap[row.creado_por]?.email ?? '-',
+        responsable: userMap[row.creado_por]?.rol ?? (row.creado_por ? `Usuario ${String(row.creado_por).slice(0, 8)}` : '-'),
       }));
     } catch (error) {
       this.handleError('getMovimientos', error, 'Error al obtener movimientos');
@@ -2340,7 +2344,7 @@ export class OperacionesService {
         this.notificarVendedoresSucursal({
           empresaId: empresa_id,
           sucursalId: data.sucursal_id,
-          tipo: 'sin_stock',
+          tipo: 'alerta',
           titulo: `Sin stock: ${productoNombre}`,
           mensaje: `El producto "${productoNombre}" (SKU: ${productoSku}) se quedo sin stock en tu sucursal. No podras registrar ventas de este producto.`,
         }).catch(() => {});
@@ -2348,7 +2352,7 @@ export class OperacionesService {
         this.notificarVendedoresSucursal({
           empresaId: empresa_id,
           sucursalId: data.sucursal_id,
-          tipo: 'stock_bajo',
+          tipo: 'alerta',
           titulo: `Stock bajo: ${productoNombre}`,
           mensaje: `El producto "${productoNombre}" (SKU: ${productoSku}) tiene solo ${nuevaCantidad} unidades, por debajo del minimo de ${stockMinimo}. Considera solicitar reposicion.`,
         }).catch(() => {});
@@ -3150,7 +3154,7 @@ export class OperacionesService {
       this.notificarVendedoresSucursal({
         empresaId: empresa_id,
         sucursalId: String((transferencia as any).sucursal_destino_id || ''),
-        tipo: 'transferencia_recibida',
+        tipo: 'informativa',
         titulo: 'Nueva mercaderia recibida',
         mensaje: `Se recibio una transferencia de ${origenNombre} con ${totalUnidades} unidades. El stock de tu sucursal ha sido actualizado.`,
       }).catch(() => {});

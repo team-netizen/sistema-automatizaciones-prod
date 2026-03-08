@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 type EstadoFiltro = 'todas' | 'no_leidas' | 'leidas';
-type TipoFiltro = 'todos' | 'stock_bajo' | 'ajuste_stock_manual' | 'transferencia' | 'otro';
+type TipoFiltro = 'todos' | 'alerta' | 'informativa' | 'sistema' | 'otro';
 
 interface AlertasSucursalProps {
   usuarioId: string;
@@ -50,9 +50,9 @@ const ESTADO_TABS: Array<{ id: EstadoFiltro; label: string }> = [
 
 const TIPO_OPTIONS: Array<{ value: TipoFiltro; label: string }> = [
   { value: 'todos', label: 'Todos' },
-  { value: 'stock_bajo', label: 'Stock bajo' },
-  { value: 'ajuste_stock_manual', label: 'Ajuste stock' },
-  { value: 'transferencia', label: 'Transferencia' },
+  { value: 'alerta', label: 'Alertas' },
+  { value: 'informativa', label: 'Informativas' },
+  { value: 'sistema', label: 'Sistema' },
   { value: 'otro', label: 'Otro' },
 ];
 
@@ -78,24 +78,16 @@ function formatFecha(iso: string) {
 function getTipoBadge(tipo: string): { label: string; background: string; color: string } {
   const key = String(tipo || '').toLowerCase();
 
-  if (key === 'stock_bajo') {
-    return { label: 'Stock bajo', background: T.warningLight, color: T.warning };
+  if (key === 'alerta') {
+    return { label: 'Alerta', background: T.dangerLight, color: T.danger };
   }
 
-  if (key === 'sin_stock') {
-    return { label: 'Sin stock', background: T.dangerLight, color: T.danger };
+  if (key === 'informativa') {
+    return { label: 'Info', background: T.infoLight, color: T.info };
   }
 
-  if (key === 'ajuste_stock_manual') {
-    return { label: 'Ajuste stock', background: T.violetLight, color: T.violet };
-  }
-
-  if (key === 'transferencia' || key === 'transferencia_recibida') {
-    return { label: 'Transferencia', background: T.infoLight, color: T.info };
-  }
-
-  if (key === 'mensaje_encargado') {
-    return { label: 'Mensaje', background: T.violetLight, color: T.violet };
+  if (key === 'sistema') {
+    return { label: 'Sistema', background: '#f3f4f6', color: T.textMuted };
   }
 
   return { label: 'Sistema', background: '#f3f4f6', color: T.textMuted };
@@ -224,7 +216,7 @@ export default function AlertasSucursal({
       const coincideTipo = tipoFiltro === 'todos'
         ? true
         : tipoFiltro === 'otro'
-          ? !['stock_bajo', 'ajuste_stock_manual', 'transferencia'].includes(tipo)
+          ? !['alerta', 'informativa', 'sistema'].includes(tipo)
           : tipo === tipoFiltro;
 
       return coincideEstado && coincideTipo;
