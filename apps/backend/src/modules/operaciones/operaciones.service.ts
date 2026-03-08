@@ -834,6 +834,69 @@ export class OperacionesService {
     return { success: true };
   }
 
+  private async notificarVendedoresSucursal(params: {
+    empresaId: string;
+    sucursalId: string;
+    tipo: string;
+    titulo: string;
+    mensaje: string;
+  }) {
+    try {
+      const { data: vendedores, error } = await this.supabase
+        .getAdminClient()
+        .from('usuarios')
+        .select('id')
+        .eq('empresa_id', params.empresaId)
+        .eq('sucursal_id', params.sucursalId)
+        .eq('rol', 'vendedor');
+
+      if (error || !vendedores?.length) return;
+
+      const notificaciones = vendedores.map((vendedor: any) => ({
+        empresa_id: params.empresaId,
+        usuario_id: vendedor.id,
+        tipo: params.tipo,
+        titulo: params.titulo,
+        mensaje: params.mensaje,
+        leida: false,
+        canal: 'interna',
+        fecha_creacion: new Date().toISOString(),
+      }));
+
+      const { error: insertError } = await this.supabase
+        .getAdminClient()
+        .from('notificaciones')
+        .insert(notificaciones);
+
+      if (insertError) {
+        this.logger.warn(`[notificarVendedoresSucursal] ${insertError.message}`);
+      }
+    } catch (error: any) {
+      this.logger.warn(`[notificarVendedoresSucursal] ${error?.message}`);
+    }
+  }
+
+  async enviarMensajeEncargado(dto: {
+    empresaId: string;
+    sucursalId: string;
+    titulo: string;
+    mensaje: string;
+  }) {
+    if (!String(dto?.titulo || '').trim() || !String(dto?.mensaje || '').trim()) {
+      throw new BadRequestException('titulo y mensaje son obligatorios');
+    }
+
+    await this.notificarVendedoresSucursal({
+      empresaId: dto.empresaId,
+      sucursalId: dto.sucursalId,
+      tipo: 'mensaje_encargado',
+      titulo: String(dto.titulo).trim(),
+      mensaje: String(dto.mensaje).trim(),
+    });
+
+    return { success: true };
+  }
+
   async buscarProductosParaVenta(q: string, sucursalId: string, empresaId: string) {
     const term = String(q || '').trim();
     if (!term) return [];
@@ -2198,7 +2261,7 @@ export class OperacionesService {
       const { data: productoValido, error: productoError } = await this.supabase
         .getAdminClient()
         .from('productos')
-        .select('id')
+        .select('id, nombre, sku, stock_minimo')
         .eq('empresa_id', empresa_id)
         .eq('id', data.producto_id)
         .maybeSingle();
@@ -2268,6 +2331,28 @@ export class OperacionesService {
           creado_por: usuario_id,
           fecha_creacion: new Date().toISOString(),
         });
+
+      const productoNombre = String((productoValido as any)?.nombre || 'Producto');
+      const productoSku = String((productoValido as any)?.sku || '-');
+      const stockMinimo = Number((productoValido as any)?.stock_minimo || 0);
+
+      if (nuevaCantidad === 0) {
+        this.notificarVendedoresSucursal({
+          empresaId: empresa_id,
+          sucursalId: data.sucursal_id,
+          tipo: 'sin_stock',
+          titulo: `Sin stock: ${productoNombre}`,
+          mensaje: `El producto "${productoNombre}" (SKU: ${productoSku}) se quedo sin stock en tu sucursal. No podras registrar ventas de este producto.`,
+        }).catch(() => {});
+      } else if (stockMinimo > 0 && nuevaCantidad < stockMinimo) {
+        this.notificarVendedoresSucursal({
+          empresaId: empresa_id,
+          sucursalId: data.sucursal_id,
+          tipo: 'stock_bajo',
+          titulo: `Stock bajo: ${productoNombre}`,
+          mensaje: `El producto "${productoNombre}" (SKU: ${productoSku}) tiene solo ${nuevaCantidad} unidades, por debajo del minimo de ${stockMinimo}. Considera solicitar reposicion.`,
+        }).catch(() => {});
+      }
 
       const result = {
         success: true,
@@ -3046,6 +3131,29 @@ export class OperacionesService {
       this.alertasService
         .generarAlerta(empresa_id, 'Transferencia completada y recibida', 'informativa')
         .catch(() => {});
+
+      const totalUnidades = items.reduce(
+        (sum: number, item: any) => sum + Number(item?.cantidad_enviada || item?.cantidad || 0),
+        0,
+      );
+
+      const { data: sucursalOrigen } = await this.supabase
+        .getAdminClient()
+        .from('sucursales')
+        .select('nombre')
+        .eq('id', String((transferencia as any).sucursal_origen_id || ''))
+        .eq('empresa_id', empresa_id)
+        .maybeSingle();
+
+      const origenNombre = String((sucursalOrigen as any)?.nombre || 'otra sucursal');
+
+      this.notificarVendedoresSucursal({
+        empresaId: empresa_id,
+        sucursalId: String((transferencia as any).sucursal_destino_id || ''),
+        tipo: 'transferencia_recibida',
+        titulo: 'Nueva mercaderia recibida',
+        mensaje: `Se recibio una transferencia de ${origenNombre} con ${totalUnidades} unidades. El stock de tu sucursal ha sido actualizado.`,
+      }).catch(() => {});
 
       return { success: true };
     } catch (error) {

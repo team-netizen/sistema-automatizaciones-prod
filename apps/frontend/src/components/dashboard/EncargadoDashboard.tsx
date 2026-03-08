@@ -125,6 +125,9 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
   const [nombreSucursal, setNombreSucursal] = useState('Cargando...');
   const [mostrarAlertas, setMostrarAlertas] = useState(false);
   const [errorAlertas, setErrorAlertas] = useState('');
+  const [mensajeTitulo, setMensajeTitulo] = useState('');
+  const [mensajeTexto, setMensajeTexto] = useState('');
+  const [enviandoMensaje, setEnviandoMensaje] = useState(false);
 
   const empresaNombre = usuario?.empresa_nombre || usuario?.empresa || 'Sistema';
   const apiBase = 'https://sistema-automatizaciones-backend.onrender.com';
@@ -404,6 +407,46 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
     }
   };
 
+  const handleEnviarMensaje = async () => {
+    if (!mensajeTitulo.trim() || !mensajeTexto.trim()) return;
+
+    setEnviandoMensaje(true);
+    try {
+      const response = await fetch(`${apiBase}/api/operaciones/notificaciones/mensaje-encargado`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          empresaId,
+          sucursalId,
+          titulo: mensajeTitulo.trim(),
+          mensaje: mensajeTexto.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        let message = 'Error al enviar mensaje';
+        try {
+          const payload = await response.json();
+          message = payload?.message || message;
+        } catch {
+          // noop
+        }
+        throw new Error(message);
+      }
+
+      setMensajeTitulo('');
+      setMensajeTexto('');
+      alert('Mensaje enviado a los vendedores');
+    } catch (error: any) {
+      alert(error?.message || 'Error al enviar mensaje');
+    } finally {
+      setEnviandoMensaje(false);
+    }
+  };
+
   const renderHome = () => (
     <div style={{ display: 'grid', gap: 16 }}>
       <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
@@ -429,6 +472,69 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
             <div style={{ fontSize: 12, color: item.subColor || T.textLight }}>{item.sub}</div>
           </div>
         ))}
+      </div>
+
+      <div
+        style={{
+          background: '#ffffff',
+          border: '1.5px solid #e8ecf0',
+          borderRadius: '14px',
+          padding: '20px 22px',
+        }}
+      >
+        <h3 style={{ color: '#1a1a2e', fontSize: '15px', fontWeight: 700, margin: '0 0 16px' }}>
+          💬 Enviar mensaje a vendedores
+        </h3>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <input
+            type="text"
+            placeholder="Titulo del mensaje..."
+            value={mensajeTitulo}
+            onChange={(e) => setMensajeTitulo(e.target.value)}
+            style={{
+              padding: '10px 14px',
+              borderRadius: '8px',
+              border: '1.5px solid #e8ecf0',
+              fontSize: '14px',
+              color: '#1a1a2e',
+              outline: 'none',
+            }}
+          />
+          <textarea
+            placeholder="Escribe el mensaje para tus vendedores..."
+            value={mensajeTexto}
+            onChange={(e) => setMensajeTexto(e.target.value)}
+            rows={3}
+            style={{
+              padding: '10px 14px',
+              borderRadius: '8px',
+              border: '1.5px solid #e8ecf0',
+              fontSize: '14px',
+              color: '#1a1a2e',
+              outline: 'none',
+              resize: 'vertical',
+            }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => void handleEnviarMensaje()}
+              disabled={!mensajeTitulo.trim() || !mensajeTexto.trim() || enviandoMensaje}
+              style={{
+                padding: '10px 20px',
+                borderRadius: '8px',
+                border: 'none',
+                background: (!mensajeTitulo.trim() || !mensajeTexto.trim() || enviandoMensaje) ? '#d1fae5' : '#2d6a4f',
+                color: (!mensajeTitulo.trim() || !mensajeTexto.trim() || enviandoMensaje) ? '#6b7280' : '#ffffff',
+                fontWeight: 600,
+                fontSize: '14px',
+                cursor: (!mensajeTitulo.trim() || !mensajeTexto.trim() || enviandoMensaje) ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {enviandoMensaje ? 'Enviando...' : 'Enviar a vendedores'}
+            </button>
+          </div>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gap: 16, gridTemplateColumns: '1.25fr 1fr' }}>

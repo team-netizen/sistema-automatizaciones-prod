@@ -82,12 +82,20 @@ function getTipoBadge(tipo: string): { label: string; background: string; color:
     return { label: 'Stock bajo', background: T.warningLight, color: T.warning };
   }
 
+  if (key === 'sin_stock') {
+    return { label: 'Sin stock', background: T.dangerLight, color: T.danger };
+  }
+
   if (key === 'ajuste_stock_manual') {
     return { label: 'Ajuste stock', background: T.violetLight, color: T.violet };
   }
 
-  if (key === 'transferencia') {
+  if (key === 'transferencia' || key === 'transferencia_recibida') {
     return { label: 'Transferencia', background: T.infoLight, color: T.info };
+  }
+
+  if (key === 'mensaje_encargado') {
+    return { label: 'Mensaje', background: T.violetLight, color: T.violet };
   }
 
   return { label: 'Sistema', background: '#f3f4f6', color: T.textMuted };

@@ -328,6 +328,51 @@ export class OperacionesController {
     return this.alertasService.marcarTodasLeidas(empresaId);
   }
 
+  @Post('notificaciones/mensaje-encargado')
+  @Roles('admin_empresa', 'encargado_sucursal')
+  async enviarMensajeEncargado(
+    @Req() req: AuthenticatedRequest,
+    @Body()
+    body: {
+      empresaId: string;
+      sucursalId: string;
+      titulo: string;
+      mensaje: string;
+    },
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) {
+      throw new ForbiddenException('empresa_id requerido');
+    }
+
+    if (body?.empresaId && body.empresaId !== empresaId) {
+      throw new ForbiddenException('empresa_id no valido para la sesion');
+    }
+
+    const sucursalAutorizada = req.perfil.rol === 'encargado_sucursal'
+      ? req.perfil.sucursal_id
+      : body?.sucursalId;
+
+    if (!sucursalAutorizada) {
+      throw new ForbiddenException('sucursal_id requerido');
+    }
+
+    if (
+      req.perfil.rol === 'encargado_sucursal'
+      && body?.sucursalId
+      && body.sucursalId !== req.perfil.sucursal_id
+    ) {
+      throw new ForbiddenException('No puedes enviar mensajes a otra sucursal');
+    }
+
+    return this.operacionesService.enviarMensajeEncargado({
+      empresaId,
+      sucursalId: sucursalAutorizada,
+      titulo: String(body?.titulo || ''),
+      mensaje: String(body?.mensaje || ''),
+    });
+  }
+
   @Post('alertas/verificar-stock')
   @Roles('admin_empresa', 'super_admin')
   verificarStockBajo(@Req() req: AuthenticatedRequest) {
