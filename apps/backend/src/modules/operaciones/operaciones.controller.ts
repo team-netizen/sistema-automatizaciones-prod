@@ -242,6 +242,8 @@ export class OperacionesController {
   @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
   getAlertas(
     @Req() req: AuthenticatedRequest,
+    @Query('usuarioId') usuarioId?: string,
+    @Query('empresaId') empresaIdParam?: string,
     @Query('limit') limit?: string,
     @Query('solo_no_leidas') soloNoLeidas?: string,
   ) {
@@ -249,11 +251,58 @@ export class OperacionesController {
     if (!empresaId) {
       throw new ForbiddenException('empresa_id requerido');
     }
+
+    if (empresaIdParam && empresaIdParam !== empresaId) {
+      throw new ForbiddenException('empresa_id no valido para la sesion');
+    }
+
+    if (usuarioId) {
+      if (req.perfil.rol !== 'super_admin' && usuarioId !== req.perfil.id) {
+        throw new ForbiddenException('No puedes consultar notificaciones de otro usuario');
+      }
+
+      return this.operacionesService.getNotificaciones(usuarioId, empresaId);
+    }
+
     return this.operacionesService.getAlertas(
       empresaId,
       limit ? parseInt(limit, 10) : 20,
       soloNoLeidas === 'true',
     );
+  }
+
+  @Patch('alertas/marcar-todas-leidas')
+  @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
+  marcarTodasNotificacionesLeidas(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: { usuarioId: string; empresaId: string },
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) {
+      throw new ForbiddenException('empresa_id requerido');
+    }
+    if (body?.empresaId && body.empresaId !== empresaId) {
+      throw new ForbiddenException('empresa_id no valido para la sesion');
+    }
+    if (req.perfil.rol !== 'super_admin' && body?.usuarioId !== req.perfil.id) {
+      throw new ForbiddenException('No puedes modificar notificaciones de otro usuario');
+    }
+
+    return this.operacionesService.marcarTodasNotificacionesLeidas(body.usuarioId, empresaId);
+  }
+
+  @Patch('alertas/:id/leida')
+  @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
+  marcarNotificacionLeida(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) {
+      throw new ForbiddenException('empresa_id requerido');
+    }
+
+    return this.operacionesService.marcarNotificacionLeida(id, req.perfil.id, empresaId);
   }
 
   @Patch('alertas/:id/leer')

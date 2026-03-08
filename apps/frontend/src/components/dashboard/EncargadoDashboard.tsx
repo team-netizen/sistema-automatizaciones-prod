@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useEffect, useMemo, useState } from 'react';
 import { operacionesService } from '../../modules/operaciones/services/operacionesService';
+import AlertasSucursal from './AlertasSucursal';
 import ReportesSucursal from './ReportesSucursal';
 import { ViewMovimientos } from './ViewMovimientos';
 import { ViewStockEncargado } from './ViewStockEncargado';
@@ -126,10 +127,55 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
   const [errorAlertas, setErrorAlertas] = useState('');
 
   const empresaNombre = usuario?.empresa_nombre || usuario?.empresa || 'Sistema';
+  const apiBase = 'https://sistema-automatizaciones-backend.onrender.com';
   const empresaId = String(usuario?.empresa_id || '');
+  const usuarioId = String(usuario?.id || '');
   const usuarioNombre = usuario?.nombre || usuario?.email || 'Usuario';
   const sucursalId = String(usuario?.sucursal_id || '');
   const token = sessionStorage.getItem('access_token') || '';
+
+  const fetchAlertas = async (options?: { silent?: boolean }) => {
+    if (!usuarioId || !empresaId || !token) {
+      setAlertas([]);
+      return [];
+    }
+
+    try {
+      const query = new URLSearchParams({
+        usuarioId,
+        empresaId,
+      });
+
+      const response = await fetch(`${apiBase}/api/operaciones/alertas?${query.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        let message = 'No se pudieron cargar alertas.';
+        try {
+          const payload = await response.json();
+          message = payload?.message || message;
+        } catch {
+          // noop
+        }
+        throw new Error(message);
+      }
+
+      const payload = await response.json();
+      const rows = Array.isArray(payload) ? payload : [];
+      setAlertas(rows);
+      setErrorAlertas('');
+      return rows;
+    } catch (error: any) {
+      if (!options?.silent) {
+        setAlertas([]);
+        setErrorAlertas(error?.message || 'No se pudieron cargar alertas.');
+      }
+      throw error;
+    }
+  };
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -167,13 +213,12 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
       setLoading(true);
       setErrorAlertas('');
       try {
-        const [stockRes, pedidosRes, transferenciasRes, alertasRes, sucursalesRes] =
+        const [stockRes, pedidosRes, transferenciasRes, alertasRes] =
           await Promise.allSettled([
             operacionesService.getStockPorSucursal?.(sucursalId),
             operacionesService.getPedidos?.(),
             operacionesService.getTransferencias?.({ sucursal_id: sucursalId }),
-            operacionesService.getAlertas?.({ limit: 20 }),
-            operacionesService.getSucursales?.(),
+            fetchAlertas(),
           ]);
 
         if (stockRes.status === 'fulfilled') {
@@ -189,7 +234,6 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
         }
 
         if (alertasRes.status === 'fulfilled') {
-          setAlertas(toRows(alertasRes.value, ['alertas', 'data', 'items']));
           setErrorAlertas('');
         } else {
           setAlertas([]);
@@ -202,20 +246,19 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
     };
 
     void load();
-  }, [sucursalId]);
+  }, [empresaId, sucursalId, token, usuarioId]);
 
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        const data = await operacionesService.getAlertas?.({ limit: 20 });
-        setAlertas(toRows(data, ['alertas', 'data', 'items']));
+        await fetchAlertas({ silent: true });
       } catch {
         // noop
       }
     }, 30000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [empresaId, token, usuarioId]);
 
   const stockSucursal = useMemo(
     () => stockRows.filter((row: any) => String(row?.sucursal_id || '') === sucursalId),
@@ -305,8 +348,25 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
 
   const marcarAlerta = async (id: string) => {
     try {
-      await operacionesService.marcarAlertaLeida?.(id);
-      setAlertas((prev) => prev.map((row: any) => (row?.id === id ? { ...row, leida: true } : row)));
+      const response = await fetch(`${apiBase}/api/operaciones/alertas/${id}/leida`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        let message = 'No se pudo marcar la alerta.';
+        try {
+          const payload = await response.json();
+          message = payload?.message || message;
+        } catch {
+          // noop
+        }
+        throw new Error(message);
+      }
+
+      await fetchAlertas({ silent: true });
     } catch (error: any) {
       setErrorAlertas(error?.message || 'No se pudo marcar la alerta.');
     }
@@ -314,8 +374,30 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
 
   const marcarTodas = async () => {
     try {
-      await operacionesService.marcarTodasAlertasLeidas?.();
-      setAlertas((prev) => prev.map((row: any) => ({ ...row, leida: true })));
+      const response = await fetch(`${apiBase}/api/operaciones/alertas/marcar-todas-leidas`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          usuarioId,
+          empresaId,
+        }),
+      });
+
+      if (!response.ok) {
+        let message = 'No se pudieron marcar las alertas.';
+        try {
+          const payload = await response.json();
+          message = payload?.message || message;
+        } catch {
+          // noop
+        }
+        throw new Error(message);
+      }
+
+      await fetchAlertas({ silent: true });
       setErrorAlertas('');
     } catch (error: any) {
       setErrorAlertas(error?.message || 'No se pudieron marcar las alertas.');
@@ -509,7 +591,7 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
       case 'reportes':
         return (
           <ReportesSucursal
-            apiBase="https://sistema-automatizaciones-backend.onrender.com"
+            apiBase={apiBase}
             empresaId={empresaId}
             sucursalId={sucursalId}
             sucursalNombre={nombreSucursal}
@@ -520,9 +602,11 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
         return <ViewMovimientos usuario={usuario} />;
       case 'alertas':
         return (
-          <PlaceholderView
-            title="Alertas"
-            detail="Esta vista quedara dedicada al listado completo de alertas activas y leidas de la sucursal."
+          <AlertasSucursal
+            apiBase={apiBase}
+            empresaId={empresaId}
+            token={token}
+            usuarioId={usuarioId}
           />
         );
       default:
@@ -721,7 +805,7 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
                         >
                           <div style={{ alignItems: 'center', display: 'flex', justifyContent: 'space-between' }}>
                             <span style={{ color: T.text, fontSize: 13, fontWeight: 700 }}>
-                              {alerta?.mensaje || 'Alerta'}
+                              {alerta?.titulo || alerta?.mensaje || 'Notificacion'}
                             </span>
                             {!alerta?.leida && (
                               <span
@@ -735,8 +819,13 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
                               />
                             )}
                           </div>
+                          {alerta?.mensaje && (
+                            <div style={{ color: alerta?.leida ? T.textLight : T.textMid, fontSize: 12 }}>
+                              {alerta.mensaje}
+                            </div>
+                          )}
                           <div style={{ color: T.textMid, fontSize: 12 }}>
-                            {formatDateLabel(alerta?.fecha_generada || alerta?.created_at || '')}
+                            {formatDateLabel(alerta?.fecha_creacion || alerta?.fecha_generada || alerta?.created_at || '')}
                           </div>
                         </button>
                       ))

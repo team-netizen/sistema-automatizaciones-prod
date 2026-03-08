@@ -780,6 +780,58 @@ export class OperacionesService {
     }
   }
 
+  async getNotificaciones(usuarioId: string, empresaId: string) {
+    const { data, error } = await this.supabase
+      .getAdminClient()
+      .from('notificaciones')
+      .select('id, titulo, mensaje, tipo, leida, canal, fecha_creacion')
+      .eq('usuario_id', usuarioId)
+      .eq('empresa_id', empresaId)
+      .order('fecha_creacion', { ascending: false })
+      .limit(100);
+
+    if (error) {
+      this.logger.error(`[getNotificaciones] ${JSON.stringify(error)}`);
+      throw new InternalServerErrorException(error.message);
+    }
+
+    return data ?? [];
+  }
+
+  async marcarNotificacionLeida(id: string, usuarioId: string, empresaId: string) {
+    const { error } = await this.supabase
+      .getAdminClient()
+      .from('notificaciones')
+      .update({ leida: true })
+      .eq('id', id)
+      .eq('usuario_id', usuarioId)
+      .eq('empresa_id', empresaId);
+
+    if (error) {
+      this.logger.error(`[marcarNotificacionLeida] ${JSON.stringify(error)}`);
+      throw new InternalServerErrorException(error.message);
+    }
+
+    return { success: true };
+  }
+
+  async marcarTodasNotificacionesLeidas(usuarioId: string, empresaId: string) {
+    const { error } = await this.supabase
+      .getAdminClient()
+      .from('notificaciones')
+      .update({ leida: true })
+      .eq('usuario_id', usuarioId)
+      .eq('empresa_id', empresaId)
+      .eq('leida', false);
+
+    if (error) {
+      this.logger.error(`[marcarTodasNotificacionesLeidas] ${JSON.stringify(error)}`);
+      throw new InternalServerErrorException(error.message);
+    }
+
+    return { success: true };
+  }
+
   async getDashboardEncargado(empresa_id: string, sucursal_id: string) {
     try {
       const hoy = new Date().toISOString().split('T')[0];
