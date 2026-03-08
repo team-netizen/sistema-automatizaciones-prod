@@ -73,7 +73,9 @@ export const operacionesService = {
     sucursalId: string;
     empresaId: string;
   }) => {
-    const response = await authFetch(`${API_URL}/productos/buscar${buildQueryString(filters as QueryFilters)}`);
+    const response = await authFetch(
+      `${API_URL}/operaciones/vendedor/buscar-productos${buildQueryString(filters as QueryFilters)}`,
+    );
     return parseOrThrow(response, 'Error al buscar productos');
   },
 

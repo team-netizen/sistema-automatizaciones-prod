@@ -239,7 +239,7 @@ export class OperacionesController {
   }
 
   @Get('alertas')
-  @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
+  @Roles('admin_empresa', 'encargado_sucursal', 'vendedor', 'super_admin')
   getAlertas(
     @Req() req: AuthenticatedRequest,
     @Query('usuarioId') usuarioId?: string,
@@ -272,7 +272,7 @@ export class OperacionesController {
   }
 
   @Patch('alertas/marcar-todas-leidas')
-  @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
+  @Roles('admin_empresa', 'encargado_sucursal', 'vendedor', 'super_admin')
   marcarTodasNotificacionesLeidas(
     @Req() req: AuthenticatedRequest,
     @Body() body: { usuarioId: string; empresaId: string },
@@ -292,7 +292,7 @@ export class OperacionesController {
   }
 
   @Patch('alertas/:id/leida')
-  @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
+  @Roles('admin_empresa', 'encargado_sucursal', 'vendedor', 'super_admin')
   marcarNotificacionLeida(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
@@ -306,7 +306,7 @@ export class OperacionesController {
   }
 
   @Patch('alertas/:id/leer')
-  @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
+  @Roles('admin_empresa', 'encargado_sucursal', 'vendedor', 'super_admin')
   marcarAlertaLeida(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
@@ -319,7 +319,7 @@ export class OperacionesController {
   }
 
   @Patch('alertas/leer-todas')
-  @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
+  @Roles('admin_empresa', 'encargado_sucursal', 'vendedor', 'super_admin')
   marcarTodasLeidas(@Req() req: AuthenticatedRequest) {
     const empresaId = req.perfil.empresa_id;
     if (!empresaId) {
@@ -504,7 +504,7 @@ export class OperacionesController {
   }
 
   @Get('reportes/stock-sucursal')
-  @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
+  @Roles('admin_empresa', 'encargado_sucursal', 'vendedor', 'super_admin')
   getReporteStockSucursal(
     @Req() req: AuthenticatedRequest,
     @Query('sucursalId') sucursalId?: string,
@@ -516,12 +516,15 @@ export class OperacionesController {
       throw new ForbiddenException('empresa_id no valido para la sesion');
     }
 
-    const sucursalAutorizada = req.perfil.rol === 'encargado_sucursal' ? req.perfil.sucursal_id : sucursalId;
+    const sucursalAutorizada =
+      req.perfil.rol === 'encargado_sucursal' || req.perfil.rol === 'vendedor'
+        ? req.perfil.sucursal_id
+        : sucursalId;
     if (!sucursalAutorizada) {
       throw new ForbiddenException('sucursal_id requerido');
     }
     if (
-      req.perfil.rol === 'encargado_sucursal'
+      (req.perfil.rol === 'encargado_sucursal' || req.perfil.rol === 'vendedor')
       && sucursalId
       && sucursalId !== req.perfil.sucursal_id
     ) {
@@ -673,7 +676,7 @@ export class OperacionesController {
   }
 
   @Get('vendedor/resumen-turno')
-  @Roles('vendedor', 'admin_empresa', 'super_admin')
+  @Roles('vendedor', 'encargado_sucursal', 'admin_empresa', 'super_admin')
   getResumenTurnoVendedor(
     @Req() req: AuthenticatedRequest,
     @Query('sucursalId') sucursalId?: string,
@@ -706,7 +709,7 @@ export class OperacionesController {
   }
 
   @Post('vendedor/crear-pedido')
-  @Roles('vendedor', 'admin_empresa', 'super_admin')
+  @Roles('vendedor', 'encargado_sucursal', 'admin_empresa', 'super_admin')
   crearPedidoVendedor(
     @Req() req: AuthenticatedRequest,
     @Body()
@@ -740,7 +743,7 @@ export class OperacionesController {
   }
 
   @Get('vendedor/mis-ventas')
-  @Roles('vendedor', 'admin_empresa', 'super_admin')
+  @Roles('vendedor', 'encargado_sucursal', 'admin_empresa', 'super_admin')
   getMisVentasVendedor(
     @Req() req: AuthenticatedRequest,
     @Query('vendedorId') vendedorId?: string,
@@ -778,6 +781,40 @@ export class OperacionesController {
       String(desde || ''),
       String(hasta || ''),
     );
+  }
+
+  @Get('vendedor/buscar-productos')
+  @Roles('vendedor', 'encargado_sucursal', 'admin_empresa', 'super_admin')
+  buscarProductosVendedor(
+    @Req() req: AuthenticatedRequest,
+    @Query('q') q: string,
+    @Query('sucursalId') sucursalId?: string,
+    @Query('empresaId') empresaIdParam?: string,
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    if (empresaIdParam && empresaIdParam !== empresaId) {
+      throw new ForbiddenException('empresa_id no valido para la sesion');
+    }
+
+    const sucursalAutorizada =
+      req.perfil.rol === 'vendedor' || req.perfil.rol === 'encargado_sucursal'
+        ? req.perfil.sucursal_id
+        : sucursalId;
+
+    if (!sucursalAutorizada) {
+      throw new ForbiddenException('sucursalId requerido');
+    }
+
+    if (
+      (req.perfil.rol === 'vendedor' || req.perfil.rol === 'encargado_sucursal')
+      && sucursalId
+      && sucursalId !== req.perfil.sucursal_id
+    ) {
+      throw new ForbiddenException('No puedes consultar otra sucursal');
+    }
+
+    return this.operacionesService.buscarProductosConStock(q, sucursalAutorizada, empresaId);
   }
 
   @Get('integraciones')

@@ -32,6 +32,8 @@ type SucursalPayload = {
   estado?: string;
 };
 
+const CANAL_POS_ID = 'b7e00bb9-564b-448f-b57d-b73bcaae1aad';
+
 @Injectable()
 export class OperacionesService {
   private readonly logger = new Logger(OperacionesService.name);
@@ -847,6 +849,7 @@ export class OperacionesService {
       .from('productos')
       .select('id, nombre, sku, precio, stock_minimo, activo')
       .eq('empresa_id', empresaId)
+      .eq('activo', true)
       .or(`nombre.ilike.%${searchQuery}%,sku.ilike.%${searchQuery}%`)
       .order('nombre', { ascending: true })
       .limit(20);
@@ -856,7 +859,7 @@ export class OperacionesService {
       throw new InternalServerErrorException(error.message);
     }
 
-    const rows = (productos ?? []).filter((row: any) => row?.activo !== false);
+    const rows = productos ?? [];
     if (rows.length === 0) return [];
 
     const productoIds = rows
@@ -883,17 +886,23 @@ export class OperacionesService {
       stockMap.set(productoId, this.readNumber(row as Record<string, unknown>, 'cantidad'));
     }
 
-    return rows.map((row: any) => {
-      const id = String(row?.id || '');
-      return {
-        id,
-        nombre: String(row?.nombre || 'Producto'),
-        sku: String(row?.sku || '-'),
-        precio: Number(row?.precio || 0),
-        stock_minimo: Number(row?.stock_minimo || 0),
-        stock_disponible: Number(stockMap.get(id) || 0),
-      };
-    });
+    return rows
+      .map((row: any) => {
+        const id = String(row?.id || '');
+        return {
+          id,
+          nombre: String(row?.nombre || 'Producto'),
+          sku: String(row?.sku || '-'),
+          precio: Number(row?.precio || 0),
+          stock_minimo: Number(row?.stock_minimo || 0),
+          stock_disponible: Number(stockMap.get(id) || 0),
+        };
+      })
+      .filter((row) => row.stock_disponible > 0);
+  }
+
+  async buscarProductosConStock(q: string, sucursalId: string, empresaId: string) {
+    return this.buscarProductosParaVenta(q, sucursalId, empresaId);
   }
 
   async getResumenTurno(sucursalId: string, empresaId: string, vendedorId: string) {
@@ -1111,6 +1120,7 @@ export class OperacionesService {
         empresa_id: dto.empresaId,
         sucursal_id: dto.sucursalId,
         sucursal_asignada_id: dto.sucursalId,
+        canal_id: CANAL_POS_ID,
         numero,
         estado: 'entregado',
         total,
