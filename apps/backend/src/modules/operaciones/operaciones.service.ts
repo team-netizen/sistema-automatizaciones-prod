@@ -1290,6 +1290,105 @@ export class OperacionesService {
     }));
   }
 
+  async getDetallePedidoVendedor(
+    pedidoId: string,
+    scope: {
+      empresaId: string;
+      rol: string;
+      sucursalId?: string;
+      vendedorId?: string;
+    },
+  ) {
+    const pedidoIdNormalizado = String(pedidoId || '').trim();
+    if (!pedidoIdNormalizado) {
+      throw new BadRequestException('pedidoId requerido');
+    }
+
+    if (scope.rol === 'vendedor') {
+      const { data: movimiento, error: movimientoError } = await this.supabase
+        .getAdminClient()
+        .from('movimientos_stock')
+        .select('referencia_id')
+        .eq('empresa_id', scope.empresaId)
+        .eq('sucursal_id', scope.sucursalId ?? '')
+        .eq('creado_por', scope.vendedorId ?? '')
+        .eq('referencia_id', pedidoIdNormalizado)
+        .eq('referencia_tipo', 'pedido')
+        .eq('tipo', 'salida')
+        .maybeSingle();
+
+      if (movimientoError) {
+        this.logger.error(`[getDetallePedidoVendedor][movimiento] ${JSON.stringify(movimientoError)}`);
+        throw new InternalServerErrorException(movimientoError.message);
+      }
+
+      if (!movimiento) {
+        throw new NotFoundException('Pedido no encontrado');
+      }
+    }
+
+    let pedidoQuery = this.supabase
+      .getAdminClient()
+      .from('pedidos')
+      .select(
+        'id, numero, estado, total, metodo_pago, medio_pedido, fecha_pedido, fecha_creacion, nombre_cliente, telefono_cliente, email_cliente, dni_cliente, observaciones',
+      )
+      .eq('id', pedidoIdNormalizado)
+      .eq('empresa_id', scope.empresaId);
+
+    if ((scope.rol === 'vendedor' || scope.rol === 'encargado_sucursal') && scope.sucursalId) {
+      pedidoQuery = pedidoQuery.eq('sucursal_id', scope.sucursalId);
+    }
+
+    const { data: pedido, error } = await pedidoQuery.single();
+
+    if (error || !pedido) {
+      throw new NotFoundException('Pedido no encontrado');
+    }
+
+    const { data: items, error: itemsErr } = await this.supabase
+      .getAdminClient()
+      .from('pedido_items')
+      .select('id, producto_id, cantidad, precio_unitario, subtotal, sku_producto')
+      .eq('pedido_id', pedidoIdNormalizado);
+
+    if (itemsErr) {
+      this.logger.error(`[getDetallePedidoVendedor][items] ${JSON.stringify(itemsErr)}`);
+    }
+
+    const productoIds = (items ?? [])
+      .map((item: any) => String(item?.producto_id || '').trim())
+      .filter(Boolean);
+
+    let prodMap: Record<string, any> = {};
+
+    if (productoIds.length > 0) {
+      const { data: productos, error: productosError } = await this.supabase
+        .getAdminClient()
+        .from('productos')
+        .select('id, nombre, sku')
+        .in('id', [...new Set(productoIds)]);
+
+      if (productosError) {
+        this.logger.error(`[getDetallePedidoVendedor][productos] ${JSON.stringify(productosError)}`);
+      } else {
+        prodMap = Object.fromEntries((productos ?? []).map((producto: any) => [producto.id, producto]));
+      }
+    }
+
+    return {
+      ...pedido,
+      items: (items ?? []).map((item: any) => ({
+        id: item.id,
+        producto_nombre: prodMap[item.producto_id]?.nombre ?? '-',
+        sku: item.sku_producto ?? prodMap[item.producto_id]?.sku ?? '-',
+        cantidad: item.cantidad,
+        precio_unitario: item.precio_unitario,
+        subtotal: item.subtotal,
+      })),
+    };
+  }
+
   async getDashboardEncargado(empresa_id: string, sucursal_id: string) {
     try {
       const hoy = new Date().toISOString().split('T')[0];

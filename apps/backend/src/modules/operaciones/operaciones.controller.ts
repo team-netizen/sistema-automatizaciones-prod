@@ -783,6 +783,23 @@ export class OperacionesController {
     );
   }
 
+  @Get('vendedor/pedido/:id')
+  @Roles('vendedor', 'encargado_sucursal', 'admin_empresa', 'super_admin')
+  getDetallePedido(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+
+    return this.operacionesService.getDetallePedidoVendedor(id, {
+      empresaId,
+      rol: req.perfil.rol,
+      sucursalId: req.perfil.sucursal_id || undefined,
+      vendedorId: req.perfil.id,
+    });
+  }
+
   @Get('vendedor/buscar-productos')
   @Roles('vendedor', 'encargado_sucursal', 'admin_empresa', 'super_admin')
   buscarProductosVendedor(
