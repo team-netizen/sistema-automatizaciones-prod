@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useEffect, useMemo, useState } from 'react';
 import { operacionesService } from '../../modules/operaciones/services/operacionesService';
+import ReportesSucursal from './ReportesSucursal';
 import { ViewMovimientos } from './ViewMovimientos';
 import { ViewStockEncargado } from './ViewStockEncargado';
 import { ViewTransferenciasEncargado } from './ViewTransferenciasEncargado';
@@ -125,8 +126,10 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
   const [errorAlertas, setErrorAlertas] = useState('');
 
   const empresaNombre = usuario?.empresa_nombre || usuario?.empresa || 'Sistema';
+  const empresaId = String(usuario?.empresa_id || '');
   const usuarioNombre = usuario?.nombre || usuario?.email || 'Usuario';
   const sucursalId = String(usuario?.sucursal_id || '');
+  const token = sessionStorage.getItem('access_token') || '';
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -505,9 +508,12 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
         );
       case 'reportes':
         return (
-          <PlaceholderView
-            title="Reportes"
-            detail="Se conectara con los reportes operativos filtrados por la sucursal asignada."
+          <ReportesSucursal
+            apiBase="https://sistema-automatizaciones-backend.onrender.com"
+            empresaId={empresaId}
+            sucursalId={sucursalId}
+            sucursalNombre={nombreSucursal}
+            token={token}
           />
         );
       case 'movimientos':

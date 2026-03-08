@@ -102,6 +102,72 @@ export class AlertasService {
     }
   }
 
+  /**
+   * Crea una alerta para el admin_empresa cuando un encargado
+   * realiza un ajuste manual de stock en su sucursal.
+   */
+  async createAjusteStockAlert(params: {
+    empresaId: string;
+    sucursalId: string;
+    sucursalNombre: string;
+    productoNombre: string;
+    sku: string;
+    cantidadAnterior: number;
+    cantidadNueva: number;
+    motivo: string;
+    encargadoNombre: string;
+    encargadoEmail: string;
+  }): Promise<void> {
+    const {
+      empresaId,
+      sucursalId,
+      sucursalNombre,
+      productoNombre,
+      sku,
+      cantidadAnterior,
+      cantidadNueva,
+      motivo,
+      encargadoNombre,
+      encargadoEmail,
+    } = params;
+
+    const diferencia = cantidadNueva - cantidadAnterior;
+    const signo = diferencia >= 0 ? '+' : '';
+    const tipo = diferencia >= 0 ? 'incremento' : 'reduccion';
+
+    const { data: admins, error } = await this.supabase
+      .getAdminClient()
+      .from('usuarios')
+      .select('id')
+      .eq('empresa_id', empresaId)
+      .eq('rol', 'admin_empresa');
+
+    if (error || !admins?.length) return;
+
+    const alertasPayload = admins.map((admin) => ({
+      empresa_id: empresaId,
+      usuario_id: admin.id,
+      tipo: 'ajuste_stock_manual',
+      titulo: `Ajuste manual de stock en ${sucursalNombre}`,
+      mensaje: `${encargadoNombre} (${encargadoEmail}) ajusto el stock de "${productoNombre}" (SKU: ${sku}) en ${sucursalNombre}. Cambio: ${cantidadAnterior} -> ${cantidadNueva} (${signo}${diferencia} unidades, ${tipo}). Motivo: "${motivo}".`,
+      metadata: {
+        sucursal_id: sucursalId,
+        sucursal_nombre: sucursalNombre,
+        sku,
+        producto_nombre: productoNombre,
+        cantidad_anterior: cantidadAnterior,
+        cantidad_nueva: cantidadNueva,
+        diferencia,
+        motivo,
+        encargado_email: encargadoEmail,
+      },
+      leida: false,
+      created_at: new Date().toISOString(),
+    }));
+
+    await this.supabase.getAdminClient().from('alertas').insert(alertasPayload);
+  }
+
   async marcarLeida(empresa_id: string, alerta_id: string) {
     const { error } = await this.supabase
       .getAdminClient()

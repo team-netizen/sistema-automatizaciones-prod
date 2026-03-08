@@ -864,6 +864,302 @@ export class OperacionesService {
     }
   }
 
+  async getReporteStockSucursal(empresa_id: string, sucursal_id: string) {
+    try {
+      await this.assertSucursalEmpresa(empresa_id, sucursal_id);
+
+      const { data, error } = await this.supabase
+        .getAdminClient()
+        .from('stock_por_sucursal')
+        .select(
+          `
+            cantidad,
+            producto:productos(id, nombre, sku, stock_minimo)
+          `,
+        )
+        .eq('empresa_id', empresa_id)
+        .eq('sucursal_id', sucursal_id);
+
+      if (error) throw error;
+
+      const rows = Array.isArray(data) ? data : [];
+      return rows.map((row: any) => {
+        const producto = Array.isArray(row?.producto) ? row.producto[0] : row?.producto;
+        const cantidad = Number(row?.cantidad || 0);
+        const stockMinimo = Number(producto?.stock_minimo || 0);
+        let estado: 'ok' | 'bajo' | 'sin_stock' = 'ok';
+
+        if (cantidad <= 0) {
+          estado = 'sin_stock';
+        } else if (stockMinimo > 0 && cantidad < stockMinimo) {
+          estado = 'bajo';
+        }
+
+        return {
+          producto_id: String(producto?.id || ''),
+          sku: String(producto?.sku || '-'),
+          nombre: String(producto?.nombre || 'Producto'),
+          cantidad,
+          stock_minimo: stockMinimo,
+          estado,
+        };
+      });
+    } catch (error) {
+      this.handleError('getReporteStockSucursal', error, 'Error al obtener reporte de stock');
+    }
+  }
+
+  async getReporteMovimientosSucursal(
+    empresa_id: string,
+    sucursal_id: string,
+    desde?: string,
+    hasta?: string,
+  ) {
+    try {
+      await this.assertSucursalEmpresa(empresa_id, sucursal_id);
+      const { inicioIso, finIso } = this.normalizeDateRange(desde, hasta);
+
+      const fullSelect = await this.supabase
+        .getAdminClient()
+        .from('movimientos_stock')
+        .select(
+          `
+            id, tipo, cantidad, cantidad_anterior, cantidad_nueva, diferencia, motivo, referencia_tipo, fecha_creacion,
+            producto:productos(nombre, sku),
+            usuario:perfiles(nombre)
+          `,
+        )
+        .eq('empresa_id', empresa_id)
+        .eq('sucursal_id', sucursal_id)
+        .gte('fecha_creacion', inicioIso)
+        .lte('fecha_creacion', finIso)
+        .order('fecha_creacion', { ascending: false });
+
+      let data: any[] | null = fullSelect.data as any[] | null;
+      let error = fullSelect.error;
+
+      if (error && this.isRecoverableColumnError(error)) {
+        const fallback = await this.supabase
+          .getAdminClient()
+          .from('movimientos_stock')
+          .select(
+            `
+              id, tipo, cantidad, referencia_tipo, fecha_creacion,
+              producto:productos(nombre, sku),
+              usuario:perfiles(nombre)
+            `,
+          )
+          .eq('empresa_id', empresa_id)
+          .eq('sucursal_id', sucursal_id)
+          .gte('fecha_creacion', inicioIso)
+          .lte('fecha_creacion', finIso)
+          .order('fecha_creacion', { ascending: false });
+
+        data = fallback.data;
+        error = fallback.error;
+      }
+
+      if (error) throw error;
+
+      return (Array.isArray(data) ? data : []).map((row: any) => {
+        const producto = Array.isArray(row?.producto) ? row.producto[0] : row?.producto;
+        const usuario = Array.isArray(row?.usuario) ? row.usuario[0] : row?.usuario;
+        const diferencia = this.readOptionalNumber(row, 'diferencia') ?? this.readNumber(row, 'cantidad');
+        const cantidadNueva =
+          this.readOptionalNumber(row, 'cantidad_nueva')
+          ?? Math.max(0, diferencia);
+        const cantidadAnterior =
+          this.readOptionalNumber(row, 'cantidad_anterior')
+          ?? Math.max(0, cantidadNueva - diferencia);
+
+        return {
+          id: String(row?.id || ''),
+          created_at: String(row?.fecha_creacion || ''),
+          tipo: String(row?.tipo || row?.referencia_tipo || 'ajuste_manual'),
+          producto_nombre: String(producto?.nombre || 'Producto'),
+          sku: String(producto?.sku || '-'),
+          cantidad_anterior: cantidadAnterior,
+          cantidad_nueva: cantidadNueva,
+          diferencia,
+          motivo: String(row?.motivo || row?.referencia_tipo || '-'),
+          usuario_nombre: String(usuario?.nombre || 'Sistema'),
+        };
+      });
+    } catch (error) {
+      this.handleError(
+        'getReporteMovimientosSucursal',
+        error,
+        'Error al obtener reporte de movimientos',
+      );
+    }
+  }
+
+  async getReporteTransferenciasSucursal(
+    empresa_id: string,
+    sucursal_id: string,
+    desde?: string,
+    hasta?: string,
+  ) {
+    try {
+      await this.assertSucursalEmpresa(empresa_id, sucursal_id);
+      const { inicioIso, finIso } = this.normalizeDateRange(desde, hasta);
+
+      const { data, error } = await this.supabase
+        .getAdminClient()
+        .from('transferencias')
+        .select(
+          `
+            id, estado, fecha_creacion, sucursal_origen_id, sucursal_destino_id,
+            sucursales_origen:sucursales!sucursal_origen_id(nombre),
+            sucursales_destino:sucursales!sucursal_destino_id(nombre),
+            items:transferencia_items(cantidad_enviada, cantidad_recibida)
+          `,
+        )
+        .eq('empresa_id', empresa_id)
+        .or(`sucursal_origen_id.eq.${sucursal_id},sucursal_destino_id.eq.${sucursal_id}`)
+        .gte('fecha_creacion', inicioIso)
+        .lte('fecha_creacion', finIso)
+        .order('fecha_creacion', { ascending: false });
+
+      if (error) throw error;
+
+      return (Array.isArray(data) ? data : []).map((row: any) => {
+        const origen = Array.isArray(row?.sucursales_origen) ? row.sucursales_origen[0] : row?.sucursales_origen;
+        const destino = Array.isArray(row?.sucursales_destino) ? row.sucursales_destino[0] : row?.sucursales_destino;
+        const items = Array.isArray(row?.items) ? row.items : [];
+
+        return {
+          id: String(row?.id || ''),
+          created_at: String(row?.fecha_creacion || ''),
+          direccion:
+            String(row?.sucursal_origen_id || '') === sucursal_id ? 'enviada' : 'recibida',
+          sucursal_origen: String(origen?.nombre || 'Origen'),
+          sucursal_destino: String(destino?.nombre || 'Destino'),
+          estado: String(row?.estado || 'pendiente'),
+          productos_count: items.length,
+          total_unidades: items.reduce((sum: number, item: any) => {
+            const cantidad = Number(item?.cantidad_enviada ?? item?.cantidad_recibida ?? item?.cantidad ?? 0);
+            return sum + (Number.isFinite(cantidad) ? cantidad : 0);
+          }, 0),
+        };
+      });
+    } catch (error) {
+      this.handleError(
+        'getReporteTransferenciasSucursal',
+        error,
+        'Error al obtener reporte de transferencias',
+      );
+    }
+  }
+
+  async getReportePedidosSucursal(
+    empresa_id: string,
+    sucursal_id: string,
+    desde?: string,
+    hasta?: string,
+  ) {
+    try {
+      await this.assertSucursalEmpresa(empresa_id, sucursal_id);
+      const { inicioIso, finIso } = this.normalizeDateRange(desde, hasta);
+
+      const { data, error } = await this.supabase
+        .getAdminClient()
+        .from('pedidos')
+        .select(
+          `
+            id, fecha_creacion, numero_pedido, canal_id, medio_pedido, estado, total,
+            pedido_items(id)
+          `,
+        )
+        .eq('empresa_id', empresa_id)
+        .eq('sucursal_id', sucursal_id)
+        .gte('fecha_creacion', inicioIso)
+        .lte('fecha_creacion', finIso)
+        .order('fecha_creacion', { ascending: false });
+
+      if (error) throw error;
+
+      const rows = Array.isArray(data) ? data : [];
+      const canalIds = [
+        ...new Set(
+          rows
+            .map((row: any) => this.readOptionalString(row, 'canal_id'))
+            .filter((value): value is string => Boolean(value)),
+        ),
+      ];
+
+      const canalesMap = new Map<string, string>();
+      if (canalIds.length > 0) {
+        const { data: canales, error: canalesError } = await this.supabase
+          .getAdminClient()
+          .from('canales_venta')
+          .select('id, nombre')
+          .eq('empresa_id', empresa_id)
+          .in('id', canalIds);
+
+        if (canalesError) throw canalesError;
+
+        for (const canal of canales ?? []) {
+          const canalId = this.readString(canal as Record<string, unknown>, 'id');
+          const nombre = this.readString(canal as Record<string, unknown>, 'nombre');
+          if (canalId && nombre) {
+            canalesMap.set(canalId, nombre);
+          }
+        }
+      }
+
+      return rows.map((row: any) => {
+        const id = String(row?.id || '');
+        const items = Array.isArray(row?.pedido_items) ? row.pedido_items : [];
+        const canalId = this.readOptionalString(row, 'canal_id');
+        return {
+          id,
+          created_at: String(row?.fecha_creacion || ''),
+          numero_pedido: String(row?.numero_pedido || `#${id.slice(0, 8)}`),
+          canal: canalId
+            ? canalesMap.get(canalId) || String(row?.medio_pedido || 'Canal')
+            : String(row?.medio_pedido || 'Fisico'),
+          estado: String(row?.estado || 'pendiente'),
+          total: this.readNumber(row, 'total'),
+          items_count: items.length,
+        };
+      });
+    } catch (error) {
+      this.handleError('getReportePedidosSucursal', error, 'Error al obtener reporte de pedidos');
+    }
+  }
+
+  async getStockSucursal(sucursalId: string, empresaId: string) {
+    return this.getReporteStockSucursal(empresaId, sucursalId);
+  }
+
+  async getMovimientosSucursal(
+    sucursalId: string,
+    empresaId: string,
+    desde: string,
+    hasta: string,
+  ) {
+    return this.getReporteMovimientosSucursal(empresaId, sucursalId, desde, hasta);
+  }
+
+  async getTransferenciasSucursal(
+    sucursalId: string,
+    empresaId: string,
+    desde: string,
+    hasta: string,
+  ) {
+    return this.getReporteTransferenciasSucursal(empresaId, sucursalId, desde, hasta);
+  }
+
+  async getPedidosSucursal(
+    sucursalId: string,
+    empresaId: string,
+    desde: string,
+    hasta: string,
+  ) {
+    return this.getReportePedidosSucursal(empresaId, sucursalId, desde, hasta);
+  }
+
   async getReporteVentas(empresa_id: string, inicio: string, fin: string) {
     try {
       const finDia = `${fin}T23:59:59`;
@@ -2300,6 +2596,36 @@ export class OperacionesService {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'error desconocido';
       this.logger.warn(`[forzarSyncWooCommerce] ${message}`);
+    }
+  }
+
+  private normalizeDateRange(desde?: string, hasta?: string): { inicioIso: string; finIso: string } {
+    const today = new Date();
+    const defaultHasta = today.toISOString().split('T')[0];
+    const defaultDesde = new Date(today.getFullYear(), today.getMonth(), 1)
+      .toISOString()
+      .split('T')[0];
+
+    const inicio = /^\d{4}-\d{2}-\d{2}$/.test(String(desde || '')) ? String(desde) : defaultDesde;
+    const fin = /^\d{4}-\d{2}-\d{2}$/.test(String(hasta || '')) ? String(hasta) : defaultHasta;
+
+    return {
+      inicioIso: `${inicio}T00:00:00`,
+      finIso: `${fin}T23:59:59`,
+    };
+  }
+
+  private async assertSucursalEmpresa(empresa_id: string, sucursal_id: string): Promise<void> {
+    const { data, error } = await this.supabase
+      .getAdminClient()
+      .from('sucursales')
+      .select('id')
+      .eq('empresa_id', empresa_id)
+      .eq('id', sucursal_id)
+      .maybeSingle();
+
+    if (error || !data) {
+      throw new BadRequestException('Sucursal no valida para la empresa autenticada');
     }
   }
 

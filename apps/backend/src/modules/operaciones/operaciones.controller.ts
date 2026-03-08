@@ -454,6 +454,139 @@ export class OperacionesController {
     return this.operacionesService.ajustarStock(empresaId, usuarioId, payload);
   }
 
+  @Get('reportes/stock-sucursal')
+  @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
+  getReporteStockSucursal(
+    @Req() req: AuthenticatedRequest,
+    @Query('sucursalId') sucursalId?: string,
+    @Query('empresaId') empresaIdParam?: string,
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    if (empresaIdParam && empresaIdParam !== empresaId) {
+      throw new ForbiddenException('empresa_id no valido para la sesion');
+    }
+
+    const sucursalAutorizada = req.perfil.rol === 'encargado_sucursal' ? req.perfil.sucursal_id : sucursalId;
+    if (!sucursalAutorizada) {
+      throw new ForbiddenException('sucursal_id requerido');
+    }
+    if (
+      req.perfil.rol === 'encargado_sucursal'
+      && sucursalId
+      && sucursalId !== req.perfil.sucursal_id
+    ) {
+      throw new ForbiddenException('No puedes consultar otra sucursal');
+    }
+
+    return this.operacionesService.getStockSucursal(sucursalAutorizada, empresaId);
+  }
+
+  @Get('reportes/movimientos-sucursal')
+  @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
+  getReporteMovimientosSucursal(
+    @Req() req: AuthenticatedRequest,
+    @Query('sucursalId') sucursalId?: string,
+    @Query('empresaId') empresaIdParam?: string,
+    @Query('desde') desde?: string,
+    @Query('hasta') hasta?: string,
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    if (empresaIdParam && empresaIdParam !== empresaId) {
+      throw new ForbiddenException('empresa_id no valido para la sesion');
+    }
+
+    const sucursalAutorizada = req.perfil.rol === 'encargado_sucursal' ? req.perfil.sucursal_id : sucursalId;
+    if (!sucursalAutorizada) {
+      throw new ForbiddenException('sucursal_id requerido');
+    }
+    if (
+      req.perfil.rol === 'encargado_sucursal'
+      && sucursalId
+      && sucursalId !== req.perfil.sucursal_id
+    ) {
+      throw new ForbiddenException('No puedes consultar otra sucursal');
+    }
+
+    return this.operacionesService.getMovimientosSucursal(
+      sucursalAutorizada,
+      empresaId,
+      String(desde || ''),
+      String(hasta || ''),
+    );
+  }
+
+  @Get('reportes/transferencias-sucursal')
+  @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
+  getReporteTransferenciasSucursal(
+    @Req() req: AuthenticatedRequest,
+    @Query('sucursalId') sucursalId?: string,
+    @Query('empresaId') empresaIdParam?: string,
+    @Query('desde') desde?: string,
+    @Query('hasta') hasta?: string,
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    if (empresaIdParam && empresaIdParam !== empresaId) {
+      throw new ForbiddenException('empresa_id no valido para la sesion');
+    }
+
+    const sucursalAutorizada = req.perfil.rol === 'encargado_sucursal' ? req.perfil.sucursal_id : sucursalId;
+    if (!sucursalAutorizada) {
+      throw new ForbiddenException('sucursal_id requerido');
+    }
+    if (
+      req.perfil.rol === 'encargado_sucursal'
+      && sucursalId
+      && sucursalId !== req.perfil.sucursal_id
+    ) {
+      throw new ForbiddenException('No puedes consultar otra sucursal');
+    }
+
+    return this.operacionesService.getTransferenciasSucursal(
+      sucursalAutorizada,
+      empresaId,
+      String(desde || ''),
+      String(hasta || ''),
+    );
+  }
+
+  @Get('reportes/pedidos-sucursal')
+  @Roles('admin_empresa', 'encargado_sucursal', 'super_admin')
+  getReportePedidosSucursal(
+    @Req() req: AuthenticatedRequest,
+    @Query('sucursalId') sucursalId?: string,
+    @Query('empresaId') empresaIdParam?: string,
+    @Query('desde') desde?: string,
+    @Query('hasta') hasta?: string,
+  ) {
+    const empresaId = req.perfil.empresa_id;
+    if (!empresaId) throw new ForbiddenException('empresa_id requerido');
+    if (empresaIdParam && empresaIdParam !== empresaId) {
+      throw new ForbiddenException('empresa_id no valido para la sesion');
+    }
+
+    const sucursalAutorizada = req.perfil.rol === 'encargado_sucursal' ? req.perfil.sucursal_id : sucursalId;
+    if (!sucursalAutorizada) {
+      throw new ForbiddenException('sucursal_id requerido');
+    }
+    if (
+      req.perfil.rol === 'encargado_sucursal'
+      && sucursalId
+      && sucursalId !== req.perfil.sucursal_id
+    ) {
+      throw new ForbiddenException('No puedes consultar otra sucursal');
+    }
+
+    return this.operacionesService.getPedidosSucursal(
+      sucursalAutorizada,
+      empresaId,
+      String(desde || ''),
+      String(hasta || ''),
+    );
+  }
+
   @Get('reportes/ventas')
   @Roles('admin_empresa', 'super_admin')
   getReporteVentas(
