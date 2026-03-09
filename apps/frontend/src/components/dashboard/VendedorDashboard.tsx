@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import ModalCambiarPassword from '../auth/ModalCambiarPassword';
 import AlertasSucursal from './AlertasSucursal';
 import { operacionesService } from '../../modules/operaciones/services/operacionesService';
 import { apiFetch } from '../../lib/api';
@@ -103,6 +104,14 @@ export default function VendedorDashboard({ usuario, token, onLogout }: Vendedor
   const [stockLoading, setStockLoading] = useState(false);
   const [stockSearch, setStockSearch] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+  const [mostrarModalPassword, setMostrarModalPassword] = useState(false);
+
+  useEffect(() => {
+    const usuarioSesion = JSON.parse(sessionStorage.getItem('usuario') ?? '{}');
+    if (usuarioSesion.must_change_password) {
+      setMostrarModalPassword(true);
+    }
+  }, []);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
@@ -580,6 +589,13 @@ export default function VendedorDashboard({ usuario, token, onLogout }: Vendedor
                 )}
               </div>
             </div>
+          )}
+
+          {mostrarModalPassword && (
+            <ModalCambiarPassword
+              onCerrar={() => setMostrarModalPassword(false)}
+              onCambioExitoso={() => setMostrarModalPassword(false)}
+            />
           )}
         </main>
       </div>

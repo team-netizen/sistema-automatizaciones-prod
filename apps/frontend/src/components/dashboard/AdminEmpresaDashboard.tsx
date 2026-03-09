@@ -1,5 +1,6 @@
 ﻿// @ts-nocheck
 import { useState, useEffect } from 'react';
+import ModalCambiarPassword from '../auth/ModalCambiarPassword';
 import { operacionesService } from '../../modules/operaciones/services/operacionesService';
 import WooCommerceModal from '../integraciones/WooCommerceModal';
 import { ViewIntegraciones } from './ViewIntegraciones';
@@ -149,6 +150,14 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
   const [nuevaSucursalTipo, setNuevaSucursalTipo] = useState("tienda");
   const [creandoSucursal, setCreandoSucursal] = useState(false);
   const [errorNuevaSucursal, setErrorNuevaSucursal] = useState("");
+  const [mostrarModalPassword, setMostrarModalPassword] = useState(false);
+
+  useEffect(() => {
+    const usuarioSesion = JSON.parse(sessionStorage.getItem('usuario') ?? '{}');
+    if (usuarioSesion.must_change_password) {
+      setMostrarModalPassword(true);
+    }
+  }, []);
 
   const actualizarEstadoCardWoo = (estado: "activo" | "manual") => {
     setIntegraciones((prev) => {
@@ -1517,6 +1526,13 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
             </form>
           </div>
         </div>
+      )}
+
+      {mostrarModalPassword && (
+        <ModalCambiarPassword
+          onCerrar={() => setMostrarModalPassword(false)}
+          onCambioExitoso={() => setMostrarModalPassword(false)}
+        />
       )}
     </>
   );

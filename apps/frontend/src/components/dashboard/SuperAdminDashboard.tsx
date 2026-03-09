@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useEffect, useState } from 'react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import ModalCambiarPassword from '../auth/ModalCambiarPassword';
 import AlertasSucursal from './AlertasSucursal';
 import { apiFetch } from '../../lib/api';
 
@@ -144,6 +145,7 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
   const [modoRango, setModoRango] = useState('mes');
   const [loadingMetricas, setLoadingMetricas] = useState(false);
   const [metricas, setMetricas] = useState(null);
+  const [mostrarModalPassword, setMostrarModalPassword] = useState(false);
   const [modulos, setModulos] = useState([]);
   const [auditoria, setAuditoria] = useState([]);
   const [auditoriaTotal, setAuditoriaTotal] = useState(0);
@@ -155,6 +157,13 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
   const [editingPlan, setEditingPlan] = useState(null);
   const [planForm, setPlanForm] = useState({ nombre: '', precio: '0', maximo_usuarios: '0', limite_tokens_mensual: '0', limite_ejecuciones_mensual: '0' });
   const [subscriptionForm, setSubscriptionForm] = useState({ empresa_id: '', plan_id: '', fecha_inicio: '', fecha_fin: '' });
+
+  useEffect(() => {
+    const usuarioSesion = JSON.parse(sessionStorage.getItem('usuario') ?? '{}');
+    if (usuarioSesion.must_change_password) {
+      setMostrarModalPassword(true);
+    }
+  }, []);
 
   const request = async (path, init) => {
     const response = await apiFetch(`${apiRoot}/${path}`, init);
@@ -1222,6 +1231,13 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
           </div>
         </div>
       </Modal>
+
+      {mostrarModalPassword && (
+        <ModalCambiarPassword
+          onCerrar={() => setMostrarModalPassword(false)}
+          onCambioExitoso={() => setMostrarModalPassword(false)}
+        />
+      )}
 
       <Modal open={Boolean(auditoriaDetalle)} onClose={() => setAuditoriaDetalle(null)} title="Metadatos de auditoria" width={760}>
         <pre style={{ background: '#0f172a', borderRadius: 12, color: '#e2e8f0', fontSize: 12, lineHeight: 1.6, margin: 0, overflowX: 'auto', padding: 16 }}>{JSON.stringify(auditoriaDetalle?.metadatos ?? {}, null, 2)}</pre>

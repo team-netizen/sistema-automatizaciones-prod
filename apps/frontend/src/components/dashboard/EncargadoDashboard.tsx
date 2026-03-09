@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useEffect, useMemo, useState } from 'react';
+import ModalCambiarPassword from '../auth/ModalCambiarPassword';
 import { operacionesService } from '../../modules/operaciones/services/operacionesService';
 import AlertasSucursal from './AlertasSucursal';
 import ReportesSucursal from './ReportesSucursal';
@@ -129,6 +130,7 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
   const [mensajeTitulo, setMensajeTitulo] = useState('');
   const [mensajeTexto, setMensajeTexto] = useState('');
   const [enviandoMensaje, setEnviandoMensaje] = useState(false);
+  const [mostrarModalPassword, setMostrarModalPassword] = useState(false);
 
   const empresaNombre = usuario?.empresa_nombre || usuario?.empresa || 'Sistema';
   const apiBase = 'https://sistema-automatizaciones-backend.onrender.com';
@@ -137,6 +139,13 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
   const usuarioNombre = usuario?.nombre || usuario?.email || 'Usuario';
   const sucursalId = String(usuario?.sucursal_id || '');
   const token = sessionStorage.getItem('access_token') || '';
+
+  useEffect(() => {
+    const usuarioSesion = JSON.parse(sessionStorage.getItem('usuario') ?? '{}');
+    if (usuarioSesion.must_change_password) {
+      setMostrarModalPassword(true);
+    }
+  }, []);
 
   const fetchAlertas = async (options?: { silent?: boolean }) => {
     if (!usuarioId || !empresaId) {
@@ -968,6 +977,13 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
 
           {renderContent()}
         </main>
+
+        {mostrarModalPassword && (
+          <ModalCambiarPassword
+            onCerrar={() => setMostrarModalPassword(false)}
+            onCambioExitoso={() => setMostrarModalPassword(false)}
+          />
+        )}
       </div>
     </div>
   );
