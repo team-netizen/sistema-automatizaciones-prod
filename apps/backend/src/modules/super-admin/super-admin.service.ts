@@ -382,33 +382,35 @@ export class SuperAdminService {
   }
 
   async getAdminEmpresa(empresaId: string) {
-    const { data: perfil, error } = await this.supabase
-      .from('perfiles')
-      .select('id')
-      .eq('empresa_id', empresaId)
-      .eq('rol', 'admin_empresa')
-      .maybeSingle();
+    try {
+      const { data: perfil, error } = await this.supabase
+        .from('perfiles')
+        .select('id')
+        .eq('empresa_id', empresaId)
+        .eq('rol', 'admin_empresa')
+        .single();
 
-    if (error) {
-      this.logger.error(`[getAdminEmpresa] perfil: ${JSON.stringify(error)}`);
-      throw new InternalServerErrorException('Error al obtener el administrador');
-    }
+      if (error || !perfil) {
+        this.logger.warn(`[getAdminEmpresa] No se encontro admin para empresa ${empresaId}`);
+        return { email: null, userId: null };
+      }
 
-    if (!perfil?.id) {
+      const { data, error: authError } = await this.supabase.auth.admin.getUserById(perfil.id);
+      const user = data?.user;
+
+      if (authError || !user) {
+        this.logger.warn(`[getAdminEmpresa] No se encontro auth user ${perfil.id}`);
+        return { email: null, userId: perfil.id };
+      }
+
+      return {
+        email: user.email ?? null,
+        userId: perfil.id,
+      };
+    } catch (error: any) {
+      this.logger.error(`[getAdminEmpresa] ${error?.message}`);
       return { email: null, userId: null };
     }
-
-    const { data, error: authError } = await this.supabase.auth.admin.getUserById(perfil.id);
-
-    if (authError) {
-      this.logger.error(`[getAdminEmpresa] auth: ${JSON.stringify(authError)}`);
-      throw new InternalServerErrorException('Error al obtener el usuario administrador');
-    }
-
-    return {
-      email: data?.user?.email ?? null,
-      userId: perfil.id,
-    };
   }
 
   async crearEmpresa(dto: CrearEmpresaPayload) {

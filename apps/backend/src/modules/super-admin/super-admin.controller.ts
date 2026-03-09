@@ -27,14 +27,14 @@ export class SuperAdminController {
     });
   }
 
-  @Get('empresas/:id/detalle')
-  getEmpresaDetalle(@Param('id') id: string) {
-    return this.superAdminService.getEmpresaDetalle(id);
-  }
-
   @Get('empresas/:id/admin')
   getAdminEmpresa(@Param('id') id: string) {
     return this.superAdminService.getAdminEmpresa(id);
+  }
+
+  @Get('empresas/:id/detalle')
+  getEmpresaDetalle(@Param('id') id: string) {
+    return this.superAdminService.getEmpresaDetalle(id);
   }
 
   @Post('empresas')
