@@ -87,11 +87,20 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
   const [empresaDetalle, setEmpresaDetalle] = useState(null);
   const [modalCrearEmpresa, setModalCrearEmpresa] = useState(false);
   const [creandoEmpresa, setCreandoEmpresa] = useState(false);
+  const [modalEditarEmpresa, setModalEditarEmpresa] = useState(false);
+  const [editandoEmpresa, setEditandoEmpresa] = useState(false);
   const [formEmpresa, setFormEmpresa] = useState({
     nombre: '',
     ruc: '',
     adminEmail: '',
     adminPassword: '',
+    planId: '',
+  });
+  const [formEditar, setFormEditar] = useState({
+    id: '',
+    nombre: '',
+    ruc: '',
+    estado: 'activo',
     planId: '',
   });
   const [usuarios, setUsuarios] = useState([]);
@@ -276,6 +285,101 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
     }
   };
 
+  const handleAbrirEditar = (empresa) => {
+    setFormEditar({
+      id: empresa.id || '',
+      nombre: empresa.nombre || '',
+      ruc: empresa.ruc || '',
+      estado: empresa.estado || 'activo',
+      planId: empresa.plan_id || '',
+    });
+    setModalEditarEmpresa(true);
+  };
+
+  const closeEditarEmpresaModal = () => {
+    setModalEditarEmpresa(false);
+    setFormEditar({
+      id: '',
+      nombre: '',
+      ruc: '',
+      estado: 'activo',
+      planId: '',
+    });
+  };
+
+  const handleGuardarEdicion = async () => {
+    if (!formEditar.nombre || !formEditar.ruc) return;
+    if (formEditar.ruc.length !== 11) {
+      window.alert('El RUC debe tener 11 digitos');
+      return;
+    }
+
+    setEditandoEmpresa(true);
+    try {
+      const actualizada = await request(`empresas/${formEditar.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          nombre: formEditar.nombre,
+          ruc: formEditar.ruc,
+          estado: formEditar.estado,
+          planId: formEditar.planId,
+        }),
+      });
+
+      setEmpresas((prev) =>
+        prev.map((empresa) =>
+          empresa.id === formEditar.id
+            ? {
+                ...empresa,
+                ...actualizada,
+              }
+            : empresa,
+        ),
+      );
+      setCompanyOptions((prev) =>
+        prev.map((empresa) =>
+          empresa.id === formEditar.id ? { ...empresa, nombre: formEditar.nombre } : empresa,
+        ),
+      );
+
+      if (empresaDetalle?.empresa?.id === formEditar.id) {
+        setEmpresaDetalle((prev) =>
+          prev
+            ? {
+                ...prev,
+                empresa: {
+                  ...prev.empresa,
+                  nombre: actualizada?.nombre ?? formEditar.nombre,
+                  ruc: actualizada?.ruc ?? formEditar.ruc,
+                  estado: actualizada?.estado ?? formEditar.estado,
+                },
+                suscripcion_actual: prev.suscripcion_actual
+                  ? {
+                      ...prev.suscripcion_actual,
+                      plan_id: actualizada?.plan_id ?? prev.suscripcion_actual.plan_id,
+                      plan: prev.suscripcion_actual.plan
+                        ? {
+                            ...prev.suscripcion_actual.plan,
+                            id: actualizada?.plan_id ?? prev.suscripcion_actual.plan.id,
+                            nombre: actualizada?.plan_activo ?? prev.suscripcion_actual.plan.nombre,
+                          }
+                        : prev.suscripcion_actual.plan,
+                    }
+                  : prev.suscripcion_actual,
+              }
+            : prev,
+        );
+      }
+
+      closeEditarEmpresaModal();
+      void loadDashboard();
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : 'Error de conexion');
+    } finally {
+      setEditandoEmpresa(false);
+    }
+  };
+
   const closeCrearEmpresaModal = () => {
     setModalCrearEmpresa(false);
     setFormEmpresa({ nombre: '', ruc: '', adminEmail: '', adminPassword: '', planId: '' });
@@ -366,7 +470,7 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
                 <div style={{ overflowX: 'auto', padding: 20 }}>
                   <table style={{ borderCollapse: 'collapse', minWidth: 980, width: '100%' }}>
                     <thead><tr style={{ background: T.cardMuted }}>{['Nombre', 'RUC', 'Estado', 'Plan activo', 'Usuarios', 'Fecha creacion', 'Acciones'].map((label) => <th key={label} style={head}>{label}</th>)}</tr></thead>
-                    <tbody>{empresas.map((row) => { const state = badge(row.estado); return <tr key={row.id}><td style={{ ...cell, color: T.text, fontWeight: 700 }}>{row.nombre}</td><td style={{ ...cell, color: T.textMuted }}>{row.ruc}</td><td style={cell}><span style={{ background: state.bg, borderRadius: 999, color: state.color, fontSize: 12, fontWeight: 800, padding: '5px 10px' }}>{state.label}</span></td><td style={{ ...cell, color: T.text }}>{row.plan_activo}</td><td style={{ ...cell, color: T.textMuted }}>{row.usuarios}</td><td style={{ ...cell, color: T.textMuted }}>{formatDate(row.fecha_creacion)}</td><td style={cell}><div style={{ display: 'flex', gap: 8 }}><button onClick={async () => setEmpresaDetalle(await request(`empresas/${row.id}/detalle`))} style={{ background: T.indigoSoft, border: 'none', borderRadius: 999, color: T.indigo, cursor: 'pointer', fontSize: 12, fontWeight: 800, padding: '8px 12px' }} type="button">Ver detalle</button><button onClick={() => handleCambiarEstado(row.id, row.estado === 'activo' ? 'suspendido' : 'activo')} style={{ background: row.estado === 'activo' ? T.dangerBg : T.successBg, border: 'none', borderRadius: 999, color: row.estado === 'activo' ? T.danger : T.success, cursor: 'pointer', fontSize: 12, fontWeight: 800, padding: '8px 12px' }} type="button">{row.estado === 'activo' ? 'Suspender' : 'Activar'}</button></div></td></tr>; })}</tbody>
+                    <tbody>{empresas.map((row) => { const state = badge(row.estado); return <tr key={row.id}><td style={{ ...cell, color: T.text, fontWeight: 700 }}>{row.nombre}</td><td style={{ ...cell, color: T.textMuted }}>{row.ruc}</td><td style={cell}><span style={{ background: state.bg, borderRadius: 999, color: state.color, fontSize: 12, fontWeight: 800, padding: '5px 10px' }}>{state.label}</span></td><td style={{ ...cell, color: T.text }}>{row.plan_activo}</td><td style={{ ...cell, color: T.textMuted }}>{row.usuarios}</td><td style={{ ...cell, color: T.textMuted }}>{formatDate(row.fecha_creacion)}</td><td style={cell}><div style={{ display: 'flex', gap: 8 }}><button onClick={() => handleAbrirEditar(row)} style={{ background: T.indigoSoft, border: 'none', borderRadius: 6, color: '#4338ca', cursor: 'pointer', fontSize: 12, fontWeight: 600, padding: '6px 14px' }} type="button">Editar</button><button onClick={async () => setEmpresaDetalle(await request(`empresas/${row.id}/detalle`))} style={{ background: T.indigoSoft, border: 'none', borderRadius: 999, color: T.indigo, cursor: 'pointer', fontSize: 12, fontWeight: 800, padding: '8px 12px' }} type="button">Ver detalle</button><button onClick={() => handleCambiarEstado(row.id, row.estado === 'activo' ? 'suspendido' : 'activo')} style={{ background: row.estado === 'activo' ? T.dangerBg : T.successBg, border: 'none', borderRadius: 999, color: row.estado === 'activo' ? T.danger : T.success, cursor: 'pointer', fontSize: 12, fontWeight: 800, padding: '8px 12px' }} type="button">{row.estado === 'activo' ? 'Suspender' : 'Activar'}</button></div></td></tr>; })}</tbody>
                   </table>
                   <div style={{ alignItems: 'center', display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
                     <span style={{ color: T.textMuted, fontSize: 13 }}>Pagina {empresasPage} de {Math.max(1, Math.ceil(empresasTotal / 10))}</span>
@@ -506,6 +610,80 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
           <input value={planForm.limite_tokens_mensual} onChange={(e) => setPlanForm((v) => ({ ...v, limite_tokens_mensual: e.target.value }))} placeholder="Limite tokens/mes" type="number" style={input} />
           <input value={planForm.limite_ejecuciones_mensual} onChange={(e) => setPlanForm((v) => ({ ...v, limite_ejecuciones_mensual: e.target.value }))} placeholder="Limite ejecuciones/mes" type="number" style={input} />
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}><button onClick={() => void savePlan()} style={{ background: T.indigo, border: 'none', borderRadius: 999, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 800, padding: '11px 16px' }} type="button">{editingPlan ? 'Actualizar plan' : 'Crear plan'}</button></div>
+        </div>
+      </Modal>
+
+      <Modal open={modalEditarEmpresa} onClose={closeEditarEmpresaModal} title="Editar empresa" width={500}>
+        <div style={{ display: 'grid', gap: 24 }}>
+          <div>
+            <p style={{ color: T.indigo, fontSize: 11, fontWeight: 700, letterSpacing: '0.8px', margin: '0 0 16px', textTransform: 'uppercase' }}>Datos de la empresa</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={{ color: '#374151', display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                  Nombre de la empresa <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formEditar.nombre}
+                  onChange={(e) => setFormEditar((prev) => ({ ...prev, nombre: e.target.value }))}
+                  autoComplete="off"
+                  style={{ background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box', color: '#1a1a2e', fontSize: 14, outline: 'none', padding: '10px 14px', width: '100%' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ color: '#374151', display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                  RUC <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formEditar.ruc}
+                  maxLength={11}
+                  onChange={(e) => setFormEditar((prev) => ({ ...prev, ruc: e.target.value.replace(/\D/g, '') }))}
+                  autoComplete="off"
+                  style={{ background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box', color: '#1a1a2e', fontSize: 14, outline: 'none', padding: '10px 14px', width: '100%' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ color: '#374151', display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                  Estado
+                </label>
+                <select
+                  value={formEditar.estado}
+                  onChange={(e) => setFormEditar((prev) => ({ ...prev, estado: e.target.value }))}
+                  style={{ background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box', color: '#1a1a2e', cursor: 'pointer', fontSize: 14, outline: 'none', padding: '10px 14px', width: '100%' }}
+                >
+                  <option value="activo">Activo</option>
+                  <option value="suspendido">Suspendido</option>
+                  <option value="inactivo">Inactivo</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ color: '#374151', display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                  Plan
+                </label>
+                <select
+                  value={formEditar.planId}
+                  onChange={(e) => setFormEditar((prev) => ({ ...prev, planId: e.target.value }))}
+                  style={{ background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box', color: formEditar.planId ? '#1a1a2e' : '#9ca3af', cursor: 'pointer', fontSize: 14, outline: 'none', padding: '10px 14px', width: '100%' }}
+                >
+                  <option value="">Sin plan</option>
+                  {planes.map((plan) => (
+                    <option key={plan.id} value={plan.id}>
+                      {plan.nombre} - S/ {Number(plan.precio || 0).toFixed(2)}/mes
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+            <button onClick={closeEditarEmpresaModal} style={{ background: 'transparent', border: '1.5px solid #d1d5db', borderRadius: 8, color: '#6b7280', cursor: 'pointer', fontSize: 14, fontWeight: 600, padding: '10px 20px' }} type="button">Cancelar</button>
+            <button onClick={() => handleGuardarEdicion()} disabled={editandoEmpresa || !formEditar.nombre || !formEditar.ruc} style={{ background: (!formEditar.nombre || !formEditar.ruc) ? '#c7d2fe' : '#6366f1', border: 'none', borderRadius: 8, color: '#ffffff', cursor: (!formEditar.nombre || !formEditar.ruc) ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 700, padding: '10px 24px' }} type="button">{editandoEmpresa ? 'Guardando...' : 'Guardar cambios'}</button>
+          </div>
         </div>
       </Modal>
 

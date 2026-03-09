@@ -24,6 +24,13 @@ type CrearEmpresaPayload = {
   planId?: string;
 };
 
+type EditarEmpresaPayload = {
+  nombre: string;
+  ruc: string;
+  estado: string;
+  planId?: string;
+};
+
 @Injectable()
 export class SuperAdminService {
   private readonly logger = new Logger(SuperAdminService.name);
@@ -264,6 +271,7 @@ export class SuperAdminService {
 
         return {
           ...empresa,
+          plan_id: currentSubscription?.plan_id ?? '',
           plan_activo: currentSubscription?.plan_id ? planMap[currentSubscription.plan_id] ?? 'Sin plan' : 'Sin plan',
           usuarios: usuariosPorEmpresa[empresa.id] ?? 0,
         };
@@ -473,9 +481,149 @@ export class SuperAdminService {
 
     return {
       ...empresa,
+      plan_id: planId || '',
       adminEmail,
       plan_activo: planNombre,
       usuarios: 1,
+    };
+  }
+
+  async editarEmpresa(empresaId: string, dto: EditarEmpresaPayload) {
+    const nombre = String(dto.nombre || '').trim();
+    const ruc = String(dto.ruc || '').trim();
+    const estado = String(dto.estado || '').trim().toLowerCase();
+    const planId = String(dto.planId || '').trim();
+    const estadosValidos: EmpresaEstado[] = ['activo', 'suspendido', 'inactivo'];
+
+    if (!nombre || !ruc) {
+      throw new BadRequestException('nombre y ruc son requeridos');
+    }
+
+    if (!/^\d{11}$/.test(ruc)) {
+      throw new BadRequestException('El RUC debe tener exactamente 11 digitos');
+    }
+
+    if (!estadosValidos.includes(estado as EmpresaEstado)) {
+      throw new BadRequestException(`Estado invalido: ${estado}`);
+    }
+
+    let resolvedPlanId = planId;
+    let planNombre = 'Sin plan';
+    if (planId) {
+      const { data: plan, error: planError } = await this.supabase
+        .from('planes_suscripcion')
+        .select('id, nombre')
+        .eq('id', planId)
+        .maybeSingle();
+
+      if (planError || !plan) {
+        throw new BadRequestException('Plan no valido');
+      }
+
+      planNombre = plan.nombre || 'Sin plan';
+    }
+
+    const { data: empresa, error } = await this.supabase
+      .from('empresas')
+      .update({
+        nombre,
+        ruc,
+        estado,
+      })
+      .eq('id', empresaId)
+      .select('id, nombre, ruc, estado, fecha_creacion')
+      .maybeSingle();
+
+    if (error) {
+      this.logger.error(`[editarEmpresa] ${JSON.stringify(error)}`);
+      throw new InternalServerErrorException('Error al editar empresa');
+    }
+
+    if (!empresa) {
+      throw new NotFoundException('Empresa no encontrada');
+    }
+
+    const { data: suscripcionExistente, error: subsError } = await this.supabase
+      .from('suscripciones_empresa')
+      .select('id')
+      .eq('empresa_id', empresaId)
+      .eq('estado', 'activa')
+      .maybeSingle();
+
+    if (subsError) {
+      this.logger.error(`[editarEmpresa] suscripcion lookup: ${JSON.stringify(subsError)}`);
+      throw new InternalServerErrorException('Error al consultar la suscripcion');
+    }
+
+    if (planId) {
+      if (suscripcionExistente?.id) {
+        const { error: updateSubError } = await this.supabase
+          .from('suscripciones_empresa')
+          .update({ plan_id: planId })
+          .eq('id', suscripcionExistente.id);
+
+        if (updateSubError) {
+          this.logger.error(`[editarEmpresa] suscripcion update: ${JSON.stringify(updateSubError)}`);
+          throw new InternalServerErrorException('Error al actualizar el plan');
+        }
+      } else {
+        const fechaInicio = new Date();
+        const fechaFin = new Date(fechaInicio);
+        fechaFin.setMonth(fechaFin.getMonth() + 1);
+
+        const { error: insertSubError } = await this.supabase
+          .from('suscripciones_empresa')
+          .insert({
+            empresa_id: empresaId,
+            plan_id: planId,
+            estado: 'activa',
+            fecha_inicio: fechaInicio.toISOString(),
+            fecha_fin: fechaFin.toISOString(),
+            fecha_creacion: new Date().toISOString(),
+          });
+
+        if (insertSubError) {
+          this.logger.error(`[editarEmpresa] suscripcion insert: ${JSON.stringify(insertSubError)}`);
+          throw new InternalServerErrorException('Error al crear la suscripcion');
+        }
+      }
+    } else {
+      planNombre = suscripcionExistente?.id ? 'Plan actual' : 'Sin plan';
+    }
+
+    const { data: perfiles, error: perfilesError } = await this.supabase
+      .from('perfiles')
+      .select('id', { count: 'exact' })
+      .eq('empresa_id', empresaId)
+      .neq('rol', 'super_admin');
+
+    if (perfilesError) {
+      this.logger.warn(`[editarEmpresa] perfiles count: ${JSON.stringify(perfilesError)}`);
+    }
+
+    if (!planId && suscripcionExistente?.id) {
+      const { data: currentPlan } = await this.supabase
+        .from('suscripciones_empresa')
+        .select('plan_id')
+        .eq('id', suscripcionExistente.id)
+        .maybeSingle();
+
+      if (currentPlan?.plan_id) {
+        resolvedPlanId = currentPlan.plan_id;
+        const { data: plan } = await this.supabase
+          .from('planes_suscripcion')
+          .select('nombre')
+          .eq('id', currentPlan.plan_id)
+          .maybeSingle();
+        planNombre = plan?.nombre || 'Sin plan';
+      }
+    }
+
+    return {
+      ...empresa,
+      plan_id: resolvedPlanId || '',
+      plan_activo: planNombre,
+      usuarios: perfiles?.length ?? 0,
     };
   }
 
