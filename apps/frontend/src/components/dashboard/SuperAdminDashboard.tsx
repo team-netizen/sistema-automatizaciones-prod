@@ -133,7 +133,9 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
   const [usuarioSearch, setUsuarioSearch] = useState('');
   const [planes, setPlanes] = useState([]);
   const [companyOptions, setCompanyOptions] = useState([]);
+  const [empresasLista, setEmpresasLista] = useState([]);
   const [metricasMes, setMetricasMes] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
+  const [empresaFiltro, setEmpresaFiltro] = useState('todas');
   const [rangoFecha, setRangoFecha] = useState({
     desde: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
     hasta: new Date().toISOString().split('T')[0],
@@ -178,7 +180,9 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
   const loadCompanyOptions = async () => {
     const payload = await request('empresas?page=1&limit=100');
     const rows = Array.isArray(payload?.rows) ? payload.rows : [];
-    setCompanyOptions(rows.map((row) => ({ id: row.id, nombre: row.nombre })));
+    const options = rows.map((row) => ({ id: row.id, nombre: row.nombre }));
+    setCompanyOptions(options);
+    setEmpresasLista(options);
   };
   const loadEmpresas = async () => {
     const params = new URLSearchParams({ page: String(empresasPage), limit: '10' });
@@ -198,10 +202,17 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
   const loadMetricas = async (desde, hasta) => {
     setLoadingMetricas(true);
     try {
-      const query = desde && hasta
-        ? `metricas?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`
-        : `metricas?mes=${encodeURIComponent(metricasMes)}`;
-      setMetricas(await request(query));
+      const params = new URLSearchParams();
+      if (desde && hasta) {
+        params.set('desde', desde);
+        params.set('hasta', hasta);
+      } else {
+        params.set('mes', metricasMes);
+      }
+      if (empresaFiltro !== 'todas') {
+        params.set('empresaId', empresaFiltro);
+      }
+      setMetricas(await request(`metricas?${params.toString()}`));
     } finally {
       setLoadingMetricas(false);
     }
@@ -252,10 +263,13 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
   }, [nav, empresasPage, empresaSearch, usuarioRol, usuarioEmpresaId, usuarioSearch, auditoriaPage, auditoriaEmpresaId, auditoriaTipoAccion]);
 
   useEffect(() => {
-    if (nav === 'metricas' && modoRango === 'mes') {
+    if (nav !== 'metricas') return;
+    if (modoRango === 'mes') {
       void loadMetricas();
+      return;
     }
-  }, [metricasMes, modoRango, nav]);
+    void loadMetricas(rangoFecha.desde, rangoFecha.hasta);
+  }, [empresaFiltro, metricasMes, modoRango, nav]);
 
   const savePlan = async () => {
     const body = JSON.stringify({
@@ -320,6 +334,7 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
       setEmpresas((prev) => [nueva, ...prev]);
       setEmpresasTotal((prev) => prev + 1);
       setCompanyOptions((prev) => [{ id: nueva.id, nombre: nueva.nombre }, ...prev]);
+      setEmpresasLista((prev) => [{ id: nueva.id, nombre: nueva.nombre }, ...prev]);
       setFormEmpresa({ nombre: '', ruc: '', adminEmail: '', adminPassword: '', planId: '' });
       setModalCrearEmpresa(false);
       void loadDashboard();
@@ -399,6 +414,11 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
         ),
       );
       setCompanyOptions((prev) =>
+        prev.map((empresa) =>
+          empresa.id === formEditar.id ? { ...empresa, nombre: formEditar.nombre } : empresa,
+        ),
+      );
+      setEmpresasLista((prev) =>
         prev.map((empresa) =>
           empresa.id === formEditar.id ? { ...empresa, nombre: formEditar.nombre } : empresa,
         ),
@@ -656,9 +676,29 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
             {nav === 'metricas' && (
               <div style={{ margin: '0 auto', maxWidth: '1200px', paddingBottom: '40px' }}>
                 <div style={{ display: 'grid', gap: 18 }}>
-                <div style={{ alignItems: 'center', display: 'flex', justifyContent: 'space-between' }}>
-                  <div><h3 style={{ margin: 0 }}>Metricas globales</h3><p style={{ color: T.textMuted, fontSize: 13, margin: '6px 0 0' }}>Vista consolidada por periodo</p></div>
-                  <div style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+                <div style={{ alignItems: 'flex-start', display: 'flex', flexWrap: 'wrap', gap: '12px', justifyContent: 'space-between', marginBottom: '20px' }}>
+                  <div>
+                    <h2 style={{ color: '#1a1a2e', fontSize: '20px', fontWeight: 700, margin: 0 }}>Metricas globales</h2>
+                    <p style={{ color: '#6b7280', fontSize: '13px', margin: '4px 0 0' }}>
+                      {empresaFiltro === 'todas'
+                        ? 'Vista consolidada de todas las empresas'
+                        : `Mostrando datos de: ${empresasLista.find((empresa) => empresa.id === empresaFiltro)?.nombre ?? ''}`}
+                    </p>
+                  </div>
+                  <div style={{ alignItems: 'flex-end', display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+                    <div>
+                      <label style={{ color: '#6b7280', display: 'block', fontSize: '11px', fontWeight: 600, letterSpacing: '0.5px', marginBottom: '4px', textTransform: 'uppercase' }}>
+                        Empresa
+                      </label>
+                      <select
+                        value={empresaFiltro}
+                        onChange={(e) => setEmpresaFiltro(e.target.value)}
+                        style={{ appearance: 'auto', background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: '8px', color: '#1a1a2e', cursor: 'pointer', fontSize: '14px', minWidth: '180px', outline: 'none', padding: '8px 32px 8px 12px' }}
+                      >
+                        <option value="todas">Todas las empresas</option>
+                        {empresasLista.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.nombre}</option>)}
+                      </select>
+                    </div>
                     <div style={{ background: '#f5f6fa', borderRadius: '8px', display: 'flex', padding: '3px' }}>
                       {['mes', 'personalizado'].map((modo) => (
                         <button
@@ -820,7 +860,7 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
                     <p style={{ color: T.textMuted, padding: '20px', textAlign: 'center' }}>Sin datos este mes</p>
                   )}
                 </div>
-                <div style={{ background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '14px', marginBottom: '16px', padding: '20px 22px' }}>
+                {false && (<div>
                   <h3 style={{ margin: '0 0 16px' }}>Uso por empresa</h3>
                   {(metricas?.usoEmpresas || metricas?.uso_por_empresa || []).length > 0 ? (
                     <div style={{ overflowX: 'auto' }}>
@@ -838,7 +878,7 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
                       </p>
                     </div>
                   )}
-                </div>
+                </div>)}
                 </div>
               </div>
             )}

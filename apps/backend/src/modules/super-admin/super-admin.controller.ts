@@ -144,8 +144,9 @@ export class SuperAdminController {
     @Query('mes') mes?: string,
     @Query('desde') desde?: string,
     @Query('hasta') hasta?: string,
+    @Query('empresaId') empresaId?: string,
   ) {
-    return this.superAdminService.getMetricas({ mes, desde, hasta });
+    return this.superAdminService.getMetricas({ mes, desde, hasta, empresaId });
   }
 
   @Get('modulos')
