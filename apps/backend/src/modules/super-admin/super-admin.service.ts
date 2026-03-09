@@ -29,6 +29,8 @@ type EditarEmpresaPayload = {
   ruc: string;
   estado: string;
   planId?: string;
+  adminEmail?: string;
+  adminPassword?: string;
 };
 
 @Injectable()
@@ -379,6 +381,36 @@ export class SuperAdminService {
     };
   }
 
+  async getAdminEmpresa(empresaId: string) {
+    const { data: perfil, error } = await this.supabase
+      .from('perfiles')
+      .select('id')
+      .eq('empresa_id', empresaId)
+      .eq('rol', 'admin_empresa')
+      .maybeSingle();
+
+    if (error) {
+      this.logger.error(`[getAdminEmpresa] perfil: ${JSON.stringify(error)}`);
+      throw new InternalServerErrorException('Error al obtener el administrador');
+    }
+
+    if (!perfil?.id) {
+      return { email: null, userId: null };
+    }
+
+    const { data, error: authError } = await this.supabase.auth.admin.getUserById(perfil.id);
+
+    if (authError) {
+      this.logger.error(`[getAdminEmpresa] auth: ${JSON.stringify(authError)}`);
+      throw new InternalServerErrorException('Error al obtener el usuario administrador');
+    }
+
+    return {
+      email: data?.user?.email ?? null,
+      userId: perfil.id,
+    };
+  }
+
   async crearEmpresa(dto: CrearEmpresaPayload) {
     const nombre = String(dto.nombre || '').trim();
     const ruc = String(dto.ruc || '').trim();
@@ -493,6 +525,8 @@ export class SuperAdminService {
     const ruc = String(dto.ruc || '').trim();
     const estado = String(dto.estado || '').trim().toLowerCase();
     const planId = String(dto.planId || '').trim();
+    const adminEmail = String(dto.adminEmail || '').trim().toLowerCase();
+    const adminPassword = String(dto.adminPassword || '');
     const estadosValidos: EmpresaEstado[] = ['activo', 'suspendido', 'inactivo'];
 
     if (!nombre || !ruc) {
@@ -505,6 +539,14 @@ export class SuperAdminService {
 
     if (!estadosValidos.includes(estado as EmpresaEstado)) {
       throw new BadRequestException(`Estado invalido: ${estado}`);
+    }
+
+    if (dto.adminEmail !== undefined && adminEmail && !adminEmail.includes('@')) {
+      throw new BadRequestException('Email del administrador invalido');
+    }
+
+    if (adminPassword && adminPassword.length < 6) {
+      throw new BadRequestException('La contrasena del administrador debe tener al menos 6 caracteres');
     }
 
     let resolvedPlanId = planId;
@@ -541,6 +583,38 @@ export class SuperAdminService {
 
     if (!empresa) {
       throw new NotFoundException('Empresa no encontrada');
+    }
+
+    if (dto.adminEmail || dto.adminPassword) {
+      const { data: perfilAdmin, error: perfilAdminError } = await this.supabase
+        .from('perfiles')
+        .select('id')
+        .eq('empresa_id', empresaId)
+        .eq('rol', 'admin_empresa')
+        .maybeSingle();
+
+      if (perfilAdminError) {
+        this.logger.error(`[editarEmpresa] admin lookup: ${JSON.stringify(perfilAdminError)}`);
+        throw new InternalServerErrorException('Error al consultar el administrador');
+      }
+
+      if (perfilAdmin?.id) {
+        const authUpdate: Record<string, string> = {};
+        if (adminEmail) authUpdate.email = adminEmail;
+        if (adminPassword) authUpdate.password = adminPassword;
+
+        if (Object.keys(authUpdate).length > 0) {
+          const { error: authErr } = await this.supabase.auth.admin.updateUserById(
+            perfilAdmin.id,
+            authUpdate,
+          );
+
+          if (authErr) {
+            this.logger.error(`[editarEmpresa] auth update: ${JSON.stringify(authErr)}`);
+            throw new InternalServerErrorException(`Error al actualizar usuario: ${authErr.message}`);
+          }
+        }
+      }
     }
 
     const { data: suscripcionExistente, error: subsError } = await this.supabase

@@ -102,6 +102,8 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
     ruc: '',
     estado: 'activo',
     planId: '',
+    adminEmail: '',
+    adminPassword: '',
   });
   const [usuarios, setUsuarios] = useState([]);
   const [usuarioRol, setUsuarioRol] = useState('');
@@ -285,15 +287,27 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
     }
   };
 
-  const handleAbrirEditar = (empresa) => {
+  const handleAbrirEditar = async (empresa) => {
     setFormEditar({
       id: empresa.id || '',
       nombre: empresa.nombre || '',
       ruc: empresa.ruc || '',
       estado: empresa.estado || 'activo',
       planId: empresa.plan_id || '',
+      adminEmail: '',
+      adminPassword: '',
     });
     setModalEditarEmpresa(true);
+
+    try {
+      const admin = await request(`empresas/${empresa.id}/admin`);
+      setFormEditar((prev) => ({
+        ...prev,
+        adminEmail: admin?.email || '',
+      }));
+    } catch {
+      // noop
+    }
   };
 
   const closeEditarEmpresaModal = () => {
@@ -304,6 +318,8 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
       ruc: '',
       estado: 'activo',
       planId: '',
+      adminEmail: '',
+      adminPassword: '',
     });
   };
 
@@ -323,6 +339,8 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
           ruc: formEditar.ruc,
           estado: formEditar.estado,
           planId: formEditar.planId,
+          adminEmail: formEditar.adminEmail,
+          adminPassword: formEditar.adminPassword || undefined,
         }),
       });
 
@@ -676,6 +694,41 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
                     </option>
                   ))}
                 </select>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <p style={{ color: T.indigo, fontSize: 11, fontWeight: 700, letterSpacing: '0.8px', margin: '24px 0 16px', textTransform: 'uppercase' }}>Usuario administrador</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={{ color: '#374151', display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                  Email <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="email"
+                  value={formEditar.adminEmail}
+                  onChange={(e) => setFormEditar((prev) => ({ ...prev, adminEmail: e.target.value }))}
+                  autoComplete="new-password"
+                  style={{ background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box', color: '#1a1a2e', fontSize: 14, outline: 'none', padding: '10px 14px', width: '100%' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ color: '#374151', display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                  Nueva contrasena
+                </label>
+                <input
+                  type="password"
+                  placeholder="Dejar vacio para no cambiar"
+                  value={formEditar.adminPassword}
+                  onChange={(e) => setFormEditar((prev) => ({ ...prev, adminPassword: e.target.value }))}
+                  autoComplete="new-password"
+                  style={{ background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box', color: '#1a1a2e', fontSize: 14, outline: 'none', padding: '10px 14px', width: '100%' }}
+                />
+                <p style={{ color: '#9ca3af', fontSize: 11, margin: '4px 0 0' }}>
+                  Solo completa este campo si deseas cambiar la contrasena.
+                </p>
               </div>
             </div>
           </div>

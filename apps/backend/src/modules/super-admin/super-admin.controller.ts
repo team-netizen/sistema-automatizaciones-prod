@@ -32,6 +32,11 @@ export class SuperAdminController {
     return this.superAdminService.getEmpresaDetalle(id);
   }
 
+  @Get('empresas/:id/admin')
+  getAdminEmpresa(@Param('id') id: string) {
+    return this.superAdminService.getAdminEmpresa(id);
+  }
+
   @Post('empresas')
   crearEmpresa(
     @Body()
@@ -55,6 +60,8 @@ export class SuperAdminController {
       ruc: string;
       estado: string;
       planId?: string;
+      adminEmail?: string;
+      adminPassword?: string;
     },
   ) {
     return this.superAdminService.editarEmpresa(id, body);
