@@ -949,7 +949,7 @@ export class SuperAdminService {
     const [{ data: pedidos, error: pedidosError }, { data: usoRows, error: usoError }] = await Promise.all([
       this.supabase
         .from('pedidos')
-        .select('empresa_id, total')
+        .select('empresa_id, total, fecha_pedido, medio_pedido, canal_id')
         .gte('fecha_pedido', start)
         .lte('fecha_pedido', endInclusive),
       this.supabase
@@ -974,6 +974,19 @@ export class SuperAdminService {
       acc[row.empresa_id] = acc[row.empresa_id] ?? { pedidos: 0, total: 0 };
       acc[row.empresa_id].pedidos += 1;
       acc[row.empresa_id].total += Number(row.total || 0);
+      return acc;
+    }, {});
+    const ventasPorDiaMap = pedidosRows.reduce<Record<string, number>>((acc, row: any) => {
+      const rawFecha = row.fecha_pedido;
+      const date = rawFecha ? new Date(rawFecha) : null;
+      if (!date || Number.isNaN(date.getTime())) return acc;
+      const fecha = date.toISOString().split('T')[0];
+      acc[fecha] = (acc[fecha] ?? 0) + Number(row.total || 0);
+      return acc;
+    }, {});
+    const pedidosPorCanalMap = pedidosRows.reduce<Record<string, number>>((acc, row: any) => {
+      const canal = String(row.medio_pedido || 'otro').toLowerCase();
+      acc[canal] = (acc[canal] ?? 0) + 1;
       return acc;
     }, {});
 
@@ -1021,6 +1034,24 @@ export class SuperAdminService {
       }))
       .sort((a, b) => b.pedidos - a.pedidos)
       .slice(0, 5);
+    const ventasPorEmpresa = Object.entries(pedidosPorEmpresa)
+      .map(([empresaId, metrics]) => ({
+        empresa_id: empresaId,
+        empresa: empresaMap[empresaId] ?? empresaId,
+        pedidos: metrics.pedidos,
+        total: metrics.total,
+      }))
+      .sort((a, b) => b.total - a.total);
+    const graficaVentas = Object.entries(ventasPorDiaMap)
+      .map(([fecha, total]) => ({
+        fecha,
+        dia: new Date(`${fecha}T00:00:00.000Z`).getUTCDate(),
+        total,
+      }))
+      .sort((a, b) => a.dia - b.dia);
+    const pedidosPorCanal = Object.entries(pedidosPorCanalMap)
+      .map(([canal, cantidad]) => ({ canal, cantidad }))
+      .sort((a, b) => b.cantidad - a.cantidad);
 
     const usoPorEmpresa = (usoRows ?? []).map((row: any) => {
       const currentSubscription = this.pickCurrentSubscription(subscriptionsByEmpresa[row.empresa_id] ?? []);
@@ -1041,9 +1072,16 @@ export class SuperAdminService {
 
     return {
       mes: normalizedMes,
+      totalVentas: totalVentasMes,
+      totalPedidos: totalPedidosMes,
       total_ventas_mes: totalVentasMes,
       total_pedidos_mes: totalPedidosMes,
+      graficaVentas,
+      ventasPorEmpresa,
       empresas_mas_activas: empresasMasActivas,
+      empresasMasActivas,
+      pedidosPorCanal,
+      usoEmpresas: usoPorEmpresa,
       uso_por_empresa: usoPorEmpresa,
     };
   }

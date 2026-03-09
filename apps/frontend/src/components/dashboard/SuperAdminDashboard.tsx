@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useEffect, useState } from 'react';
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import AlertasSucursal from './AlertasSucursal';
 
 const T = {
@@ -50,6 +51,15 @@ function formatDate(value, withTime = false) {
 
 function money(value) {
   return new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(Number(value || 0));
+}
+
+function metricValue(metricas, ...keys) {
+  for (const key of keys) {
+    if (metricas?.[key] !== undefined && metricas?.[key] !== null) {
+      return metricas[key];
+    }
+  }
+  return undefined;
 }
 
 function badge(estado) {
@@ -631,7 +641,116 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
                   <div style={{ ...box, padding: '18px 20px' }}><div style={{ color: T.textMuted, fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>Total ventas del mes</div><div style={{ color: T.text, fontSize: 30, fontWeight: 900, marginTop: 8 }}>{money(metricas?.total_ventas_mes)}</div></div>
                   <div style={{ ...box, padding: '18px 20px' }}><div style={{ color: T.textMuted, fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>Total pedidos del mes</div><div style={{ color: T.text, fontSize: 30, fontWeight: 900, marginTop: 8 }}>{Number(metricas?.total_pedidos_mes || 0)}</div></div>
                 </div>
+                <div style={{ ...box, padding: '20px 22px' }}>
+                  <h3 style={{ margin: '0 0 20px' }}>Ventas por dia</h3>
+                  {(metricas?.graficaVentas || []).length > 0 ? (
+                    <ResponsiveContainer width="100%" height={220}>
+                      <AreaChart data={metricas.graficaVentas}>
+                        <defs>
+                          <linearGradient id="gradVentasSuperAdmin" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#6366f1" stopOpacity={0.15} />
+                            <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid stroke="#f0f0f0" strokeDasharray="3 3" />
+                        <XAxis axisLine={false} dataKey="dia" tick={{ fill: '#6b7280', fontSize: 12 }} tickLine={false} />
+                        <YAxis axisLine={false} tick={{ fill: '#6b7280', fontSize: 12 }} tickFormatter={(value) => `S/${Number(value).toLocaleString()}`} tickLine={false} />
+                        <Tooltip
+                          contentStyle={{ border: '1px solid #e8ecf0', borderRadius: '8px', fontSize: '13px' }}
+                          formatter={(value) => [`S/ ${Number(value).toFixed(2)}`, 'Ventas']}
+                          labelFormatter={(label) => `Dia ${label}`}
+                        />
+                        <Area activeDot={{ r: 5 }} dataKey="total" dot={{ fill: '#6366f1', r: 3 }} fill="url(#gradVentasSuperAdmin)" stroke="#6366f1" strokeWidth={2.5} type="monotone" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div style={{ color: T.textMuted, padding: '40px', textAlign: 'center' }}>
+                      <p style={{ fontSize: '28px', margin: '0 0 8px' }}>📈</p>
+                      <p style={{ color: T.text, fontWeight: 600, margin: 0 }}>Sin ventas este mes</p>
+                    </div>
+                  )}
+                </div>
+                <div style={{ ...box, padding: '20px 22px' }}>
+                  <h3 style={{ margin: '0 0 16px' }}>Ventas por empresa</h3>
+                  {(metricas?.ventasPorEmpresa || []).length > 0 ? (
+                    <table style={{ borderCollapse: 'collapse', fontSize: '13px', width: '100%' }}>
+                      <thead>
+                        <tr style={{ borderBottom: `2px solid ${T.border}` }}>
+                          {['#', 'Empresa', 'Pedidos', 'Total ventas', '% del total'].map((label, index) => (
+                            <th key={label} style={{ color: T.textMuted, fontSize: '11px', fontWeight: 600, padding: '10px 14px', textAlign: index >= 2 ? 'right' : 'left', textTransform: 'uppercase' }}>{label}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {metricas.ventasPorEmpresa.map((empresa, index) => {
+                          const totalVentas = Number(metricValue(metricas, 'totalVentas', 'total_ventas_mes') || 0);
+                          const pct = totalVentas > 0 ? ((Number(empresa.total || 0) / totalVentas) * 100).toFixed(1) : '0.0';
+                          return (
+                            <tr key={`${empresa.empresa_id || empresa.empresa}-${index}`} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                              <td style={{ color: T.textMuted, fontWeight: 700, padding: '12px 14px' }}>#{index + 1}</td>
+                              <td style={{ color: T.text, fontWeight: 600, padding: '12px 14px' }}>{empresa.empresa}</td>
+                              <td style={{ color: T.text, padding: '12px 14px', textAlign: 'right' }}>{empresa.pedidos}</td>
+                              <td style={{ color: T.indigo, fontWeight: 700, padding: '12px 14px', textAlign: 'right' }}>S/ {Number(empresa.total || 0).toFixed(2)}</td>
+                              <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                                <div style={{ alignItems: 'center', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                  <div style={{ background: '#e8ecf0', borderRadius: '3px', height: '6px', overflow: 'hidden', width: '60px' }}>
+                                    <div style={{ background: '#6366f1', borderRadius: '3px', height: '100%', width: `${pct}%` }} />
+                                  </div>
+                                  <span style={{ color: T.textMuted, fontSize: '12px' }}>{pct}%</span>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <p style={{ color: T.textMuted, padding: '20px', textAlign: 'center' }}>Sin datos este mes</p>
+                  )}
+                </div>
                 <div style={{ ...box, padding: 20 }}><h3 style={{ marginTop: 0 }}>Empresas mas activas</h3><div style={{ display: 'grid', gap: 10 }}>{(metricas?.empresas_mas_activas || []).map((row, index) => <div key={row.empresa_id} style={{ alignItems: 'center', background: T.cardMuted, borderRadius: 12, display: 'grid', gap: 4, gridTemplateColumns: '40px 1fr auto auto', padding: '14px 16px' }}><div style={{ color: T.indigo, fontSize: 20, fontWeight: 900 }}>#{index + 1}</div><div><div style={{ color: T.text, fontSize: 14, fontWeight: 800 }}>{row.empresa_nombre}</div><div style={{ color: T.textMuted, fontSize: 12 }}>{row.pedidos} pedidos</div></div><div style={{ color: T.textMuted, fontSize: 13 }}>Ventas</div><div style={{ color: T.text, fontSize: 14, fontWeight: 800 }}>{money(row.total_ventas)}</div></div>)}</div></div>
+                <div style={{ ...box, padding: '20px 22px' }}>
+                  <h3 style={{ margin: '0 0 16px' }}>Pedidos por canal</h3>
+                  {(metricas?.pedidosPorCanal || []).length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {metricas.pedidosPorCanal.map((canal, index) => {
+                        const total = (metricas?.pedidosPorCanal || []).reduce((sum, item) => sum + Number(item.cantidad || 0), 0);
+                        const pct = total > 0 ? Math.round((Number(canal.cantidad || 0) / total) * 100) : 0;
+                        const canalColors = {
+                          fisico: '#6366f1',
+                          web: '#22c55e',
+                          wsp: '#10b981',
+                          otro: '#f59e0b',
+                        };
+                        const canalLabels = {
+                          fisico: '🏪 POS / Fisico',
+                          web: '🌐 Web',
+                          wsp: '💬 WhatsApp',
+                          otro: '📦 Otro',
+                        };
+                        const color = canalColors[canal.canal] ?? '#6b7280';
+                        return (
+                          <div key={`${canal.canal}-${index}`} style={{ alignItems: 'center', display: 'flex', gap: '12px' }}>
+                            <div style={{ color: T.text, fontSize: '13px', fontWeight: 600, width: '120px' }}>
+                              {canalLabels[canal.canal] ?? canal.canal}
+                            </div>
+                            <div style={{ background: '#e8ecf0', borderRadius: '5px', flex: 1, height: '10px', overflow: 'hidden' }}>
+                              <div style={{ background: color, borderRadius: '5px', height: '100%', transition: 'width 0.5s ease', width: `${pct}%` }} />
+                            </div>
+                            <div style={{ color: T.textMuted, fontSize: '13px', textAlign: 'right', width: '80px' }}>
+                              {canal.cantidad} pedidos
+                            </div>
+                            <div style={{ color, fontSize: '13px', fontWeight: 700, textAlign: 'right', width: '40px' }}>
+                              {pct}%
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p style={{ color: T.textMuted, padding: '20px', textAlign: 'center' }}>Sin datos este mes</p>
+                  )}
+                </div>
                 <div style={{ ...box, overflow: 'hidden' }}>
                   <div style={{ borderBottom: `1px solid ${T.border}`, padding: '18px 20px' }}><h3 style={{ margin: 0 }}>Uso por empresa</h3></div>
                   <div style={{ overflowX: 'auto', padding: 20 }}>
