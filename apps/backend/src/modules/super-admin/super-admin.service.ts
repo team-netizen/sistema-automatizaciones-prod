@@ -942,18 +942,20 @@ export class SuperAdminService {
 
   async getMetricas(mes?: string) {
     const normalizedMes = this.normalizeMes(mes);
+    const mesDate = normalizedMes.length === 7 ? `${normalizedMes}-01` : normalizedMes;
     const { start, end } = this.getMonthRange(normalizedMes);
+    const endInclusive = new Date(new Date(end).getTime() - 1).toISOString();
 
     const [{ data: pedidos, error: pedidosError }, { data: usoRows, error: usoError }] = await Promise.all([
       this.supabase
         .from('pedidos')
         .select('empresa_id, total')
         .gte('fecha_pedido', start)
-        .lt('fecha_pedido', end),
+        .lte('fecha_pedido', endInclusive),
       this.supabase
         .from('uso_empresa')
         .select('empresa_id, mes, tokens_usados, cantidad_ejecuciones, ultima_actualizacion')
-        .eq('mes', normalizedMes)
+        .eq('mes', mesDate)
         .order('tokens_usados', { ascending: false }),
     ]);
 
