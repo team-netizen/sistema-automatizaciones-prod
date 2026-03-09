@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { SupabaseService } from '../../shared/supabase/supabase.service';
 
-type EmpresaEstado = 'activo' | 'suspendido';
+type EmpresaEstado = 'activo' | 'suspendido' | 'inactivo';
 type PlanPayload = {
   nombre?: string;
   precio?: number;
@@ -363,27 +363,27 @@ export class SuperAdminService {
     };
   }
 
-  async updateEmpresaEstado(empresaId: string, estado: EmpresaEstado) {
-    if (!['activo', 'suspendido'].includes(estado)) {
-      throw new BadRequestException('estado invalido');
+  async cambiarEstadoEmpresa(empresaId: string, estado: string) {
+    const estadosValidos: EmpresaEstado[] = ['activo', 'suspendido', 'inactivo'];
+    if (!estadosValidos.includes(estado as EmpresaEstado)) {
+      throw new BadRequestException(`Estado invalido: ${estado}`);
     }
 
-    const { data, error } = await this.supabase
+    const { error } = await this.supabase
       .from('empresas')
       .update({ estado })
-      .eq('id', empresaId)
-      .select('id, nombre, estado')
-      .maybeSingle();
+      .eq('id', empresaId);
 
     if (error) {
-      throw new InternalServerErrorException(error.message);
+      this.logger.error(`[cambiarEstadoEmpresa] ${JSON.stringify(error)}`);
+      throw new InternalServerErrorException('Error al actualizar estado');
     }
 
-    if (!data) {
-      throw new NotFoundException('Empresa no encontrada');
-    }
+    return { success: true, empresaId, estado };
+  }
 
-    return data;
+  async updateEmpresaEstado(empresaId: string, estado: EmpresaEstado) {
+    return this.cambiarEstadoEmpresa(empresaId, estado);
   }
 
   async getUsuarios(filters: { rol?: string; empresaId?: string; q?: string }) {

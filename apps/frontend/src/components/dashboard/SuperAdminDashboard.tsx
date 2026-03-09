@@ -206,6 +206,29 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
     await loadPlanes();
   };
 
+  const handleCambiarEstado = async (empresaId, nuevoEstado) => {
+    try {
+      await request(`empresas/${empresaId}/estado`, {
+        method: 'PATCH',
+        body: JSON.stringify({ estado: nuevoEstado }),
+      });
+
+      setEmpresas((prev) =>
+        prev.map((empresa) => (empresa.id === empresaId ? { ...empresa, estado: nuevoEstado } : empresa)),
+      );
+
+      if (empresaDetalle?.empresa?.id === empresaId) {
+        setEmpresaDetalle((prev) =>
+          prev ? { ...prev, empresa: { ...prev.empresa, estado: nuevoEstado } } : prev,
+        );
+      }
+
+      void loadDashboard();
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : 'Error de conexion');
+    }
+  };
+
   const sectionTitle = {
     dashboard: 'Dashboard global',
     empresas: 'Empresas',
@@ -288,7 +311,7 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
                 <div style={{ overflowX: 'auto', padding: 20 }}>
                   <table style={{ borderCollapse: 'collapse', minWidth: 980, width: '100%' }}>
                     <thead><tr style={{ background: T.cardMuted }}>{['Nombre', 'RUC', 'Estado', 'Plan activo', 'Usuarios', 'Fecha creacion', 'Acciones'].map((label) => <th key={label} style={head}>{label}</th>)}</tr></thead>
-                    <tbody>{empresas.map((row) => { const state = badge(row.estado); return <tr key={row.id}><td style={{ ...cell, color: T.text, fontWeight: 700 }}>{row.nombre}</td><td style={{ ...cell, color: T.textMuted }}>{row.ruc}</td><td style={cell}><span style={{ background: state.bg, borderRadius: 999, color: state.color, fontSize: 12, fontWeight: 800, padding: '5px 10px' }}>{state.label}</span></td><td style={{ ...cell, color: T.text }}>{row.plan_activo}</td><td style={{ ...cell, color: T.textMuted }}>{row.usuarios}</td><td style={{ ...cell, color: T.textMuted }}>{formatDate(row.fecha_creacion)}</td><td style={cell}><div style={{ display: 'flex', gap: 8 }}><button onClick={async () => setEmpresaDetalle(await request(`empresas/${row.id}/detalle`))} style={{ background: T.indigoSoft, border: 'none', borderRadius: 999, color: T.indigo, cursor: 'pointer', fontSize: 12, fontWeight: 800, padding: '8px 12px' }} type="button">Ver detalle</button><button onClick={async () => { await request(`empresas/${row.id}/estado`, { method: 'PATCH', body: JSON.stringify({ estado: row.estado === 'activo' ? 'suspendido' : 'activo' }) }); await Promise.all([loadEmpresas(), loadDashboard(), loadCompanyOptions()]); }} style={{ background: row.estado === 'activo' ? T.dangerBg : T.successBg, border: 'none', borderRadius: 999, color: row.estado === 'activo' ? T.danger : T.success, cursor: 'pointer', fontSize: 12, fontWeight: 800, padding: '8px 12px' }} type="button">{row.estado === 'activo' ? 'Suspender' : 'Activar'}</button></div></td></tr>; })}</tbody>
+                    <tbody>{empresas.map((row) => { const state = badge(row.estado); return <tr key={row.id}><td style={{ ...cell, color: T.text, fontWeight: 700 }}>{row.nombre}</td><td style={{ ...cell, color: T.textMuted }}>{row.ruc}</td><td style={cell}><span style={{ background: state.bg, borderRadius: 999, color: state.color, fontSize: 12, fontWeight: 800, padding: '5px 10px' }}>{state.label}</span></td><td style={{ ...cell, color: T.text }}>{row.plan_activo}</td><td style={{ ...cell, color: T.textMuted }}>{row.usuarios}</td><td style={{ ...cell, color: T.textMuted }}>{formatDate(row.fecha_creacion)}</td><td style={cell}><div style={{ display: 'flex', gap: 8 }}><button onClick={async () => setEmpresaDetalle(await request(`empresas/${row.id}/detalle`))} style={{ background: T.indigoSoft, border: 'none', borderRadius: 999, color: T.indigo, cursor: 'pointer', fontSize: 12, fontWeight: 800, padding: '8px 12px' }} type="button">Ver detalle</button><button onClick={() => handleCambiarEstado(row.id, row.estado === 'activo' ? 'suspendido' : 'activo')} style={{ background: row.estado === 'activo' ? T.dangerBg : T.successBg, border: 'none', borderRadius: 999, color: row.estado === 'activo' ? T.danger : T.success, cursor: 'pointer', fontSize: 12, fontWeight: 800, padding: '8px 12px' }} type="button">{row.estado === 'activo' ? 'Suspender' : 'Activar'}</button></div></td></tr>; })}</tbody>
                   </table>
                   <div style={{ alignItems: 'center', display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
                     <span style={{ color: T.textMuted, fontSize: 13 }}>Pagina {empresasPage} de {Math.max(1, Math.ceil(empresasTotal / 10))}</span>

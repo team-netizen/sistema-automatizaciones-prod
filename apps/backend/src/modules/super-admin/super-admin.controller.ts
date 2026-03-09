@@ -33,11 +33,11 @@ export class SuperAdminController {
   }
 
   @Patch('empresas/:id/estado')
-  updateEmpresaEstado(
+  cambiarEstadoEmpresa(
     @Param('id') id: string,
-    @Body() body: { estado: 'activo' | 'suspendido' },
+    @Body() body: { estado: string },
   ) {
-    return this.superAdminService.updateEmpresaEstado(id, body.estado);
+    return this.superAdminService.cambiarEstadoEmpresa(id, body.estado);
   }
 
   @Get('usuarios')
