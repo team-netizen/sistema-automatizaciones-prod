@@ -9,6 +9,7 @@ import { CompaniesModule } from './modules/companies/companies.module';
 import { IntegracionesModule } from './modules/integraciones/integraciones.module';
 import { NotificacionesModule } from './modules/notificaciones/notificaciones.module';
 import { OperacionesModule } from './modules/operaciones/operaciones.module';
+import { SuperAdminModule } from './modules/super-admin/super-admin.module';
 import { TrackingModule } from './modules/tracking/tracking.module';
 import { GoogleGeocodingModule } from './shared/google/google-geocoding.module';
 import { SupabaseModule } from './shared/supabase/supabase.module';
@@ -39,6 +40,7 @@ import { SupabaseModule } from './shared/supabase/supabase.module';
     CompaniesModule,
     OperacionesModule,
     IntegracionesModule,
+    SuperAdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],

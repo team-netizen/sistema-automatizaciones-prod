@@ -8,6 +8,7 @@ interface AlertasSucursalProps {
   empresaId: string;
   token: string;
   apiBase: string;
+  polling?: boolean;
 }
 
 interface NotificacionRow {
@@ -113,6 +114,7 @@ export default function AlertasSucursal({
   empresaId,
   token,
   apiBase,
+  polling = true,
 }: AlertasSucursalProps) {
   const [alertas, setAlertas] = useState<NotificacionRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -188,6 +190,10 @@ export default function AlertasSucursal({
       }
     });
 
+    if (!polling) {
+      return undefined;
+    }
+
     const interval = window.setInterval(async () => {
       if (!pollingActivo) {
         window.clearInterval(interval);
@@ -202,7 +208,7 @@ export default function AlertasSucursal({
     }, 30000);
 
     return () => window.clearInterval(interval);
-  }, [apiBase, empresaId, token, usuarioId]);
+  }, [apiBase, empresaId, polling, token, usuarioId]);
 
   const alertasFiltradas = useMemo(() => {
     return alertas.filter((alerta) => {

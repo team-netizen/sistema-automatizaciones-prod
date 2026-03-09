@@ -105,7 +105,19 @@ function App() {
   }
 
   if (isSuperAdminRole(usuario?.rol)) {
-    return <SuperAdminDashboard usuario={usuario ?? undefined} onLogout={handleLogout} />;
+    return (
+      <SuperAdminDashboard
+        usuario={{
+          id: usuario?.id || '',
+          email: usuario?.email || '',
+          rol: usuario?.rol || 'super_admin',
+          empresa_id: usuario?.empresa_id || null,
+        }}
+        token={sessionStorage.getItem('access_token') || ''}
+        apiBase="https://sistema-automatizaciones-backend.onrender.com"
+        onLogout={handleLogout}
+      />
+    );
   }
 
   if (usuario?.rol === 'admin_empresa') {

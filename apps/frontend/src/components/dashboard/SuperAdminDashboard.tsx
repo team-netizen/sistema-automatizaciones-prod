@@ -1,366 +1,439 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+// @ts-nocheck
+import { useEffect, useState } from 'react';
+import AlertasSucursal from './AlertasSucursal';
 
-type EstadoEmpresa = 'activa' | 'prueba' | 'suspendida';
-type Tab = 'todas' | EstadoEmpresa;
-type Nav = 'dashboard' | 'empresas' | 'usuarios' | 'planes' | 'metricas' | 'sistema' | 'alertas';
-
-interface SuperAdminDashboardProps {
-  usuario?: {
-    email?: string;
-    rol?: string;
-  };
-  onLogout?: () => void;
-}
-
-type Empresa = {
-  id: string;
-  nombre: string;
-  ruc: string;
-  plan: 'Starter' | 'Pro' | 'Enterprise';
-  estado: EstadoEmpresa;
-  usuarios: number;
-  sucursales: number;
-  mrr: number;
-  ultima_actividad: string;
+const T = {
+  bg: '#020617',
+  shell: '#0f172a',
+  card: '#ffffff',
+  cardMuted: '#f8fafc',
+  border: '#e2e8f0',
+  indigo: '#6366f1',
+  indigoSoft: '#e0e7ff',
+  text: '#0f172a',
+  textMuted: '#64748b',
+  success: '#15803d',
+  successBg: '#dcfce7',
+  danger: '#b91c1c',
+  dangerBg: '#fee2e2',
+  slateBg: '#f1f5f9',
+  shadow: '0 24px 60px rgba(15, 23, 42, 0.12)',
 };
 
-const empresasData: Empresa[] = [
-  { id: 'E001', nombre: 'Tienda Organa', ruc: '20601234567', plan: 'Pro', estado: 'activa', usuarios: 8, sucursales: 3, mrr: 299, ultima_actividad: 'Hace 2 min' },
-  { id: 'E002', nombre: 'Ambar Joyeria', ruc: '20712345678', plan: 'Starter', estado: 'activa', usuarios: 3, sucursales: 1, mrr: 99, ultima_actividad: 'Hace 18 min' },
-  { id: 'E003', nombre: 'El Granero de Lima', ruc: '20823456789', plan: 'Pro', estado: 'activa', usuarios: 12, sucursales: 4, mrr: 299, ultima_actividad: 'Hace 1 h' },
-  { id: 'E004', nombre: 'Melissa Peru', ruc: '20934567890', plan: 'Enterprise', estado: 'activa', usuarios: 25, sucursales: 8, mrr: 599, ultima_actividad: 'Hace 5 min' },
-  { id: 'E005', nombre: 'TechStore Lima', ruc: '20145678901', plan: 'Starter', estado: 'prueba', usuarios: 2, sucursales: 1, mrr: 0, ultima_actividad: 'Hace 3 h' },
-  { id: 'E006', nombre: 'Moda Express SAC', ruc: '20256789012', plan: 'Pro', estado: 'suspendida', usuarios: 5, sucursales: 2, mrr: 0, ultima_actividad: 'Hace 5 d' },
+const NAV = [
+  ['dashboard', 'Dashboard'],
+  ['empresas', 'Empresas'],
+  ['usuarios', 'Usuarios'],
+  ['planes', 'Planes'],
+  ['metricas', 'Metricas'],
+  ['sistema', 'Sistema'],
+  ['alertas', 'Alertas'],
 ];
 
-const planesData = [
-  { nombre: 'Starter', precio: 99, color: '#38bdf8' },
-  { nombre: 'Pro', precio: 299, color: '#818cf8' },
-  { nombre: 'Enterprise', precio: 599, color: '#f59e0b' },
-] as const;
+const box = { background: T.card, border: `1px solid ${T.border}`, borderRadius: 18, boxShadow: T.shadow };
+const input = { border: `1px solid ${T.border}`, borderRadius: 12, fontSize: 13, padding: '10px 12px' };
+const cell = { borderTop: `1px solid ${T.border}`, fontSize: 13, padding: '14px' };
+const head = { color: T.textMuted, fontSize: 11, fontWeight: 800, padding: '12px 14px', textAlign: 'left', textTransform: 'uppercase' };
 
-function Icon({ path, color = 'currentColor' }: { path: string; color?: string }) {
+function normalizeApiBase(apiBase) {
+  return String(apiBase || '').replace(/\/+$/, '');
+}
+
+function formatDate(value, withTime = false) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString('es-PE', withTime
+    ? { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }
+    : { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function money(value) {
+  return new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(Number(value || 0));
+}
+
+function badge(estado) {
+  const key = String(estado || '').toLowerCase();
+  if (key === 'activo' || key === 'activa') return { bg: T.successBg, color: T.success, label: 'Activo' };
+  if (key === 'suspendido' || key === 'suspendida') return { bg: T.dangerBg, color: T.danger, label: 'Suspendido' };
+  return { bg: T.slateBg, color: T.textMuted, label: estado || 'Inactivo' };
+}
+
+function Modal({ open, title, children, onClose, width = 720 }) {
+  if (!open) return null;
   return (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-      <path d={path} />
-    </svg>
+    <div onClick={onClose} style={{ alignItems: 'center', background: 'rgba(2, 6, 23, 0.52)', display: 'flex', inset: 0, justifyContent: 'center', padding: 20, position: 'fixed', zIndex: 1000 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: T.card, borderRadius: 20, boxShadow: '0 30px 80px rgba(2, 6, 23, 0.28)', maxHeight: '88vh', maxWidth: '96vw', overflowY: 'auto', width }}>
+        <div style={{ alignItems: 'center', borderBottom: `1px solid ${T.border}`, display: 'flex', justifyContent: 'space-between', padding: '18px 22px' }}>
+          <h3 style={{ color: T.text, fontSize: 18, fontWeight: 800, margin: 0 }}>{title}</h3>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: T.textMuted, cursor: 'pointer', fontSize: 22 }} type="button">×</button>
+        </div>
+        <div style={{ padding: 22 }}>{children}</div>
+      </div>
+    </div>
   );
 }
 
-const I = {
-  grid: 'M3 3h7v7H3z M14 3h7v7h-7z M14 14h7v7h-7z M3 14h7v7H3z',
-  building: 'M3 21h18 M9 8h1 M9 12h1 M9 16h1 M14 8h1 M14 12h1 M14 16h1 M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16',
-  users: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75',
-  plan: 'M12 2L2 7l10 5 10-5-10-5z M2 17l10 5 10-5 M2 12l10 5 10-5',
-  metrics: 'M18 20V10 M12 20V4 M6 20v-6',
-  alert: 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z M12 9v4 M12 17h.01',
-  server: 'M2 2h20v8H2z M2 14h20v8H2z M6 6h.01 M6 18h.01',
-  bell: 'M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 01-3.46 0',
-} as const;
+export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
+  const apiRoot = `${normalizeApiBase(apiBase)}/api/super-admin`;
+  const [nav, setNav] = useState('dashboard');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [dashboard, setDashboard] = useState(null);
+  const [empresas, setEmpresas] = useState([]);
+  const [empresasTotal, setEmpresasTotal] = useState(0);
+  const [empresasPage, setEmpresasPage] = useState(1);
+  const [empresaSearch, setEmpresaSearch] = useState('');
+  const [empresaDetalle, setEmpresaDetalle] = useState(null);
+  const [usuarios, setUsuarios] = useState([]);
+  const [usuarioRol, setUsuarioRol] = useState('');
+  const [usuarioEmpresaId, setUsuarioEmpresaId] = useState('');
+  const [usuarioSearch, setUsuarioSearch] = useState('');
+  const [planes, setPlanes] = useState([]);
+  const [companyOptions, setCompanyOptions] = useState([]);
+  const [metricasMes, setMetricasMes] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
+  const [metricas, setMetricas] = useState(null);
+  const [modulos, setModulos] = useState([]);
+  const [auditoria, setAuditoria] = useState([]);
+  const [auditoriaTotal, setAuditoriaTotal] = useState(0);
+  const [auditoriaPage, setAuditoriaPage] = useState(1);
+  const [auditoriaEmpresaId, setAuditoriaEmpresaId] = useState('');
+  const [auditoriaTipoAccion, setAuditoriaTipoAccion] = useState('');
+  const [auditoriaDetalle, setAuditoriaDetalle] = useState(null);
+  const [planModal, setPlanModal] = useState(false);
+  const [editingPlan, setEditingPlan] = useState(null);
+  const [planForm, setPlanForm] = useState({ nombre: '', precio: '0', maximo_usuarios: '0', limite_tokens_mensual: '0', limite_ejecuciones_mensual: '0' });
+  const [subscriptionForm, setSubscriptionForm] = useState({ empresa_id: '', plan_id: '', fecha_inicio: '', fecha_fin: '' });
 
-function estadoStyle(estado: EstadoEmpresa): CSSProperties {
-  const map: Record<EstadoEmpresa, { bg: string; color: string }> = {
-    activa: { bg: '#002a1a', color: '#10b981' },
-    prueba: { bg: '#1e1500', color: '#f59e0b' },
-    suspendida: { bg: '#2a0000', color: '#ef4444' },
+  const request = async (path, init) => {
+    const response = await fetch(`${apiRoot}/${path}`, {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+      },
+    });
+    if (!response.ok) {
+      let message = 'No se pudo completar la solicitud.';
+      try {
+        const payload = await response.json();
+        message = payload?.message || message;
+      } catch {
+        // noop
+      }
+      throw new Error(message);
+    }
+    return response.status === 204 ? null : response.json();
   };
-  return {
-    background: map[estado].bg,
-    color: map[estado].color,
-    padding: '2px 9px',
-    borderRadius: 20,
-    fontSize: 10,
-    fontWeight: 700,
-    border: `1px solid ${map[estado].color}44`,
+
+  const loadDashboard = async () => setDashboard(await request('dashboard-resumen'));
+  const loadCompanyOptions = async () => {
+    const payload = await request('empresas?page=1&limit=100');
+    const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+    setCompanyOptions(rows.map((row) => ({ id: row.id, nombre: row.nombre })));
   };
-}
-
-function planColor(plan: Empresa['plan']): string {
-  if (plan === 'Starter') return '#38bdf8';
-  if (plan === 'Pro') return '#818cf8';
-  return '#f59e0b';
-}
-
-export function SuperAdminDashboard({ usuario, onLogout }: SuperAdminDashboardProps) {
-  const [nav, setNav] = useState<Nav>('dashboard');
-  const [tab, setTab] = useState<Tab>('todas');
-  const [search, setSearch] = useState('');
-  const [expanded, setExpanded] = useState(false);
-  const [time, setTime] = useState(new Date());
+  const loadEmpresas = async () => {
+    const params = new URLSearchParams({ page: String(empresasPage), limit: '10' });
+    if (empresaSearch.trim()) params.set('q', empresaSearch.trim());
+    const payload = await request(`empresas?${params.toString()}`);
+    setEmpresas(Array.isArray(payload?.rows) ? payload.rows : []);
+    setEmpresasTotal(Number(payload?.total || 0));
+  };
+  const loadUsuarios = async () => {
+    const params = new URLSearchParams();
+    if (usuarioRol) params.set('rol', usuarioRol);
+    if (usuarioEmpresaId) params.set('empresaId', usuarioEmpresaId);
+    if (usuarioSearch.trim()) params.set('q', usuarioSearch.trim());
+    setUsuarios((await request(`usuarios?${params.toString()}`)) || []);
+  };
+  const loadPlanes = async () => setPlanes((await request('planes')) || []);
+  const loadMetricas = async () => setMetricas(await request(`metricas?mes=${encodeURIComponent(metricasMes)}`));
+  const loadSistema = async () => {
+    const params = new URLSearchParams({ page: String(auditoriaPage), limit: '10' });
+    if (auditoriaEmpresaId) params.set('empresaId', auditoriaEmpresaId);
+    if (auditoriaTipoAccion.trim()) params.set('tipoAccion', auditoriaTipoAccion.trim());
+    const [mods, audit] = await Promise.all([request('modulos'), request(`auditoria?${params.toString()}`)]);
+    setModulos(Array.isArray(mods) ? mods : []);
+    setAuditoria(Array.isArray(audit?.rows) ? audit.rows : []);
+    setAuditoriaTotal(Number(audit?.total || 0));
+  };
 
   useEffect(() => {
-    const t = setInterval(() => setTime(new Date()), 60000);
-    return () => clearInterval(t);
+    const boot = async () => {
+      try {
+        setLoading(true);
+        await Promise.all([loadDashboard(), loadCompanyOptions()]);
+        setError('');
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'No se pudo cargar el dashboard.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    void boot();
   }, []);
 
-  const empresasFiltradas = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return empresasData.filter((e) => {
-      const byTab = tab === 'todas' || e.estado === tab;
-      const bySearch = q.length === 0 || e.nombre.toLowerCase().includes(q) || e.ruc.includes(q);
-      return byTab && bySearch;
+  useEffect(() => {
+    const run = async () => {
+      try {
+        setLoading(true);
+        if (nav === 'dashboard') await loadDashboard();
+        if (nav === 'empresas') await loadEmpresas();
+        if (nav === 'usuarios') await loadUsuarios();
+        if (nav === 'planes') await loadPlanes();
+        if (nav === 'metricas') await loadMetricas();
+        if (nav === 'sistema') await loadSistema();
+        setError('');
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'No se pudo cargar la sección.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (nav !== 'alertas') void run();
+  }, [nav, empresasPage, empresaSearch, usuarioRol, usuarioEmpresaId, usuarioSearch, metricasMes, auditoriaPage, auditoriaEmpresaId, auditoriaTipoAccion]);
+
+  const savePlan = async () => {
+    const body = JSON.stringify({
+      nombre: planForm.nombre.trim(),
+      precio: Number(planForm.precio || 0),
+      maximo_usuarios: Number(planForm.maximo_usuarios || 0),
+      limite_tokens_mensual: Number(planForm.limite_tokens_mensual || 0),
+      limite_ejecuciones_mensual: Number(planForm.limite_ejecuciones_mensual || 0),
     });
-  }, [search, tab]);
+    await request(editingPlan ? `planes/${editingPlan.id}` : 'planes', { method: editingPlan ? 'PUT' : 'POST', body });
+    setPlanModal(false);
+    await loadPlanes();
+  };
 
-  const kpis = useMemo(() => {
-    const empresasActivas = empresasData.filter((e) => e.estado === 'activa').length;
-    const mrrTotal = empresasData.filter((e) => e.estado === 'activa').reduce((a, e) => a + e.mrr, 0);
-    const usuariosTotales = empresasData.reduce((a, e) => a + e.usuarios, 0);
-    const enPrueba = empresasData.filter((e) => e.estado === 'prueba').length;
-    return { empresasActivas, mrrTotal, usuariosTotales, enPrueba };
-  }, []);
-
-  const css = `
-    .sa-scroll::-webkit-scrollbar{width:4px;height:4px}
-    .sa-scroll::-webkit-scrollbar-thumb{background:#1e1e3a;border-radius:4px}
-    .sa-td{padding:12px 16px;border-top:1px solid #0a0a14;font-size:12px}
-    .sa-th{padding:9px 16px;text-align:left;font-size:9px;color:#2d2d5a;letter-spacing:.09em;text-transform:uppercase}
-    .sa-tab{background:none;border:none;padding:6px 16px;font-size:11px;color:#3d3d6b;cursor:pointer}
-    .sa-tab.on{border-bottom:2px solid #818cf8;color:#818cf8}
-  `;
+  const sectionTitle = {
+    dashboard: 'Dashboard global',
+    empresas: 'Empresas',
+    usuarios: 'Usuarios',
+    planes: 'Planes y suscripciones',
+    metricas: 'Métricas',
+    sistema: 'Sistema',
+    alertas: 'Alertas',
+  }[nav];
 
   return (
     <>
-      <style>{css}</style>
-      <div style={{ display: 'flex', minHeight: '100%', background: '#08080f', color: '#e2e8f0' }}>
-        <aside
-          style={{
-            width: expanded ? 215 : 56,
-            background: '#06060d',
-            borderRight: '1px solid #12122a',
-            transition: 'width .22s cubic-bezier(.4,0,.2,1)',
-            flexShrink: 0,
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-          onMouseEnter={() => setExpanded(true)}
-          onMouseLeave={() => setExpanded(false)}
-        >
-          <div style={{ height: 56, borderBottom: '1px solid #12122a', display: 'flex', alignItems: 'center', paddingLeft: expanded ? 14 : 16, gap: 10 }}>
-            <div style={{ width: 26, height: 26, borderRadius: 7, background: 'linear-gradient(135deg,#818cf8,#4f46e5)', display: 'grid', placeItems: 'center' }}>
-              <span style={{ color: '#fff', fontWeight: 800, fontSize: 12 }}>S</span>
-            </div>
-            <div style={{ opacity: expanded ? 1 : 0, width: expanded ? 'auto' : 0, overflow: 'hidden', whiteSpace: 'nowrap' }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: '#818cf8' }}>SISAUTO</div>
-              <div style={{ fontSize: 9, color: '#2d2d5a', letterSpacing: '.08em' }}>SUPER ADMIN</div>
-            </div>
+      <div style={{ background: T.bg, color: T.text, display: 'flex', minHeight: '100vh' }}>
+        <aside style={{ background: T.shell, borderRight: '1px solid rgba(148, 163, 184, 0.12)', color: '#e2e8f0', display: 'flex', flexDirection: 'column', padding: 22, width: 250 }}>
+          <div style={{ marginBottom: 30 }}>
+            <div style={{ color: '#fff', fontSize: 22, fontWeight: 900 }}>SISAUTO</div>
+            <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 6 }}>Panel de control global</div>
           </div>
-
-          <div style={{ paddingTop: 6 }}>
-            {[
-              { id: 'dashboard', label: 'Dashboard', icon: I.grid },
-              { id: 'empresas', label: 'Empresas', icon: I.building },
-              { id: 'usuarios', label: 'Usuarios', icon: I.users },
-              { id: 'planes', label: 'Planes', icon: I.plan },
-              { id: 'metricas', label: 'Metricas', icon: I.metrics },
-              { id: 'sistema', label: 'Sistema', icon: I.server },
-              { id: 'alertas', label: 'Alertas', icon: I.alert },
-            ].map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setNav(item.id as Nav)}
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  border: 'none',
-                  borderLeft: nav === item.id ? '2px solid #818cf8' : '2px solid transparent',
-                  background: nav === item.id ? '#0c0c1e' : 'transparent',
-                  color: nav === item.id ? '#818cf8' : '#3d3d6b',
-                  cursor: 'pointer',
-                  padding: expanded ? '9px 14px' : '9px 16px',
-                }}
-              >
-                <Icon path={item.icon} color={nav === item.id ? '#818cf8' : '#3d3d6b'} />
-                <span style={{ opacity: expanded ? 1 : 0, width: expanded ? 'auto' : 0, overflow: 'hidden', whiteSpace: 'nowrap', fontSize: 12 }}>
-                  {item.label}
-                </span>
-              </button>
+          <div style={{ display: 'grid', gap: 8 }}>
+            {NAV.map(([id, label]) => (
+              <button key={id} onClick={() => setNav(id)} style={{ background: nav === id ? 'rgba(99, 102, 241, 0.16)' : 'transparent', border: `1px solid ${nav === id ? 'rgba(99, 102, 241, 0.28)' : 'transparent'}`, borderRadius: 14, color: nav === id ? '#fff' : '#cbd5e1', cursor: 'pointer', fontSize: 14, fontWeight: 700, padding: '12px 14px', textAlign: 'left' }} type="button">{label}</button>
             ))}
           </div>
-
-          <div style={{ marginTop: 'auto', borderTop: '1px solid #12122a', padding: 8 }}>
-            <button
-              onClick={onLogout}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                border: 'none',
-                background: 'transparent',
-                color: '#ef4444',
-                cursor: 'pointer',
-                padding: expanded ? '9px 14px' : '9px 16px',
-                borderRadius: 8,
-              }}
-            >
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" strokeLinecap="round" strokeLinejoin="round" />
-                <polyline points="16 17 21 12 16 7" strokeLinecap="round" strokeLinejoin="round" />
-                <line x1="21" y1="12" x2="9" y2="12" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <span style={{ opacity: expanded ? 1 : 0, width: expanded ? 'auto' : 0, overflow: 'hidden', whiteSpace: 'nowrap', fontSize: 12 }}>
-                Cerrar sesion
-              </span>
-            </button>
-          </div>
+          {onLogout && <button onClick={onLogout} style={{ background: 'rgba(248, 113, 113, 0.12)', border: '1px solid rgba(248, 113, 113, 0.2)', borderRadius: 14, color: '#fecaca', cursor: 'pointer', fontSize: 14, fontWeight: 700, marginTop: 'auto', padding: '12px 14px' }} type="button">Cerrar sesión</button>}
         </aside>
 
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ height: 56, background: '#06060d', borderBottom: '1px solid #12122a', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontWeight: 800, fontSize: 13, color: '#818cf8' }}>PANEL DE CONTROL</span>
-              <span style={{ fontSize: 11, color: '#2d2d5a' }}>SaaS Global</span>
+        <main style={{ display: 'flex', flex: 1, flexDirection: 'column', minWidth: 0 }}>
+          <header style={{ alignItems: 'center', background: '#fff', borderBottom: `1px solid ${T.border}`, display: 'flex', justifyContent: 'space-between', padding: '18px 28px', position: 'sticky', top: 0, zIndex: 20 }}>
+            <div>
+              <div style={{ color: T.text, fontSize: 20, fontWeight: 900 }}>SISAUTO / Super Admin</div>
+              <div style={{ color: T.textMuted, fontSize: 13, marginTop: 4 }}>{sectionTitle}</div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <Icon path={I.bell} color="#3d3d6b" />
-              <span style={{ fontSize: 11, color: '#2d2d5a' }}>
-                {time.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 11 }}>{usuario?.email ?? 'superadmin'}</div>
-                <div style={{ fontSize: 9, color: '#818cf8' }}>SUPER ADMIN</div>
+            <div style={{ alignItems: 'center', display: 'flex', gap: 16 }}>
+              <div style={{ alignItems: 'center', background: T.indigoSoft, borderRadius: 999, color: T.indigo, display: 'flex', fontSize: 12, fontWeight: 900, gap: 8, padding: '8px 14px' }}><span>◆</span><span>SUPER ADMIN</span></div>
+              <div style={{ alignItems: 'center', display: 'flex', gap: 10 }}>
+                <div style={{ alignItems: 'center', background: T.indigo, borderRadius: '50%', color: '#fff', display: 'flex', fontSize: 14, fontWeight: 900, height: 38, justifyContent: 'center', width: 38 }}>{(usuario.email || 'S').charAt(0).toUpperCase()}</div>
+                <div style={{ textAlign: 'right' }}><div style={{ color: T.text, fontSize: 13, fontWeight: 700 }}>{usuario.email}</div><div style={{ color: T.textMuted, fontSize: 11 }}>{usuario.rol}</div></div>
               </div>
             </div>
-          </div>
+          </header>
 
-          <div className="sa-scroll" style={{ height: 'calc(100vh - 56px)', overflow: 'auto', padding: 24 }}>
-            <h1 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>
-              {nav === 'dashboard' ? 'Dashboard Global' : nav === 'empresas' ? 'Gestion de Empresas' : nav === 'planes' ? 'Planes y Suscripciones' : 'Modulo en construccion'}
-            </h1>
-            <p style={{ fontSize: 11, color: '#2d2d5a', marginBottom: 22 }}>
-              {time.toLocaleDateString('es-PE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-            </p>
+          <div style={{ background: 'linear-gradient(180deg, #eef2ff 0%, #f8fafc 180px)', flex: 1, padding: 28 }}>
+            {error && <div style={{ background: T.dangerBg, border: '1px solid #fecaca', borderRadius: 12, color: T.danger, fontSize: 13, fontWeight: 700, marginBottom: 16, padding: '12px 14px' }}>{error}</div>}
+            {loading && nav !== 'alertas' && <div style={{ color: T.textMuted, fontSize: 13, marginBottom: 16 }}>Cargando datos...</div>}
 
             {nav === 'dashboard' && (
-              <>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 12, marginBottom: 20 }}>
+              <div style={{ display: 'grid', gap: 18 }}>
+                <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
                   {[
-                    { label: 'Empresas Activas', value: String(kpis.empresasActivas), color: '#818cf8', icon: I.building },
-                    { label: 'MRR Total', value: `S/ ${kpis.mrrTotal.toLocaleString()}`, color: '#34d399', icon: I.metrics },
-                    { label: 'Usuarios Totales', value: String(kpis.usuariosTotales), color: '#38bdf8', icon: I.users },
-                    { label: 'En Prueba', value: String(kpis.enPrueba), color: '#f59e0b', icon: I.alert },
-                  ].map((k) => (
-                    <div key={k.label} style={{ background: '#0a0a18', border: '1px solid #12122a', borderRadius: 10, padding: '16px 18px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-                        <span style={{ fontSize: 10, color: '#3d3d6b', textTransform: 'uppercase' }}>{k.label}</span>
-                        <Icon path={k.icon} color={k.color} />
-                      </div>
-                      <div style={{ fontSize: 26, fontWeight: 800 }}>{k.value}</div>
+                    ['Total empresas', dashboard?.kpis?.total_empresas || 0, 'Base total registrada'],
+                    ['Empresas activas', dashboard?.kpis?.empresas_activas || 0, 'Con acceso habilitado'],
+                    ['Suscripciones activas', dashboard?.kpis?.suscripciones_activas || 0, 'Planes en curso'],
+                    ['Total usuarios', dashboard?.kpis?.total_usuarios || 0, 'Sin contar super admin'],
+                  ].map(([label, value, hint]) => (
+                    <div key={String(label)} style={{ ...box, padding: '18px 20px' }}>
+                      <div style={{ color: T.textMuted, fontSize: 12, fontWeight: 700, marginBottom: 8, textTransform: 'uppercase' }}>{label}</div>
+                      <div style={{ color: T.text, fontSize: 34, fontWeight: 900, lineHeight: 1 }}>{value}</div>
+                      <div style={{ color: T.textMuted, fontSize: 13, marginTop: 8 }}>{hint}</div>
                     </div>
                   ))}
                 </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16 }}>
-                  <div style={{ background: '#0a0a18', border: '1px solid #12122a', borderRadius: 10, overflow: 'hidden' }}>
-                    <div style={{ padding: '13px 18px', borderBottom: '1px solid #0e0e1e', fontSize: 10, color: '#3d3d6b', textTransform: 'uppercase' }}>
-                      Empresas recientes
-                    </div>
-                    {empresasData.slice(0, 4).map((e) => (
-                      <div key={e.id} style={{ padding: '11px 18px', borderBottom: '1px solid #0a0a14', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <div style={{ fontSize: 12, fontWeight: 600 }}>{e.nombre}</div>
-                          <div style={{ fontSize: 10, color: '#2d2d5a' }}>{e.sucursales} suc · {e.usuarios} usr</div>
-                        </div>
-                        <div style={estadoStyle(e.estado)}>{e.estado}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ background: '#0a0a18', border: '1px solid #12122a', borderRadius: 10, padding: '16px 18px' }}>
-                    <div style={{ fontSize: 10, color: '#3d3d6b', textTransform: 'uppercase', marginBottom: 12 }}>MRR por plan</div>
-                    {planesData.map((p) => {
-                      const empresasPlan = empresasData.filter((e) => e.plan === p.nombre);
-                      const mrr = empresasPlan.reduce((a, e) => a + e.mrr, 0);
-                      return (
-                        <div key={p.nombre} style={{ marginBottom: 12 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                            <span style={{ fontSize: 11 }}>{p.nombre}</span>
-                            <span style={{ color: p.color, fontSize: 11 }}>S/ {mrr.toLocaleString()}</span>
-                          </div>
-                          <div style={{ height: 4, borderRadius: 4, background: '#0e0e1e' }}>
-                            <div style={{ width: `${(empresasPlan.length / empresasData.length) * 100}%`, height: '100%', borderRadius: 4, background: p.color }} />
-                          </div>
-                        </div>
-                      );
-                    })}
+                <div style={{ ...box, overflow: 'hidden' }}>
+                  <div style={{ borderBottom: `1px solid ${T.border}`, padding: '18px 20px' }}><h3 style={{ margin: 0 }}>Ultimas empresas registradas</h3></div>
+                  <div style={{ overflowX: 'auto', padding: 20 }}>
+                    <table style={{ borderCollapse: 'collapse', minWidth: 620, width: '100%' }}>
+                      <thead><tr style={{ background: T.cardMuted }}>{['Nombre', 'RUC', 'Estado', 'Fecha creacion'].map((label) => <th key={label} style={head}>{label}</th>)}</tr></thead>
+                      <tbody>{(dashboard?.ultimas_empresas || []).map((row) => { const state = badge(row.estado); return <tr key={row.id}><td style={{ ...cell, color: T.text, fontWeight: 700 }}>{row.nombre}</td><td style={{ ...cell, color: T.textMuted }}>{row.ruc}</td><td style={cell}><span style={{ background: state.bg, borderRadius: 999, color: state.color, fontSize: 12, fontWeight: 800, padding: '5px 10px' }}>{state.label}</span></td><td style={{ ...cell, color: T.textMuted }}>{formatDate(row.fecha_creacion, true)}</td></tr>; })}</tbody>
+                    </table>
                   </div>
                 </div>
-              </>
+              </div>
             )}
 
             {nav === 'empresas' && (
-              <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-                  <div style={{ display: 'flex', borderBottom: '1px solid #12122a' }}>
-                    {(['todas', 'activa', 'prueba', 'suspendida'] as const).map((item) => (
-                      <button key={item} className={`sa-tab ${tab === item ? 'on' : ''}`} onClick={() => setTab(item)}>
-                        {item}
-                      </button>
-                    ))}
-                  </div>
-                  <input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Buscar por nombre o RUC..."
-                    style={{ background: '#0a0a18', border: '1px solid #1e1e3a', borderRadius: 7, padding: '6px 12px', color: '#e2e8f0', fontSize: 11, width: 220 }}
-                  />
+              <div style={{ ...box, overflow: 'hidden' }}>
+                <div style={{ alignItems: 'center', borderBottom: `1px solid ${T.border}`, display: 'flex', justifyContent: 'space-between', padding: '18px 20px' }}>
+                  <h3 style={{ margin: 0 }}>Empresas</h3>
+                  <input value={empresaSearch} onChange={(e) => { setEmpresasPage(1); setEmpresaSearch(e.target.value); }} placeholder="Buscar por nombre o RUC" style={{ ...input, width: 240 }} />
                 </div>
+                <div style={{ overflowX: 'auto', padding: 20 }}>
+                  <table style={{ borderCollapse: 'collapse', minWidth: 980, width: '100%' }}>
+                    <thead><tr style={{ background: T.cardMuted }}>{['Nombre', 'RUC', 'Estado', 'Plan activo', 'Usuarios', 'Fecha creacion', 'Acciones'].map((label) => <th key={label} style={head}>{label}</th>)}</tr></thead>
+                    <tbody>{empresas.map((row) => { const state = badge(row.estado); return <tr key={row.id}><td style={{ ...cell, color: T.text, fontWeight: 700 }}>{row.nombre}</td><td style={{ ...cell, color: T.textMuted }}>{row.ruc}</td><td style={cell}><span style={{ background: state.bg, borderRadius: 999, color: state.color, fontSize: 12, fontWeight: 800, padding: '5px 10px' }}>{state.label}</span></td><td style={{ ...cell, color: T.text }}>{row.plan_activo}</td><td style={{ ...cell, color: T.textMuted }}>{row.usuarios}</td><td style={{ ...cell, color: T.textMuted }}>{formatDate(row.fecha_creacion)}</td><td style={cell}><div style={{ display: 'flex', gap: 8 }}><button onClick={async () => setEmpresaDetalle(await request(`empresas/${row.id}/detalle`))} style={{ background: T.indigoSoft, border: 'none', borderRadius: 999, color: T.indigo, cursor: 'pointer', fontSize: 12, fontWeight: 800, padding: '8px 12px' }} type="button">Ver detalle</button><button onClick={async () => { await request(`empresas/${row.id}/estado`, { method: 'PATCH', body: JSON.stringify({ estado: row.estado === 'activo' ? 'suspendido' : 'activo' }) }); await Promise.all([loadEmpresas(), loadDashboard(), loadCompanyOptions()]); }} style={{ background: row.estado === 'activo' ? T.dangerBg : T.successBg, border: 'none', borderRadius: 999, color: row.estado === 'activo' ? T.danger : T.success, cursor: 'pointer', fontSize: 12, fontWeight: 800, padding: '8px 12px' }} type="button">{row.estado === 'activo' ? 'Suspender' : 'Activar'}</button></div></td></tr>; })}</tbody>
+                  </table>
+                  <div style={{ alignItems: 'center', display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
+                    <span style={{ color: T.textMuted, fontSize: 13 }}>Pagina {empresasPage} de {Math.max(1, Math.ceil(empresasTotal / 10))}</span>
+                    <div style={{ display: 'flex', gap: 8 }}><button onClick={() => setEmpresasPage((v) => Math.max(1, v - 1))} style={{ ...input, background: T.cardMuted, cursor: 'pointer' }} type="button">Anterior</button><button onClick={() => setEmpresasPage((v) => Math.min(Math.max(1, Math.ceil(empresasTotal / 10)), v + 1))} style={{ ...input, background: T.cardMuted, cursor: 'pointer' }} type="button">Siguiente</button></div>
+                  </div>
+                </div>
+              </div>
+            )}
 
-                <div style={{ background: '#0a0a18', border: '1px solid #12122a', borderRadius: 10, overflow: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 940 }}>
-                    <thead>
-                      <tr style={{ background: '#08080f' }}>
-                        {['Empresa', 'RUC', 'Plan', 'Estado', 'Sucursales', 'Usuarios', 'MRR', 'Ultima actividad'].map((h) => <th key={h} className="sa-th">{h}</th>)}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {empresasFiltradas.map((e) => (
-                        <tr key={e.id}>
-                          <td className="sa-td">{e.nombre}</td>
-                          <td className="sa-td" style={{ color: '#3d3d6b' }}>{e.ruc}</td>
-                          <td className="sa-td"><span style={{ color: planColor(e.plan) }}>{e.plan}</span></td>
-                          <td className="sa-td"><span style={estadoStyle(e.estado)}>{e.estado}</span></td>
-                          <td className="sa-td">{e.sucursales}</td>
-                          <td className="sa-td">{e.usuarios}</td>
-                          <td className="sa-td" style={{ color: e.mrr > 0 ? '#34d399' : '#3d3d6b' }}>{e.mrr > 0 ? `S/ ${e.mrr}` : '-'}</td>
-                          <td className="sa-td" style={{ color: '#2d2d5a' }}>{e.ultima_actividad}</td>
-                        </tr>
-                      ))}
-                    </tbody>
+            {nav === 'usuarios' && (
+              <div style={{ ...box, overflow: 'hidden' }}>
+                <div style={{ alignItems: 'center', borderBottom: `1px solid ${T.border}`, display: 'flex', gap: 10, justifyContent: 'space-between', padding: '18px 20px' }}>
+                  <h3 style={{ margin: 0 }}>Usuarios globales</h3>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <input value={usuarioSearch} onChange={(e) => setUsuarioSearch(e.target.value)} placeholder="Buscar por email" style={{ ...input, width: 220 }} />
+                    <select value={usuarioRol} onChange={(e) => setUsuarioRol(e.target.value)} style={input}><option value="">Todos los roles</option><option value="admin_empresa">Admin empresa</option><option value="encargado_sucursal">Encargado</option><option value="vendedor">Vendedor</option></select>
+                    <select value={usuarioEmpresaId} onChange={(e) => setUsuarioEmpresaId(e.target.value)} style={input}><option value="">Todas las empresas</option>{companyOptions.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.nombre}</option>)}</select>
+                  </div>
+                </div>
+                <div style={{ overflowX: 'auto', padding: 20 }}>
+                  <table style={{ borderCollapse: 'collapse', minWidth: 920, width: '100%' }}>
+                    <thead><tr style={{ background: T.cardMuted }}>{['Email', 'Rol', 'Empresa', 'Sucursal', 'Fecha creacion'].map((label) => <th key={label} style={head}>{label}</th>)}</tr></thead>
+                    <tbody>{usuarios.map((row) => <tr key={row.id}><td style={{ ...cell, color: T.text, fontWeight: 700 }}>{row.email}</td><td style={{ ...cell, color: T.textMuted }}>{row.rol}</td><td style={{ ...cell, color: T.text }}>{row.empresa_nombre}</td><td style={{ ...cell, color: T.textMuted }}>{row.sucursal_nombre}</td><td style={{ ...cell, color: T.textMuted }}>{formatDate(row.fecha_creacion, true)}</td></tr>)}</tbody>
                   </table>
                 </div>
-              </>
+              </div>
             )}
 
             {nav === 'planes' && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 16 }}>
-                {planesData.map((p) => {
-                  const count = empresasData.filter((e) => e.plan === p.nombre).length;
-                  return (
-                    <div key={p.nombre} style={{ background: '#0a0a18', border: `1px solid ${p.color}33`, borderRadius: 12, padding: 22 }}>
-                      <div style={{ fontSize: 10, color: p.color, textTransform: 'uppercase', marginBottom: 8 }}>{p.nombre}</div>
-                      <div style={{ fontSize: 30, fontWeight: 800, marginBottom: 4 }}>
-                        S/ {p.precio}
-                        <span style={{ fontSize: 12, color: '#3d3d6b' }}>/mes</span>
-                      </div>
-                      <div style={{ fontSize: 11, color: '#3d3d6b' }}>{count} empresas</div>
-                    </div>
-                  );
-                })}
+              <div style={{ display: 'grid', gap: 18 }}>
+                <div style={{ ...box, overflow: 'hidden' }}>
+                  <div style={{ alignItems: 'center', borderBottom: `1px solid ${T.border}`, display: 'flex', justifyContent: 'space-between', padding: '18px 20px' }}>
+                    <h3 style={{ margin: 0 }}>Planes</h3>
+                    <button onClick={() => { setEditingPlan(null); setPlanForm({ nombre: '', precio: '0', maximo_usuarios: '0', limite_tokens_mensual: '0', limite_ejecuciones_mensual: '0' }); setPlanModal(true); }} style={{ background: T.indigo, border: 'none', borderRadius: 999, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 800, padding: '10px 14px' }} type="button">Crear plan</button>
+                  </div>
+                  <div style={{ overflowX: 'auto', padding: 20 }}>
+                    <table style={{ borderCollapse: 'collapse', minWidth: 980, width: '100%' }}>
+                      <thead><tr style={{ background: T.cardMuted }}>{['Nombre', 'Precio', 'Max usuarios', 'Limite tokens', 'Limite ejecuciones', 'Empresas suscritas', 'Acciones'].map((label) => <th key={label} style={head}>{label}</th>)}</tr></thead>
+                      <tbody>{planes.map((row) => <tr key={row.id}><td style={{ ...cell, color: T.text, fontWeight: 700 }}>{row.nombre}</td><td style={{ ...cell, color: T.text }}>{money(row.precio)}</td><td style={{ ...cell, color: T.textMuted }}>{row.maximo_usuarios}</td><td style={{ ...cell, color: T.textMuted }}>{row.limite_tokens_mensual}</td><td style={{ ...cell, color: T.textMuted }}>{row.limite_ejecuciones_mensual}</td><td style={{ ...cell, color: T.textMuted }}>{row.empresas_suscritas}</td><td style={cell}><button onClick={() => { setEditingPlan(row); setPlanForm({ nombre: row.nombre, precio: String(row.precio || 0), maximo_usuarios: String(row.maximo_usuarios || 0), limite_tokens_mensual: String(row.limite_tokens_mensual || 0), limite_ejecuciones_mensual: String(row.limite_ejecuciones_mensual || 0) }); setPlanModal(true); }} style={{ background: T.indigoSoft, border: 'none', borderRadius: 999, color: T.indigo, cursor: 'pointer', fontSize: 12, fontWeight: 800, padding: '8px 12px' }} type="button">Editar</button></td></tr>)}</tbody>
+                    </table>
+                  </div>
+                </div>
+                <div style={{ ...box, padding: 20 }}>
+                  <h3 style={{ marginTop: 0 }}>Asignar plan a empresa</h3>
+                  <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+                    <select value={subscriptionForm.empresa_id} onChange={(e) => setSubscriptionForm((v) => ({ ...v, empresa_id: e.target.value }))} style={input}><option value="">Selecciona empresa</option>{companyOptions.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.nombre}</option>)}</select>
+                    <select value={subscriptionForm.plan_id} onChange={(e) => setSubscriptionForm((v) => ({ ...v, plan_id: e.target.value }))} style={input}><option value="">Selecciona plan</option>{planes.map((plan) => <option key={plan.id} value={plan.id}>{plan.nombre}</option>)}</select>
+                    <input type="date" value={subscriptionForm.fecha_inicio} onChange={(e) => setSubscriptionForm((v) => ({ ...v, fecha_inicio: e.target.value }))} style={input} />
+                    <input type="date" value={subscriptionForm.fecha_fin} onChange={(e) => setSubscriptionForm((v) => ({ ...v, fecha_fin: e.target.value }))} style={input} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}><button onClick={async () => { await request('suscripciones', { method: 'POST', body: JSON.stringify(subscriptionForm) }); setSubscriptionForm({ empresa_id: '', plan_id: '', fecha_inicio: '', fecha_fin: '' }); await Promise.all([loadPlanes(), loadEmpresas(), loadDashboard()]); }} style={{ background: T.indigo, border: 'none', borderRadius: 999, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 800, padding: '11px 16px' }} type="button">Asignar suscripcion</button></div>
+                </div>
               </div>
             )}
 
-            {['usuarios', 'metricas', 'sistema', 'alertas'].includes(nav) && (
-              <div style={{ height: 300, display: 'grid', placeItems: 'center', background: '#0a0a18', border: '1px solid #12122a', borderRadius: 10, color: '#3d3d6b' }}>
-                Modulo en construccion: {nav}
+            {nav === 'metricas' && (
+              <div style={{ display: 'grid', gap: 18 }}>
+                <div style={{ alignItems: 'center', display: 'flex', justifyContent: 'space-between' }}>
+                  <div><h3 style={{ margin: 0 }}>Metricas globales</h3><p style={{ color: T.textMuted, fontSize: 13, margin: '6px 0 0' }}>Vista consolidada por mes</p></div>
+                  <input type="month" value={metricasMes} onChange={(e) => setMetricasMes(e.target.value)} style={input} />
+                </div>
+                <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+                  <div style={{ ...box, padding: '18px 20px' }}><div style={{ color: T.textMuted, fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>Total ventas del mes</div><div style={{ color: T.text, fontSize: 30, fontWeight: 900, marginTop: 8 }}>{money(metricas?.total_ventas_mes)}</div></div>
+                  <div style={{ ...box, padding: '18px 20px' }}><div style={{ color: T.textMuted, fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>Total pedidos del mes</div><div style={{ color: T.text, fontSize: 30, fontWeight: 900, marginTop: 8 }}>{Number(metricas?.total_pedidos_mes || 0)}</div></div>
+                </div>
+                <div style={{ ...box, padding: 20 }}><h3 style={{ marginTop: 0 }}>Empresas mas activas</h3><div style={{ display: 'grid', gap: 10 }}>{(metricas?.empresas_mas_activas || []).map((row, index) => <div key={row.empresa_id} style={{ alignItems: 'center', background: T.cardMuted, borderRadius: 12, display: 'grid', gap: 4, gridTemplateColumns: '40px 1fr auto auto', padding: '14px 16px' }}><div style={{ color: T.indigo, fontSize: 20, fontWeight: 900 }}>#{index + 1}</div><div><div style={{ color: T.text, fontSize: 14, fontWeight: 800 }}>{row.empresa_nombre}</div><div style={{ color: T.textMuted, fontSize: 12 }}>{row.pedidos} pedidos</div></div><div style={{ color: T.textMuted, fontSize: 13 }}>Ventas</div><div style={{ color: T.text, fontSize: 14, fontWeight: 800 }}>{money(row.total_ventas)}</div></div>)}</div></div>
+                <div style={{ ...box, overflow: 'hidden' }}>
+                  <div style={{ borderBottom: `1px solid ${T.border}`, padding: '18px 20px' }}><h3 style={{ margin: 0 }}>Uso por empresa</h3></div>
+                  <div style={{ overflowX: 'auto', padding: 20 }}>
+                    <table style={{ borderCollapse: 'collapse', minWidth: 980, width: '100%' }}>
+                      <thead><tr style={{ background: T.cardMuted }}>{['Empresa', 'Tokens usados', 'Ejecuciones', 'Mes', '% del limite del plan'].map((label) => <th key={label} style={head}>{label}</th>)}</tr></thead>
+                      <tbody>{(metricas?.uso_por_empresa || []).map((row) => <tr key={`${row.empresa_id}-${row.mes}`}><td style={cell}><div style={{ color: T.text, fontSize: 14, fontWeight: 700 }}>{row.empresa_nombre}</div><div style={{ color: T.textMuted, fontSize: 12 }}>{row.plan_nombre}</div></td><td style={{ ...cell, color: T.text }}>{Number(row.tokens_usados || 0).toLocaleString()}</td><td style={{ ...cell, color: T.textMuted }}>{Number(row.cantidad_ejecuciones || 0).toLocaleString()}</td><td style={{ ...cell, color: T.textMuted }}>{row.mes}</td><td style={cell}><div style={{ alignItems: 'center', display: 'flex', gap: 10 }}><div style={{ background: T.slateBg, borderRadius: 999, height: 8, overflow: 'hidden', width: 160 }}><div style={{ background: T.indigo, borderRadius: 999, height: '100%', width: `${Math.min(100, Number(row.porcentaje_limite || 0))}%` }} /></div><span style={{ color: T.text, fontSize: 13, fontWeight: 700 }}>{Number(row.porcentaje_limite || 0).toFixed(1)}%</span></div></td></tr>)}</tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
             )}
+
+            {nav === 'sistema' && (
+              <div style={{ display: 'grid', gap: 18 }}>
+                <div style={{ ...box, overflow: 'hidden' }}>
+                  <div style={{ borderBottom: `1px solid ${T.border}`, padding: '18px 20px' }}><h3 style={{ margin: 0 }}>Modulos disponibles</h3></div>
+                  <div style={{ overflowX: 'auto', padding: 20 }}>
+                    <table style={{ borderCollapse: 'collapse', minWidth: 920, width: '100%' }}>
+                      <thead><tr style={{ background: T.cardMuted }}>{['Nombre', 'Codigo', 'Descripcion', 'Activo', 'Empresas asignadas'].map((label) => <th key={label} style={head}>{label}</th>)}</tr></thead>
+                      <tbody>{modulos.map((row) => <tr key={row.id}><td style={{ ...cell, color: T.text, fontWeight: 700 }}>{row.nombre}</td><td style={{ ...cell, color: T.textMuted }}>{row.codigo}</td><td style={{ ...cell, color: T.textMuted }}>{row.descripcion || '-'}</td><td style={cell}><button onClick={async () => { await request(`modulos/${row.id}/estado`, { method: 'PATCH', body: JSON.stringify({ activo: !row.activo }) }); await loadSistema(); }} style={{ background: row.activo ? T.successBg : T.slateBg, border: 'none', borderRadius: 999, color: row.activo ? T.success : T.textMuted, cursor: 'pointer', fontSize: 12, fontWeight: 800, padding: '8px 12px' }} type="button">{row.activo ? 'Activo' : 'Inactivo'}</button></td><td style={{ ...cell, color: T.textMuted }}>{row.empresas_asignadas}</td></tr>)}</tbody>
+                    </table>
+                  </div>
+                </div>
+                <div style={{ ...box, overflow: 'hidden' }}>
+                  <div style={{ alignItems: 'center', borderBottom: `1px solid ${T.border}`, display: 'flex', gap: 10, justifyContent: 'space-between', padding: '18px 20px' }}>
+                    <h3 style={{ margin: 0 }}>Auditoria</h3>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <select value={auditoriaEmpresaId} onChange={(e) => { setAuditoriaPage(1); setAuditoriaEmpresaId(e.target.value); }} style={input}><option value="">Todas las empresas</option>{companyOptions.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.nombre}</option>)}</select>
+                      <input value={auditoriaTipoAccion} onChange={(e) => { setAuditoriaPage(1); setAuditoriaTipoAccion(e.target.value); }} placeholder="Filtrar por tipo_accion" style={{ ...input, width: 220 }} />
+                    </div>
+                  </div>
+                  <div style={{ overflowX: 'auto', padding: 20 }}>
+                    <table style={{ borderCollapse: 'collapse', minWidth: 980, width: '100%' }}>
+                      <thead><tr style={{ background: T.cardMuted }}>{['Empresa', 'Usuario', 'Tipo accion', 'Estado', 'Fecha', 'Metadatos'].map((label) => <th key={label} style={head}>{label}</th>)}</tr></thead>
+                      <tbody>{auditoria.map((row) => <tr key={row.id} onClick={() => setAuditoriaDetalle(row)} style={{ cursor: 'pointer' }}><td style={{ ...cell, color: T.text, fontWeight: 700 }}>{row.empresa_nombre}</td><td style={{ ...cell, color: T.textMuted }}>{row.usuario_email}</td><td style={{ ...cell, color: T.text }}>{row.tipo_accion}</td><td style={{ ...cell, color: T.textMuted }}>{row.estado}</td><td style={{ ...cell, color: T.textMuted }}>{formatDate(row.fecha_creacion, true)}</td><td style={{ ...cell, color: T.indigo, fontWeight: 800 }}>Ver JSON</td></tr>)}</tbody>
+                    </table>
+                    <div style={{ alignItems: 'center', display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
+                      <span style={{ color: T.textMuted, fontSize: 13 }}>Pagina {auditoriaPage} de {Math.max(1, Math.ceil(auditoriaTotal / 10))}</span>
+                      <div style={{ display: 'flex', gap: 8 }}><button onClick={() => setAuditoriaPage((v) => Math.max(1, v - 1))} style={{ ...input, background: T.cardMuted, cursor: 'pointer' }} type="button">Anterior</button><button onClick={() => setAuditoriaPage((v) => Math.min(Math.max(1, Math.ceil(auditoriaTotal / 10)), v + 1))} style={{ ...input, background: T.cardMuted, cursor: 'pointer' }} type="button">Siguiente</button></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {nav === 'alertas' && <AlertasSucursal usuarioId={usuario.id} empresaId={String(usuario.empresa_id || '')} token={token} apiBase={apiBase} polling={false} />}
           </div>
-        </div>
+        </main>
       </div>
+
+      <Modal open={Boolean(empresaDetalle)} onClose={() => setEmpresaDetalle(null)} title={empresaDetalle?.empresa?.nombre || 'Detalle de empresa'} width={760}>
+        {empresaDetalle && (
+          <div style={{ display: 'grid', gap: 18 }}>
+            <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+              <div style={{ background: T.cardMuted, borderRadius: 12, padding: '14px 16px' }}><div style={{ color: T.textMuted, fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>RUC</div><div style={{ color: T.text, fontSize: 15, fontWeight: 700, marginTop: 8 }}>{empresaDetalle.empresa?.ruc}</div></div>
+              <div style={{ background: T.cardMuted, borderRadius: 12, padding: '14px 16px' }}><div style={{ color: T.textMuted, fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>Estado</div><div style={{ marginTop: 8 }}>{(() => { const state = badge(empresaDetalle.empresa?.estado); return <span style={{ background: state.bg, borderRadius: 999, color: state.color, fontSize: 12, fontWeight: 800, padding: '5px 10px' }}>{state.label}</span>; })()}</div></div>
+              <div style={{ background: T.cardMuted, borderRadius: 12, padding: '14px 16px' }}><div style={{ color: T.textMuted, fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>Fecha creacion</div><div style={{ color: T.text, fontSize: 15, fontWeight: 700, marginTop: 8 }}>{formatDate(empresaDetalle.empresa?.fecha_creacion, true)}</div></div>
+            </div>
+            <div style={{ background: T.cardMuted, borderRadius: 12, padding: '16px 18px' }}><div style={{ color: T.textMuted, fontSize: 11, fontWeight: 800, marginBottom: 10, textTransform: 'uppercase' }}>Suscripcion actual</div>{empresaDetalle.suscripcion_actual ? <div style={{ display: 'grid', gap: 6 }}><div style={{ color: T.text, fontSize: 15, fontWeight: 800 }}>{empresaDetalle.suscripcion_actual.plan?.nombre || 'Sin plan'}</div><div style={{ color: T.textMuted, fontSize: 13 }}>{formatDate(empresaDetalle.suscripcion_actual.fecha_inicio)} - {formatDate(empresaDetalle.suscripcion_actual.fecha_fin)}</div><div style={{ color: T.textMuted, fontSize: 13 }}>Estado: {empresaDetalle.suscripcion_actual.estado}</div></div> : <div style={{ color: T.textMuted, fontSize: 13 }}>Sin suscripcion activa.</div>}</div>
+            <div style={{ background: T.cardMuted, borderRadius: 12, padding: '16px 18px' }}><div style={{ color: T.textMuted, fontSize: 11, fontWeight: 800, marginBottom: 10, textTransform: 'uppercase' }}>Modulos activos</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>{(empresaDetalle.modulos_activos || []).map((modulo) => <span key={modulo.id} style={{ background: '#fff', border: `1px solid ${T.border}`, borderRadius: 999, color: T.text, fontSize: 12, fontWeight: 700, padding: '8px 12px' }}>{modulo.nombre}</span>)}</div></div>
+            <div style={{ background: T.cardMuted, borderRadius: 12, padding: '16px 18px' }}><div style={{ color: T.textMuted, fontSize: 11, fontWeight: 800, marginBottom: 10, textTransform: 'uppercase' }}>Usuarios por rol</div><div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>{[['Admin empresa', empresaDetalle.usuarios_por_rol?.admin_empresa || 0], ['Encargados', empresaDetalle.usuarios_por_rol?.encargado_sucursal || 0], ['Vendedores', empresaDetalle.usuarios_por_rol?.vendedor || 0]].map(([label, value]) => <div key={String(label)} style={{ background: '#fff', borderRadius: 12, padding: '14px 16px' }}><div style={{ color: T.textMuted, fontSize: 11, fontWeight: 700 }}>{label}</div><div style={{ color: T.text, fontSize: 24, fontWeight: 900, marginTop: 8 }}>{value}</div></div>)}</div></div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={planModal} onClose={() => setPlanModal(false)} title={editingPlan ? 'Editar plan' : 'Crear plan'} width={560}>
+        <div style={{ display: 'grid', gap: 12 }}>
+          <input value={planForm.nombre} onChange={(e) => setPlanForm((v) => ({ ...v, nombre: e.target.value }))} placeholder="Nombre del plan" style={input} />
+          <input value={planForm.precio} onChange={(e) => setPlanForm((v) => ({ ...v, precio: e.target.value }))} placeholder="Precio mensual" type="number" style={input} />
+          <input value={planForm.maximo_usuarios} onChange={(e) => setPlanForm((v) => ({ ...v, maximo_usuarios: e.target.value }))} placeholder="Maximo usuarios" type="number" style={input} />
+          <input value={planForm.limite_tokens_mensual} onChange={(e) => setPlanForm((v) => ({ ...v, limite_tokens_mensual: e.target.value }))} placeholder="Limite tokens/mes" type="number" style={input} />
+          <input value={planForm.limite_ejecuciones_mensual} onChange={(e) => setPlanForm((v) => ({ ...v, limite_ejecuciones_mensual: e.target.value }))} placeholder="Limite ejecuciones/mes" type="number" style={input} />
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}><button onClick={() => void savePlan()} style={{ background: T.indigo, border: 'none', borderRadius: 999, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 800, padding: '11px 16px' }} type="button">{editingPlan ? 'Actualizar plan' : 'Crear plan'}</button></div>
+        </div>
+      </Modal>
+
+      <Modal open={Boolean(auditoriaDetalle)} onClose={() => setAuditoriaDetalle(null)} title="Metadatos de auditoria" width={760}>
+        <pre style={{ background: '#0f172a', borderRadius: 12, color: '#e2e8f0', fontSize: 12, lineHeight: 1.6, margin: 0, overflowX: 'auto', padding: 16 }}>{JSON.stringify(auditoriaDetalle?.metadatos ?? {}, null, 2)}</pre>
+      </Modal>
     </>
   );
 }
-
