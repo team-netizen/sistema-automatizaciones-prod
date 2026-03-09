@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import AlertasSucursal from './AlertasSucursal';
 import { operacionesService } from '../../modules/operaciones/services/operacionesService';
+import { apiFetch } from '../../lib/api';
 
 type SectionId = 'inicio' | 'nueva_venta' | 'mis_ventas' | 'stock' | 'notificaciones';
 type VentaStep = 1 | 2 | 3;
@@ -153,7 +154,7 @@ export default function VendedorDashboard({ usuario, token, onLogout }: Vendedor
       setStockLoading(true);
       try {
         const params = new URLSearchParams({ sucursalId, empresaId });
-        const response = await fetch(`${apiBase}/api/operaciones/reportes/stock-sucursal?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } });
+        const response = await apiFetch(`${apiBase}/api/operaciones/reportes/stock-sucursal?${params.toString()}`);
         const payload = await response.json();
         setStockRows(Array.isArray(payload) ? payload : []);
       } finally {
@@ -199,9 +200,8 @@ export default function VendedorDashboard({ usuario, token, onLogout }: Vendedor
     setLoadingDetalle(true);
     setPedidoDetalle(null);
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `${apiBase}/api/operaciones/vendedor/pedido/${encodeURIComponent(pedidoId)}`,
-        { headers: { Authorization: `Bearer ${token}` } },
       );
       if (!response.ok) {
         throw new Error('No se pudo cargar el detalle.');

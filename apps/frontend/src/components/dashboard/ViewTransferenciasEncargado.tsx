@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useEffect, useMemo, useState } from 'react';
-import { API_URL, getValidAccessToken } from '../../lib/api';
+import { API_URL, apiFetch } from '../../lib/api';
 import { operacionesService } from '../../modules/operaciones/services/operacionesService';
 
 const T = {
@@ -98,13 +98,8 @@ function badge(estado: string) {
 }
 
 async function completarTransferenciaRequest(id: string) {
-  const token = await getValidAccessToken();
-  const response = await fetch(`${API_URL}/operaciones/transferencias/${id}/completar`, {
+  const response = await apiFetch(`${API_URL}/operaciones/transferencias/${id}/completar`, {
     method: 'PATCH',
-    headers: {
-      Authorization: token ? `Bearer ${token}` : '',
-      'Content-Type': 'application/json',
-    },
   });
 
   if (!response.ok) {

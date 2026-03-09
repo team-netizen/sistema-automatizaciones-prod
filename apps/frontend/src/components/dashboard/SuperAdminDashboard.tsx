@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import AlertasSucursal from './AlertasSucursal';
+import { apiFetch } from '../../lib/api';
 
 const T = {
   bg: '#020617',
@@ -156,13 +157,7 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
   const [subscriptionForm, setSubscriptionForm] = useState({ empresa_id: '', plan_id: '', fecha_inicio: '', fecha_fin: '' });
 
   const request = async (path, init) => {
-    const response = await fetch(`${apiRoot}/${path}`, {
-      ...init,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
-      },
-    });
+    const response = await apiFetch(`${apiRoot}/${path}`, init);
     if (!response.ok) {
       let message = 'No se pudo completar la solicitud.';
       try {

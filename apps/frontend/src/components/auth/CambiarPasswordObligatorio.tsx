@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AUTH_URL } from '../../lib/api';
+import { AUTH_URL, apiFetch } from '../../lib/api';
 import { setMustChangePasswordOverride } from '../../lib/auth';
 
 type CambiarPasswordObligatorioProps = {
@@ -11,8 +11,6 @@ export default function CambiarPasswordObligatorio({ onCambioExitoso }: CambiarP
   const [confirmar, setConfirmar] = useState('');
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
-
-  const token = sessionStorage.getItem('access_token');
 
   const handleCambiar = async () => {
     setError('');
@@ -29,12 +27,8 @@ export default function CambiarPasswordObligatorio({ onCambioExitoso }: CambiarP
 
     setCargando(true);
     try {
-      const response = await fetch(`${AUTH_URL}/cambiar-password`, {
+      const response = await apiFetch(`${AUTH_URL}/cambiar-password`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token || ''}`,
-        },
         body: JSON.stringify({ nuevaPassword }),
       });
 

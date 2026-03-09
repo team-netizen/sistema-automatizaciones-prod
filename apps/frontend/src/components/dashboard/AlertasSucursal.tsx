@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { apiFetch } from '../../lib/api';
 
 type EstadoFiltro = 'todas' | 'no_leidas' | 'leidas';
 type TipoFiltro = 'todos' | 'alerta' | 'informativa' | 'sistema' | 'otro';
@@ -125,7 +126,7 @@ export default function AlertasSucursal({
   const esSuperAdmin = !empresaId || empresaId === 'null';
 
   const fetchAlertas = async (options?: { silent?: boolean }) => {
-    if (!usuarioId || !token) {
+    if (!usuarioId) {
       setAlertas([]);
       setLoading(false);
       return false;
@@ -144,17 +145,7 @@ export default function AlertasSucursal({
         ? `${normalizeApiBase(apiBase)}/api/super-admin/alertas?${params.toString()}`
         : `${normalizeApiBase(apiBase)}/api/operaciones/alertas?${params.toString()}`;
 
-      const response = await fetch(endpoint, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.status === 401) {
-        setAlertas([]);
-        setError('Sesion expirada. Vuelve a iniciar sesion.');
-        return false;
-      }
+      const response = await apiFetch(endpoint);
 
       if (!response.ok) {
         let message = 'No se pudieron cargar las alertas.';
@@ -241,11 +232,8 @@ export default function AlertasSucursal({
       const endpoint = esSuperAdmin
         ? `${normalizeApiBase(apiBase)}/api/super-admin/alertas/${id}/leida?usuarioId=${encodeURIComponent(usuarioId)}`
         : `${normalizeApiBase(apiBase)}/api/operaciones/alertas/${id}/leida`;
-      const response = await fetch(endpoint, {
+      const response = await apiFetch(endpoint, {
         method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
       });
 
       if (!response.ok) {
@@ -274,17 +262,10 @@ export default function AlertasSucursal({
       const endpoint = esSuperAdmin
         ? `${normalizeApiBase(apiBase)}/api/super-admin/alertas/marcar-todas-leidas?usuarioId=${encodeURIComponent(usuarioId)}`
         : `${normalizeApiBase(apiBase)}/api/operaciones/alertas/marcar-todas-leidas`;
-      const response = await fetch(endpoint, esSuperAdmin ? {
+      const response = await apiFetch(endpoint, esSuperAdmin ? {
         method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
       } : {
         method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({ usuarioId, empresaId }),
       });
 

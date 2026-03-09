@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { apiFetch } from '../../lib/api';
 
 type ReportTab = 'stock' | 'movimientos' | 'transferencias' | 'pedidos';
 type PresetKey = 'today' | 'last7' | 'last30' | 'month';
@@ -322,11 +323,7 @@ export default function ReportesSucursal({
           pedidos: `${base}/pedidos-sucursal?${params.toString()}`,
         };
 
-        const response = await fetch(endpointMap[tab], {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const response = await apiFetch(endpointMap[tab]);
 
         if (!response.ok) {
           let message = 'No se pudo cargar el reporte.';

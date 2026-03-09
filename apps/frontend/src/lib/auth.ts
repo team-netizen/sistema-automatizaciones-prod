@@ -17,6 +17,7 @@ type VerificacionSesion = {
 
 const ACCESS_TOKEN_KEY = 'access_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
+const EXPIRES_AT_KEY = 'expires_at';
 const MUST_CHANGE_PASSWORD_KEY = 'must_change_password_override';
 const ROLE_VALUES = new Set<PerfilUsuario['rol']>([
   'super_admin',
@@ -76,28 +77,34 @@ function getStoredTokens() {
 }
 
 async function ensureSession(client: SupabaseClient): Promise<Session | null> {
+  const { accessToken, refreshToken } = getStoredTokens();
+  if (accessToken && refreshToken) {
+    const { data: restored, error: restoreError } = await client.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+
+    if (restoreError) {
+      console.error('[auth] setSession failed:', restoreError.message);
+    } else if (restored.session) {
+      if (restored.session.expires_at) {
+        sessionStorage.setItem(EXPIRES_AT_KEY, String(restored.session.expires_at));
+      }
+      return restored.session;
+    }
+  }
+
   const { data, error } = await client.auth.getSession();
   if (error) {
     console.error('[auth] getSession failed:', error.message);
     return null;
   }
 
-  if (data.session) return data.session;
-
-  const { accessToken, refreshToken } = getStoredTokens();
-  if (!accessToken || !refreshToken) return null;
-
-  const { data: restored, error: restoreError } = await client.auth.setSession({
-    access_token: accessToken,
-    refresh_token: refreshToken,
-  });
-
-  if (restoreError) {
-    console.error('[auth] setSession failed:', restoreError.message);
-    return null;
+  if (data.session?.expires_at) {
+    sessionStorage.setItem(EXPIRES_AT_KEY, String(data.session.expires_at));
   }
 
-  return restored.session ?? null;
+  return data.session ?? null;
 }
 
 export function safeParseJSON(value: string | null): any {

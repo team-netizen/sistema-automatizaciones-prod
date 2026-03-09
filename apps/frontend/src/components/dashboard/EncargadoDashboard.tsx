@@ -6,6 +6,7 @@ import ReportesSucursal from './ReportesSucursal';
 import { ViewMovimientos } from './ViewMovimientos';
 import { ViewStockEncargado } from './ViewStockEncargado';
 import { ViewTransferenciasEncargado } from './ViewTransferenciasEncargado';
+import { apiFetch } from '../../lib/api';
 
 const T = {
   bg: '#f5f6fa',
@@ -138,7 +139,7 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
   const token = sessionStorage.getItem('access_token') || '';
 
   const fetchAlertas = async (options?: { silent?: boolean }) => {
-    if (!usuarioId || !empresaId || !token) {
+    if (!usuarioId || !empresaId) {
       setAlertas([]);
       return [];
     }
@@ -149,11 +150,7 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
         empresaId,
       });
 
-      const response = await fetch(`${apiBase}/api/operaciones/alertas?${query.toString()}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await apiFetch(`${apiBase}/api/operaciones/alertas?${query.toString()}`);
 
       if (!response.ok) {
         let message = 'No se pudieron cargar alertas.';
@@ -351,11 +348,8 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
 
   const marcarAlerta = async (id: string) => {
     try {
-      const response = await fetch(`${apiBase}/api/operaciones/alertas/${id}/leida`, {
+      const response = await apiFetch(`${apiBase}/api/operaciones/alertas/${id}/leida`, {
         method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
       });
 
       if (!response.ok) {
@@ -377,12 +371,8 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
 
   const marcarTodas = async () => {
     try {
-      const response = await fetch(`${apiBase}/api/operaciones/alertas/marcar-todas-leidas`, {
+      const response = await apiFetch(`${apiBase}/api/operaciones/alertas/marcar-todas-leidas`, {
         method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           usuarioId,
           empresaId,
@@ -412,12 +402,8 @@ export const EncargadoDashboard = ({ usuario, onLogout }: { usuario?: any; onLog
 
     setEnviandoMensaje(true);
     try {
-      const response = await fetch(`${apiBase}/api/operaciones/notificaciones/mensaje-encargado`, {
+      const response = await apiFetch(`${apiBase}/api/operaciones/notificaciones/mensaje-encargado`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify({
           empresaId,
           sucursalId,

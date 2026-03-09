@@ -31,7 +31,9 @@ export const NOTIFICACIONES_URL = API_URL ? `${API_URL}/notificaciones` : '/api/
 
 const ACCESS_TOKEN_KEY = 'access_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
+const EXPIRES_AT_KEY = 'expires_at';
 const USER_KEY = 'usuario';
+const MUST_CHANGE_PASSWORD_KEY = 'must_change_password_override';
 
 const decodeJwtPayload = (token: string): Record<string, any> | null => {
     try {
@@ -47,18 +49,32 @@ const decodeJwtPayload = (token: string): Record<string, any> | null => {
 };
 
 const isAccessTokenExpired = (token: string): boolean => {
+    const expiresAt = Number(sessionStorage.getItem(EXPIRES_AT_KEY) || 0);
+    if (Number.isFinite(expiresAt) && expiresAt > 0) {
+        const nowSeconds = Math.floor(Date.now() / 1000);
+        return nowSeconds >= expiresAt - 300;
+    }
+
     const payload = decodeJwtPayload(token);
     const exp = Number(payload?.exp || 0);
     if (!exp) return false;
 
     const nowSeconds = Math.floor(Date.now() / 1000);
-    return nowSeconds >= exp - 30;
+    return nowSeconds >= exp - 300;
 };
 
 const clearAuthStorage = () => {
     sessionStorage.removeItem(ACCESS_TOKEN_KEY);
     sessionStorage.removeItem(REFRESH_TOKEN_KEY);
+    sessionStorage.removeItem(EXPIRES_AT_KEY);
+    sessionStorage.removeItem(USER_KEY);
+    sessionStorage.removeItem(MUST_CHANGE_PASSWORD_KEY);
     localStorage.removeItem(USER_KEY);
+};
+
+const redirectToExpiredLogin = () => {
+    if (typeof window === 'undefined') return;
+    window.location.replace('/?expired=true');
 };
 
 let refreshPromise: Promise<string | null> | null = null;
@@ -83,8 +99,9 @@ export const refreshAccessToken = async (): Promise<string | null> => {
             }
 
             const data = await response.json();
-            const accessToken = data?.sesion?.access_token;
-            const nextRefreshToken = data?.sesion?.refresh_token;
+            const accessToken = data?.access_token || data?.sesion?.access_token;
+            const nextRefreshToken = data?.refresh_token || data?.sesion?.refresh_token;
+            const expiresAt = Number(data?.expires_at ?? data?.sesion?.expires_at ?? 0);
 
             if (!accessToken) {
                 clearAuthStorage();
@@ -94,6 +111,11 @@ export const refreshAccessToken = async (): Promise<string | null> => {
             sessionStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
             if (nextRefreshToken) {
                 sessionStorage.setItem(REFRESH_TOKEN_KEY, nextRefreshToken);
+            }
+            if (expiresAt > 0) {
+                sessionStorage.setItem(EXPIRES_AT_KEY, String(expiresAt));
+            } else {
+                sessionStorage.removeItem(EXPIRES_AT_KEY);
             }
 
             return accessToken;
@@ -156,7 +178,10 @@ export const authFetch = async (input: RequestInfo | URL, init: RequestInit = {}
 
     if (response.status === 401) {
         clearAuthStorage();
+        redirectToExpiredLogin();
     }
 
     return response;
 };
+
+export const apiFetch = authFetch;

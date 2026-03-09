@@ -8,6 +8,7 @@ interface LoginPageProps {
 }
 
 export function LoginPage({ onLoginSuccess }: LoginPageProps) {
+  const sesionExpirada = new URLSearchParams(window.location.search).get('expired') === 'true';
   const [vistaLogin, setVistaLogin] = useState<'login' | 'recuperar'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -38,8 +39,9 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
       }
 
       clearMustChangePasswordOverride();
-      sessionStorage.setItem('access_token', data.sesion.access_token);
-      sessionStorage.setItem('refresh_token', data.sesion.refresh_token);
+      sessionStorage.setItem('access_token', data.access_token || data.sesion.access_token);
+      sessionStorage.setItem('refresh_token', data.refresh_token || data.sesion.refresh_token);
+      sessionStorage.setItem('expires_at', String(data.expires_at || data.sesion?.expires_at || 0));
 
       onLoginSuccess(data);
     } catch {
@@ -159,6 +161,23 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
                   <line x1="9" y1="9" x2="15" y2="15" />
                 </svg>
                 {error}
+              </div>
+            )}
+
+            {sesionExpirada && vistaLogin === 'login' && (
+              <div
+                style={{
+                  background: '#fef3c7',
+                  border: '1px solid #f59e0b',
+                  borderRadius: '10px',
+                  color: '#92400e',
+                  fontSize: '13px',
+                  marginBottom: '16px',
+                  padding: '12px 16px',
+                  textAlign: 'center',
+                }}
+              >
+                Tu sesion expiro. Inicia sesion nuevamente.
               </div>
             )}
 

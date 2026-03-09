@@ -152,10 +152,14 @@ export class AuthService {
         return {
             ok: true,
             mensaje: 'Inicio de sesion exitoso',
+            access_token: session.access_token,
+            refresh_token: session.refresh_token,
+            expires_at: session.expires_at ?? null,
             sesion: {
                 access_token: session.access_token,
                 refresh_token: session.refresh_token,
                 expires_in: session.expires_in,
+                expires_at: session.expires_at ?? null,
             },
             usuario: usuarioEnriquecido,
         };
@@ -238,6 +242,28 @@ export class AuthService {
         }
 
         return { success: true };
+    }
+
+    async refreshToken(refreshToken: string) {
+        const { data, error } = await this.supabase.getClient().auth.refreshSession({
+            refresh_token: refreshToken,
+        });
+
+        if (error || !data.session) {
+            throw new UnauthorizedException('Sesion expirada, inicia sesion nuevamente');
+        }
+
+        return {
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token,
+            expires_at: data.session.expires_at ?? null,
+            sesion: {
+                access_token: data.session.access_token,
+                refresh_token: data.session.refresh_token,
+                expires_at: data.session.expires_at ?? null,
+                expires_in: data.session.expires_in,
+            },
+        };
     }
 
     async recuperarPassword(email: string) {

@@ -80,6 +80,12 @@ export class AuthController {
         };
     }
 
+    @Post('refresh')
+    @HttpCode(HttpStatus.OK)
+    async refreshToken(@Body() body: { refresh_token: string }) {
+        return this.authService.refreshToken(body.refresh_token);
+    }
+
     @Post('cambiar-password')
     @UseGuards(SupabaseAuthGuard)
     async cambiarPassword(
