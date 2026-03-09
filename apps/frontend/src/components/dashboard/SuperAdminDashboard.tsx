@@ -106,6 +106,18 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
     adminPassword: '',
   });
   const [usuarios, setUsuarios] = useState([]);
+  const [modalEditarUsuario, setModalEditarUsuario] = useState(false);
+  const [editandoUsuario, setEditandoUsuario] = useState(false);
+  const [formUsuario, setFormUsuario] = useState({
+    id: '',
+    email: '',
+    password: '',
+    rol: '',
+    empresa_id: '',
+    sucursal_id: '',
+    empresa_nombre: '',
+    sucursal_nombre: '',
+  });
   const [usuarioRol, setUsuarioRol] = useState('');
   const [usuarioEmpresaId, setUsuarioEmpresaId] = useState('');
   const [usuarioSearch, setUsuarioSearch] = useState('');
@@ -398,6 +410,71 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
     }
   };
 
+  const handleAbrirEditarUsuario = (usuario) => {
+    setFormUsuario({
+      id: usuario.id || '',
+      email: usuario.email || '',
+      password: '',
+      rol: usuario.rol || '',
+      empresa_id: usuario.empresa_id || '',
+      sucursal_id: usuario.sucursal_id || '',
+      empresa_nombre: usuario.empresa_nombre || usuario.empresa || '',
+      sucursal_nombre: usuario.sucursal_nombre || usuario.sucursal || '-',
+    });
+    setModalEditarUsuario(true);
+  };
+
+  const closeEditarUsuarioModal = () => {
+    setModalEditarUsuario(false);
+    setFormUsuario({
+      id: '',
+      email: '',
+      password: '',
+      rol: '',
+      empresa_id: '',
+      sucursal_id: '',
+      empresa_nombre: '',
+      sucursal_nombre: '',
+    });
+  };
+
+  const handleGuardarUsuario = async () => {
+    if (!formUsuario.email) return;
+    if (formUsuario.password && formUsuario.password.length < 6) {
+      window.alert('La contrasena debe tener al menos 6 caracteres');
+      return;
+    }
+
+    setEditandoUsuario(true);
+    try {
+      await request(`usuarios/${formUsuario.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          email: formUsuario.email,
+          password: formUsuario.password || undefined,
+          rol: formUsuario.rol,
+        }),
+      });
+
+      setUsuarios((prev) =>
+        prev.map((usuario) =>
+          usuario.id === formUsuario.id
+            ? {
+                ...usuario,
+                email: formUsuario.email,
+                rol: formUsuario.rol,
+              }
+            : usuario,
+        ),
+      );
+      closeEditarUsuarioModal();
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : 'Error de conexion');
+    } finally {
+      setEditandoUsuario(false);
+    }
+  };
+
   const closeCrearEmpresaModal = () => {
     setModalCrearEmpresa(false);
     setFormEmpresa({ nombre: '', ruc: '', adminEmail: '', adminPassword: '', planId: '' });
@@ -511,7 +588,7 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
                 <div style={{ overflowX: 'auto', padding: 20 }}>
                   <table style={{ borderCollapse: 'collapse', minWidth: 920, width: '100%' }}>
                     <thead><tr style={{ background: T.cardMuted }}>{['Email', 'Rol', 'Empresa', 'Sucursal', 'Fecha creacion'].map((label) => <th key={label} style={head}>{label}</th>)}</tr></thead>
-                    <tbody>{usuarios.map((row) => <tr key={row.id}><td style={{ ...cell, color: T.text, fontWeight: 700 }}>{row.email}</td><td style={{ ...cell, color: T.textMuted }}>{row.rol}</td><td style={{ ...cell, color: T.text }}>{row.empresa_nombre}</td><td style={{ ...cell, color: T.textMuted }}>{row.sucursal_nombre}</td><td style={{ ...cell, color: T.textMuted }}>{formatDate(row.fecha_creacion, true)}</td></tr>)}</tbody>
+                    <tbody>{usuarios.map((row) => <tr key={row.id} onClick={() => handleAbrirEditarUsuario(row)} onMouseEnter={(e) => { e.currentTarget.style.background = '#f5f6fa'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }} style={{ cursor: 'pointer', transition: 'background 0.1s' }}><td style={{ ...cell, color: T.text, fontWeight: 700 }}>{row.email}</td><td style={{ ...cell, color: T.textMuted }}>{row.rol}</td><td style={{ ...cell, color: T.text }}>{row.empresa_nombre}</td><td style={{ ...cell, color: T.textMuted }}>{row.sucursal_nombre}</td><td style={{ ...cell, color: T.textMuted }}>{formatDate(row.fecha_creacion, true)}</td></tr>)}</tbody>
                   </table>
                 </div>
               </div>
@@ -628,6 +705,81 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
           <input value={planForm.limite_tokens_mensual} onChange={(e) => setPlanForm((v) => ({ ...v, limite_tokens_mensual: e.target.value }))} placeholder="Limite tokens/mes" type="number" style={input} />
           <input value={planForm.limite_ejecuciones_mensual} onChange={(e) => setPlanForm((v) => ({ ...v, limite_ejecuciones_mensual: e.target.value }))} placeholder="Limite ejecuciones/mes" type="number" style={input} />
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}><button onClick={() => void savePlan()} style={{ background: T.indigo, border: 'none', borderRadius: 999, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 800, padding: '11px 16px' }} type="button">{editingPlan ? 'Actualizar plan' : 'Crear plan'}</button></div>
+        </div>
+      </Modal>
+
+      <Modal open={modalEditarUsuario} onClose={closeEditarUsuarioModal} title="Editar usuario" width={480}>
+        <div style={{ display: 'grid', gap: 24 }}>
+          <div>
+            <p style={{ color: '#6b7280', fontSize: 13, margin: '0 0 16px' }}>
+              {formUsuario.empresa_nombre}
+              {formUsuario.sucursal_nombre !== '-' && ` · ${formUsuario.sucursal_nombre}`}
+            </p>
+            <p style={{ color: T.indigo, fontSize: 11, fontWeight: 700, letterSpacing: '0.8px', margin: '0 0 16px', textTransform: 'uppercase' }}>Datos del usuario</p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={{ color: '#374151', display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                  Email <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="email"
+                  value={formUsuario.email}
+                  onChange={(e) => setFormUsuario((prev) => ({ ...prev, email: e.target.value }))}
+                  autoComplete="new-password"
+                  style={{ background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box', color: '#1a1a2e', fontSize: 14, outline: 'none', padding: '10px 14px', width: '100%' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ color: '#374151', display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                  Nueva contrasena
+                </label>
+                <input
+                  type="password"
+                  placeholder="Dejar vacio para no cambiar"
+                  value={formUsuario.password}
+                  onChange={(e) => setFormUsuario((prev) => ({ ...prev, password: e.target.value }))}
+                  autoComplete="new-password"
+                  style={{ background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box', color: '#1a1a2e', fontSize: 14, outline: 'none', padding: '10px 14px', width: '100%' }}
+                />
+                <p style={{ color: '#9ca3af', fontSize: 11, margin: '4px 0 0' }}>
+                  Solo completa este campo si deseas cambiar la contrasena.
+                </p>
+              </div>
+
+              <div>
+                <label style={{ color: '#374151', display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                  Rol
+                </label>
+                <select
+                  value={formUsuario.rol}
+                  onChange={(e) => setFormUsuario((prev) => ({ ...prev, rol: e.target.value }))}
+                  style={{ background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box', color: '#1a1a2e', cursor: 'pointer', fontSize: 14, outline: 'none', padding: '10px 14px', width: '100%' }}
+                >
+                  <option value="admin_empresa">Admin empresa</option>
+                  <option value="encargado_sucursal">Encargado de sucursal</option>
+                  <option value="vendedor">Vendedor</option>
+                </select>
+              </div>
+
+              <div style={{ background: '#f5f6fa', borderRadius: 10, display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr', padding: '12px 16px' }}>
+                <div>
+                  <p style={{ color: '#6b7280', fontSize: 11, fontWeight: 700, margin: '0 0 4px', textTransform: 'uppercase' }}>Empresa</p>
+                  <p style={{ color: '#1a1a2e', fontSize: 14, fontWeight: 600, margin: 0 }}>{formUsuario.empresa_nombre}</p>
+                </div>
+                <div>
+                  <p style={{ color: '#6b7280', fontSize: 11, fontWeight: 700, margin: '0 0 4px', textTransform: 'uppercase' }}>Sucursal</p>
+                  <p style={{ color: '#1a1a2e', fontSize: 14, fontWeight: 600, margin: 0 }}>{formUsuario.sucursal_nombre || '-'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+            <button onClick={closeEditarUsuarioModal} style={{ background: 'transparent', border: '1.5px solid #d1d5db', borderRadius: 8, color: '#6b7280', cursor: 'pointer', fontSize: 14, fontWeight: 600, padding: '10px 20px' }} type="button">Cancelar</button>
+            <button onClick={() => handleGuardarUsuario()} disabled={editandoUsuario || !formUsuario.email} style={{ background: !formUsuario.email ? '#c7d2fe' : '#6366f1', border: 'none', borderRadius: 8, color: '#ffffff', cursor: !formUsuario.email ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 700, padding: '10px 24px' }} type="button">{editandoUsuario ? 'Guardando...' : 'Guardar cambios'}</button>
+          </div>
         </div>
       </Modal>
 

@@ -761,6 +761,63 @@ export class SuperAdminService {
       .filter((perfil: any) => !q || String(perfil.email || '').toLowerCase().includes(q));
   }
 
+  async editarUsuario(
+    userId: string,
+    dto: {
+      email?: string;
+      password?: string;
+      rol?: string;
+    },
+  ) {
+    const email = String(dto.email || '').trim().toLowerCase();
+    const password = String(dto.password || '');
+    const rol = String(dto.rol || '').trim();
+
+    if (dto.email !== undefined && (!email || !email.includes('@'))) {
+      throw new BadRequestException('email invalido');
+    }
+
+    if (password && password.length < 6) {
+      throw new BadRequestException('La contrasena debe tener al menos 6 caracteres');
+    }
+
+    if (rol && !['admin_empresa', 'encargado_sucursal', 'vendedor'].includes(rol)) {
+      throw new BadRequestException(`Rol invalido: ${rol}`);
+    }
+
+    if (dto.email || dto.password) {
+      const authUpdate: Record<string, string> = {};
+      if (email) authUpdate.email = email;
+      if (password) authUpdate.password = password;
+
+      const { error: authErr } = await this.supabase.auth.admin.updateUserById(userId, authUpdate);
+
+      if (authErr) {
+        this.logger.error(`[editarUsuario] auth: ${JSON.stringify(authErr)}`);
+        throw new InternalServerErrorException(`Error al actualizar usuario: ${authErr.message}`);
+      }
+    }
+
+    if (rol) {
+      const { error: perfilErr } = await this.supabase
+        .from('perfiles')
+        .update({ rol })
+        .eq('id', userId);
+
+      if (perfilErr) {
+        this.logger.error(`[editarUsuario] perfil: ${JSON.stringify(perfilErr)}`);
+        throw new InternalServerErrorException('Error al actualizar perfil');
+      }
+    }
+
+    return {
+      success: true,
+      userId,
+      email: email || undefined,
+      rol: rol || undefined,
+    };
+  }
+
   async getPlanes() {
     const [{ data: planes, error: planesError }, { data: suscripciones, error: subsError }] = await Promise.all([
       this.supabase

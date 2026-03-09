@@ -84,6 +84,14 @@ export class SuperAdminController {
     return this.superAdminService.getUsuarios({ rol, empresaId, q });
   }
 
+  @Put('usuarios/:id')
+  editarUsuario(
+    @Param('id') id: string,
+    @Body() body: { email?: string; password?: string; rol?: string },
+  ) {
+    return this.superAdminService.editarUsuario(id, body);
+  }
+
   @Get('planes')
   getPlanes() {
     return this.superAdminService.getPlanes();
