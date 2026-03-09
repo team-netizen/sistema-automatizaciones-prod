@@ -92,6 +92,7 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
     ruc: '',
     adminEmail: '',
     adminPassword: '',
+    planId: '',
   });
   const [usuarios, setUsuarios] = useState([]);
   const [usuarioRol, setUsuarioRol] = useState('');
@@ -170,7 +171,7 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
     const boot = async () => {
       try {
         setLoading(true);
-        await Promise.all([loadDashboard(), loadCompanyOptions()]);
+        await Promise.all([loadDashboard(), loadCompanyOptions(), loadPlanes()]);
         setError('');
       } catch (e) {
         setError(e instanceof Error ? e.message : 'No se pudo cargar el dashboard.');
@@ -238,7 +239,7 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
   };
 
   const handleCrearEmpresa = async () => {
-    if (!formEmpresa.nombre || !formEmpresa.ruc || !formEmpresa.adminEmail || !formEmpresa.adminPassword) return;
+    if (!formEmpresa.nombre || !formEmpresa.ruc || !formEmpresa.adminEmail || !formEmpresa.adminPassword || !formEmpresa.planId) return;
     if (formEmpresa.ruc.length !== 11) {
       window.alert('El RUC debe tener 11 digitos');
       return;
@@ -252,13 +253,19 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
     try {
       const nueva = await request('empresas', {
         method: 'POST',
-        body: JSON.stringify(formEmpresa),
+        body: JSON.stringify({
+          nombre: formEmpresa.nombre,
+          ruc: formEmpresa.ruc,
+          adminEmail: formEmpresa.adminEmail,
+          adminPassword: formEmpresa.adminPassword,
+          planId: formEmpresa.planId,
+        }),
       });
 
       setEmpresas((prev) => [nueva, ...prev]);
       setEmpresasTotal((prev) => prev + 1);
       setCompanyOptions((prev) => [{ id: nueva.id, nombre: nueva.nombre }, ...prev]);
-      setFormEmpresa({ nombre: '', ruc: '', adminEmail: '', adminPassword: '' });
+      setFormEmpresa({ nombre: '', ruc: '', adminEmail: '', adminPassword: '', planId: '' });
       setModalCrearEmpresa(false);
       void loadDashboard();
       window.alert(`Empresa "${nueva.nombre}" creada correctamente`);
@@ -267,6 +274,11 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
     } finally {
       setCreandoEmpresa(false);
     }
+  };
+
+  const closeCrearEmpresaModal = () => {
+    setModalCrearEmpresa(false);
+    setFormEmpresa({ nombre: '', ruc: '', adminEmail: '', adminPassword: '', planId: '' });
   };
 
   const sectionTitle = {
@@ -497,27 +509,99 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
         </div>
       </Modal>
 
-      <Modal open={modalCrearEmpresa} onClose={() => setModalCrearEmpresa(false)} title="Nueva empresa" width={480}>
-        <div style={{ display: 'grid', gap: 20 }}>
+      <Modal open={modalCrearEmpresa} onClose={closeCrearEmpresaModal} title="Nueva empresa" width={500}>
+        <div style={{ display: 'grid', gap: 24 }}>
           <div>
-            <p style={{ color: T.textMuted, fontSize: 11, fontWeight: 700, letterSpacing: '0.5px', margin: '0 0 12px', textTransform: 'uppercase' }}>Datos de la empresa</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <input type="text" placeholder="Nombre de la empresa *" value={formEmpresa.nombre} onChange={(e) => setFormEmpresa((prev) => ({ ...prev, nombre: e.target.value }))} style={{ ...input, border: '1.5px solid #e8ecf0', fontSize: 14, padding: '10px 14px' }} />
-              <input type="text" placeholder="RUC (11 digitos) *" value={formEmpresa.ruc} maxLength={11} onChange={(e) => setFormEmpresa((prev) => ({ ...prev, ruc: e.target.value.replace(/\D/g, '') }))} style={{ ...input, border: '1.5px solid #e8ecf0', fontSize: 14, padding: '10px 14px' }} />
+            <p style={{ color: T.indigo, fontSize: 11, fontWeight: 700, letterSpacing: '0.8px', margin: '0 0 16px', textTransform: 'uppercase' }}>Datos de la empresa</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={{ color: '#374151', display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                  Nombre de la empresa <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: Distribuidora Norte SAC"
+                  value={formEmpresa.nombre}
+                  onChange={(e) => setFormEmpresa((prev) => ({ ...prev, nombre: e.target.value }))}
+                  autoComplete="off"
+                  style={{ background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box', color: '#1a1a2e', fontSize: 14, outline: 'none', padding: '10px 14px', width: '100%' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ color: '#374151', display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                  RUC <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: 20512345678"
+                  value={formEmpresa.ruc}
+                  maxLength={11}
+                  onChange={(e) => setFormEmpresa((prev) => ({ ...prev, ruc: e.target.value.replace(/\D/g, '') }))}
+                  autoComplete="off"
+                  style={{ background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box', color: '#1a1a2e', fontSize: 14, outline: 'none', padding: '10px 14px', width: '100%' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ color: '#374151', display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                  Plan inicial <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <select
+                  value={formEmpresa.planId || ''}
+                  onChange={(e) => setFormEmpresa((prev) => ({ ...prev, planId: e.target.value }))}
+                  style={{ background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box', color: formEmpresa.planId ? '#1a1a2e' : '#9ca3af', cursor: 'pointer', fontSize: 14, outline: 'none', padding: '10px 14px', width: '100%' }}
+                >
+                  <option value="">Seleccionar plan...</option>
+                  {planes.map((plan) => (
+                    <option key={plan.id} value={plan.id}>
+                      {plan.nombre} - S/ {Number(plan.precio || 0).toFixed(2)}/mes
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
           <div>
-            <p style={{ color: T.textMuted, fontSize: 11, fontWeight: 700, letterSpacing: '0.5px', margin: '0 0 12px', textTransform: 'uppercase' }}>Usuario administrador</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <input type="email" placeholder="Email del admin *" value={formEmpresa.adminEmail} onChange={(e) => setFormEmpresa((prev) => ({ ...prev, adminEmail: e.target.value }))} style={{ ...input, border: '1.5px solid #e8ecf0', fontSize: 14, padding: '10px 14px' }} />
-              <input type="password" placeholder="Contrasena temporal *" value={formEmpresa.adminPassword} onChange={(e) => setFormEmpresa((prev) => ({ ...prev, adminPassword: e.target.value }))} style={{ ...input, border: '1.5px solid #e8ecf0', fontSize: 14, padding: '10px 14px' }} />
+            <p style={{ color: T.indigo, fontSize: 11, fontWeight: 700, letterSpacing: '0.8px', margin: '0 0 16px', textTransform: 'uppercase' }}>Usuario administrador</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={{ color: '#374151', display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                  Email <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="email"
+                  placeholder="Ej: admin@empresa.com"
+                  value={formEmpresa.adminEmail}
+                  onChange={(e) => setFormEmpresa((prev) => ({ ...prev, adminEmail: e.target.value }))}
+                  autoComplete="new-password"
+                  style={{ background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box', color: '#1a1a2e', fontSize: 14, outline: 'none', padding: '10px 14px', width: '100%' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ color: '#374151', display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                  Contrasena temporal <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="password"
+                  placeholder="Minimo 6 caracteres"
+                  value={formEmpresa.adminPassword}
+                  onChange={(e) => setFormEmpresa((prev) => ({ ...prev, adminPassword: e.target.value }))}
+                  autoComplete="new-password"
+                  style={{ background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box', color: '#1a1a2e', fontSize: 14, outline: 'none', padding: '10px 14px', width: '100%' }}
+                />
+                <p style={{ color: '#9ca3af', fontSize: 11, margin: '4px 0 0' }}>
+                  El administrador podra cambiarla despues de su primer ingreso.
+                </p>
+              </div>
             </div>
           </div>
 
           <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-            <button onClick={() => setModalCrearEmpresa(false)} style={{ background: 'transparent', border: '1.5px solid #e8ecf0', borderRadius: 8, color: T.textMuted, cursor: 'pointer', fontSize: 14, fontWeight: 600, padding: '10px 20px' }} type="button">Cancelar</button>
-            <button onClick={() => handleCrearEmpresa()} disabled={creandoEmpresa || !formEmpresa.nombre || formEmpresa.ruc.length !== 11 || !formEmpresa.adminEmail || !formEmpresa.adminPassword} style={{ background: (!formEmpresa.nombre || formEmpresa.ruc.length !== 11 || !formEmpresa.adminEmail || !formEmpresa.adminPassword) ? '#c7d2fe' : T.indigo, border: 'none', borderRadius: 8, color: '#fff', cursor: (!formEmpresa.nombre || formEmpresa.ruc.length !== 11 || !formEmpresa.adminEmail || !formEmpresa.adminPassword) ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 700, padding: '10px 24px' }} type="button">{creandoEmpresa ? 'Creando...' : 'Crear empresa'}</button>
+            <button onClick={closeCrearEmpresaModal} style={{ background: 'transparent', border: '1.5px solid #d1d5db', borderRadius: 8, color: '#6b7280', cursor: 'pointer', fontSize: 14, fontWeight: 600, padding: '10px 20px' }} type="button">Cancelar</button>
+            <button onClick={() => handleCrearEmpresa()} disabled={creandoEmpresa || !formEmpresa.nombre || !formEmpresa.ruc || !formEmpresa.adminEmail || !formEmpresa.adminPassword || !formEmpresa.planId} style={{ background: (!formEmpresa.nombre || !formEmpresa.ruc || !formEmpresa.adminEmail || !formEmpresa.adminPassword || !formEmpresa.planId) ? '#c7d2fe' : '#6366f1', border: 'none', borderRadius: 8, color: '#ffffff', cursor: (!formEmpresa.nombre || !formEmpresa.ruc || !formEmpresa.adminEmail || !formEmpresa.adminPassword || !formEmpresa.planId) ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 700, padding: '10px 24px' }} type="button">{creandoEmpresa ? 'Creando...' : 'Crear empresa'}</button>
           </div>
         </div>
       </Modal>

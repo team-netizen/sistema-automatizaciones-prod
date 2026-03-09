@@ -40,6 +40,7 @@ export class SuperAdminController {
       ruc: string;
       adminEmail: string;
       adminPassword: string;
+      planId?: string;
     },
   ) {
     return this.superAdminService.crearEmpresa(body);

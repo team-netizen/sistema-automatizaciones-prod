@@ -21,6 +21,7 @@ type CrearEmpresaPayload = {
   ruc: string;
   adminEmail: string;
   adminPassword: string;
+  planId?: string;
 };
 
 @Injectable()
@@ -375,6 +376,8 @@ export class SuperAdminService {
     const ruc = String(dto.ruc || '').trim();
     const adminEmail = String(dto.adminEmail || '').trim().toLowerCase();
     const adminPassword = String(dto.adminPassword || '');
+    const planId = String(dto.planId || '').trim();
+    let planNombre = 'Sin plan';
 
     if (!nombre || !ruc || !adminEmail || !adminPassword) {
       throw new BadRequestException('nombre, ruc, adminEmail y adminPassword son requeridos');
@@ -386,6 +389,20 @@ export class SuperAdminService {
 
     if (adminPassword.length < 6) {
       throw new BadRequestException('La contrasena debe tener al menos 6 caracteres');
+    }
+
+    if (planId) {
+      const { data: plan, error: planError } = await this.supabase
+        .from('planes_suscripcion')
+        .select('id, nombre')
+        .eq('id', planId)
+        .maybeSingle();
+
+      if (planError || !plan) {
+        throw new BadRequestException('Plan inicial no valido');
+      }
+
+      planNombre = plan.nombre || 'Sin plan';
     }
 
     const { data: empresa, error: empresaErr } = await this.supabase
@@ -430,12 +447,34 @@ export class SuperAdminService {
       this.logger.error(`[crearEmpresa] perfil: ${JSON.stringify(perfilErr)}`);
     }
 
+    if (planId) {
+      const fechaInicio = new Date();
+      const fechaFin = new Date(fechaInicio);
+      fechaFin.setMonth(fechaFin.getMonth() + 1);
+
+      const { error: suscripcionErr } = await this.supabase
+        .from('suscripciones_empresa')
+        .insert({
+          empresa_id: empresa.id,
+          plan_id: planId,
+          estado: 'activa',
+          fecha_inicio: fechaInicio.toISOString(),
+          fecha_fin: fechaFin.toISOString(),
+          fecha_creacion: new Date().toISOString(),
+        });
+
+      if (suscripcionErr) {
+        this.logger.error(`[crearEmpresa] suscripcion: ${JSON.stringify(suscripcionErr)}`);
+        throw new InternalServerErrorException('Error al crear la suscripcion inicial');
+      }
+    }
+
     this.logger.log(`[crearEmpresa] Empresa creada: ${empresa.nombre} (${empresa.id})`);
 
     return {
       ...empresa,
       adminEmail,
-      plan_activo: 'Sin plan',
+      plan_activo: planNombre,
       usuarios: 1,
     };
   }
