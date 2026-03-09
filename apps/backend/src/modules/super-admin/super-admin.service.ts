@@ -940,11 +940,50 @@ export class SuperAdminService {
     return data;
   }
 
-  async getMetricas(mes?: string) {
-    const normalizedMes = this.normalizeMes(mes);
-    const mesDate = normalizedMes.length === 7 ? `${normalizedMes}-01` : normalizedMes;
-    const { start, end } = this.getMonthRange(normalizedMes);
-    const endInclusive = new Date(new Date(end).getTime() - 1).toISOString();
+  async getMetricas(params: { mes?: string; desde?: string; hasta?: string }) {
+    let normalizedMes = '';
+    let start = '';
+    let endInclusive = '';
+
+    if (params?.desde && params?.hasta) {
+      start = `${params.desde}T00:00:00.000Z`;
+      endInclusive = `${params.hasta}T23:59:59.999Z`;
+    } else {
+      normalizedMes = this.normalizeMes(params?.mes);
+      const mesDate = normalizedMes.length === 7 ? `${normalizedMes}-01` : normalizedMes;
+      const { start: monthStart, end } = this.getMonthRange(normalizedMes);
+      start = monthStart;
+      endInclusive = new Date(new Date(end).getTime() - 1).toISOString();
+
+      const usoDate = mesDate;
+
+      const [{ data: pedidos, error: pedidosError }, { data: usoRows, error: usoError }] = await Promise.all([
+        this.supabase
+          .from('pedidos')
+          .select('empresa_id, total, fecha_pedido, medio_pedido, canal_id')
+          .gte('fecha_pedido', start)
+          .lte('fecha_pedido', endInclusive),
+        this.supabase
+          .from('uso_empresa')
+          .select('empresa_id, mes, tokens_usados, cantidad_ejecuciones, ultima_actualizacion')
+          .eq('mes', usoDate)
+          .order('tokens_usados', { ascending: false }),
+      ]);
+
+      if (pedidosError) {
+        throw new InternalServerErrorException(pedidosError.message);
+      }
+
+      if (usoError) {
+        throw new InternalServerErrorException(usoError.message);
+      }
+
+      return this.buildMetricasResponse({
+        mes: normalizedMes,
+        pedidos: pedidos ?? [],
+        usoRows: usoRows ?? [],
+      });
+    }
 
     const [{ data: pedidos, error: pedidosError }, { data: usoRows, error: usoError }] = await Promise.all([
       this.supabase
@@ -955,7 +994,8 @@ export class SuperAdminService {
       this.supabase
         .from('uso_empresa')
         .select('empresa_id, mes, tokens_usados, cantidad_ejecuciones, ultima_actualizacion')
-        .eq('mes', mesDate)
+        .gte('mes', params.desde)
+        .lte('mes', params.hasta)
         .order('tokens_usados', { ascending: false }),
     ]);
 
@@ -967,7 +1007,19 @@ export class SuperAdminService {
       throw new InternalServerErrorException(usoError.message);
     }
 
-    const pedidosRows = pedidos ?? [];
+    return this.buildMetricasResponse({
+      mes: params?.desde && params?.hasta ? `${params.desde} - ${params.hasta}` : normalizedMes,
+      pedidos: pedidos ?? [],
+      usoRows: usoRows ?? [],
+    });
+  }
+
+  private async buildMetricasResponse(params: {
+    mes: string;
+    pedidos: any[];
+    usoRows: any[];
+  }) {
+    const pedidosRows = params.pedidos ?? [];
     const totalVentasMes = pedidosRows.reduce((sum: number, row: any) => sum + Number(row.total || 0), 0);
     const totalPedidosMes = pedidosRows.length;
     const pedidosPorEmpresa = pedidosRows.reduce<Record<string, { pedidos: number; total: number }>>((acc, row: any) => {
@@ -990,7 +1042,7 @@ export class SuperAdminService {
       return acc;
     }, {});
 
-    const usoEmpresaIds = this.unique((usoRows ?? []).map((row: any) => row.empresa_id));
+    const usoEmpresaIds = this.unique((params.usoRows ?? []).map((row: any) => row.empresa_id));
     const pedidoEmpresaIds = this.unique(pedidosRows.map((row: any) => row.empresa_id));
     const empresaMap = await this.getEmpresaMap([...usoEmpresaIds, ...pedidoEmpresaIds]);
 
@@ -1053,7 +1105,7 @@ export class SuperAdminService {
       .map(([canal, cantidad]) => ({ canal, cantidad }))
       .sort((a, b) => b.cantidad - a.cantidad);
 
-    const usoPorEmpresa = (usoRows ?? []).map((row: any) => {
+    const usoPorEmpresa = (params.usoRows ?? []).map((row: any) => {
       const currentSubscription = this.pickCurrentSubscription(subscriptionsByEmpresa[row.empresa_id] ?? []);
       const plan = currentSubscription?.plan_id ? planMap[currentSubscription.plan_id] : null;
       const limiteTokens = Number(plan?.limite_tokens_mensual ?? 0);
@@ -1071,7 +1123,7 @@ export class SuperAdminService {
     });
 
     return {
-      mes: normalizedMes,
+      mes: params.mes,
       totalVentas: totalVentasMes,
       totalPedidos: totalPedidosMes,
       total_ventas_mes: totalVentasMes,

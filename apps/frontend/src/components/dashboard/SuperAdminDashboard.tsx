@@ -134,6 +134,12 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
   const [planes, setPlanes] = useState([]);
   const [companyOptions, setCompanyOptions] = useState([]);
   const [metricasMes, setMetricasMes] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
+  const [rangoFecha, setRangoFecha] = useState({
+    desde: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+    hasta: new Date().toISOString().split('T')[0],
+  });
+  const [modoRango, setModoRango] = useState('mes');
+  const [loadingMetricas, setLoadingMetricas] = useState(false);
   const [metricas, setMetricas] = useState(null);
   const [modulos, setModulos] = useState([]);
   const [auditoria, setAuditoria] = useState([]);
@@ -189,7 +195,17 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
     setUsuarios((await request(`usuarios?${params.toString()}`)) || []);
   };
   const loadPlanes = async () => setPlanes((await request('planes')) || []);
-  const loadMetricas = async () => setMetricas(await request(`metricas?mes=${encodeURIComponent(metricasMes)}`));
+  const loadMetricas = async (desde, hasta) => {
+    setLoadingMetricas(true);
+    try {
+      const query = desde && hasta
+        ? `metricas?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`
+        : `metricas?mes=${encodeURIComponent(metricasMes)}`;
+      setMetricas(await request(query));
+    } finally {
+      setLoadingMetricas(false);
+    }
+  };
   const loadSistema = async () => {
     const params = new URLSearchParams({ page: String(auditoriaPage), limit: '10' });
     if (auditoriaEmpresaId) params.set('empresaId', auditoriaEmpresaId);
@@ -223,7 +239,7 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
         if (nav === 'empresas') await loadEmpresas();
         if (nav === 'usuarios') await loadUsuarios();
         if (nav === 'planes') await loadPlanes();
-        if (nav === 'metricas') await loadMetricas();
+        if (nav === 'metricas') await loadMetricas(modoRango === 'personalizado' ? rangoFecha.desde : undefined, modoRango === 'personalizado' ? rangoFecha.hasta : undefined);
         if (nav === 'sistema') await loadSistema();
         setError('');
       } catch (e) {
@@ -233,7 +249,13 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
       }
     };
     if (nav !== 'alertas') void run();
-  }, [nav, empresasPage, empresaSearch, usuarioRol, usuarioEmpresaId, usuarioSearch, metricasMes, auditoriaPage, auditoriaEmpresaId, auditoriaTipoAccion]);
+  }, [nav, empresasPage, empresaSearch, usuarioRol, usuarioEmpresaId, usuarioSearch, auditoriaPage, auditoriaEmpresaId, auditoriaTipoAccion]);
+
+  useEffect(() => {
+    if (nav === 'metricas' && modoRango === 'mes') {
+      void loadMetricas();
+    }
+  }, [metricasMes, modoRango, nav]);
 
   const savePlan = async () => {
     const body = JSON.stringify({
@@ -632,16 +654,63 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
             )}
 
             {nav === 'metricas' && (
-              <div style={{ display: 'grid', gap: 18 }}>
+              <div style={{ margin: '0 auto', maxWidth: '1200px', paddingBottom: '40px' }}>
+                <div style={{ display: 'grid', gap: 18 }}>
                 <div style={{ alignItems: 'center', display: 'flex', justifyContent: 'space-between' }}>
-                  <div><h3 style={{ margin: 0 }}>Metricas globales</h3><p style={{ color: T.textMuted, fontSize: 13, margin: '6px 0 0' }}>Vista consolidada por mes</p></div>
-                  <input type="month" value={metricasMes} onChange={(e) => setMetricasMes(e.target.value)} style={input} />
+                  <div><h3 style={{ margin: 0 }}>Metricas globales</h3><p style={{ color: T.textMuted, fontSize: 13, margin: '6px 0 0' }}>Vista consolidada por periodo</p></div>
+                  <div style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+                    <div style={{ background: '#f5f6fa', borderRadius: '8px', display: 'flex', padding: '3px' }}>
+                      {['mes', 'personalizado'].map((modo) => (
+                        <button
+                          key={modo}
+                          onClick={() => setModoRango(modo)}
+                          style={{ background: modoRango === modo ? '#6366f1' : 'transparent', border: 'none', borderRadius: '6px', color: modoRango === modo ? '#ffffff' : '#6b7280', cursor: 'pointer', fontSize: '13px', fontWeight: 600, padding: '6px 14px' }}
+                          type="button"
+                        >
+                          {modo === 'mes' ? 'Por mes' : 'Personalizado'}
+                        </button>
+                      ))}
+                    </div>
+
+                    {modoRango === 'mes' && (
+                      <input
+                        type="month"
+                        value={metricasMes}
+                        onChange={(e) => {
+                          setMetricasMes(e.target.value);
+                          const [year, month] = e.target.value.split('-').map(Number);
+                          const ultimoDia = new Date(year, month, 0).getDate();
+                          setRangoFecha({
+                            desde: `${e.target.value}-01`,
+                            hasta: `${e.target.value}-${String(ultimoDia).padStart(2, '0')}`,
+                          });
+                        }}
+                        style={{ background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: '8px', color: '#1a1a2e', fontSize: '14px', outline: 'none', padding: '8px 12px' }}
+                      />
+                    )}
+
+                    {modoRango === 'personalizado' && (
+                      <div style={{ alignItems: 'center', display: 'flex', gap: '8px' }}>
+                        <div>
+                          <label style={{ color: '#6b7280', display: 'block', fontSize: '11px', fontWeight: 600, marginBottom: '3px' }}>Desde</label>
+                          <input type="date" value={rangoFecha.desde} onChange={(e) => setRangoFecha((prev) => ({ ...prev, desde: e.target.value }))} style={{ background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: '8px', color: '#1a1a2e', fontSize: '14px', outline: 'none', padding: '8px 12px' }} />
+                        </div>
+                        <span style={{ color: '#6b7280', marginTop: '16px' }}>→</span>
+                        <div>
+                          <label style={{ color: '#6b7280', display: 'block', fontSize: '11px', fontWeight: 600, marginBottom: '3px' }}>Hasta</label>
+                          <input type="date" value={rangoFecha.hasta} onChange={(e) => setRangoFecha((prev) => ({ ...prev, hasta: e.target.value }))} style={{ background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: '8px', color: '#1a1a2e', fontSize: '14px', outline: 'none', padding: '8px 12px' }} />
+                        </div>
+                        <button onClick={() => void loadMetricas(rangoFecha.desde, rangoFecha.hasta)} style={{ background: '#6366f1', border: 'none', borderRadius: '8px', color: '#ffffff', cursor: 'pointer', fontSize: '13px', fontWeight: 600, marginTop: '16px', padding: '8px 16px' }} type="button">Aplicar</button>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
                   <div style={{ ...box, padding: '18px 20px' }}><div style={{ color: T.textMuted, fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>Total ventas del mes</div><div style={{ color: T.text, fontSize: 30, fontWeight: 900, marginTop: 8 }}>{money(metricas?.total_ventas_mes)}</div></div>
                   <div style={{ ...box, padding: '18px 20px' }}><div style={{ color: T.textMuted, fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>Total pedidos del mes</div><div style={{ color: T.text, fontSize: 30, fontWeight: 900, marginTop: 8 }}>{Number(metricas?.total_pedidos_mes || 0)}</div></div>
                 </div>
-                <div style={{ ...box, padding: '20px 22px' }}>
+                {loadingMetricas && <div style={{ color: T.textMuted, fontSize: 13 }}>Cargando metricas...</div>}
+                <div style={{ background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '14px', marginBottom: '16px', padding: '20px 22px' }}>
                   <h3 style={{ margin: '0 0 20px' }}>Ventas por dia</h3>
                   {(metricas?.graficaVentas || []).length > 0 ? (
                     <ResponsiveContainer width="100%" height={220}>
@@ -670,7 +739,7 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
                     </div>
                   )}
                 </div>
-                <div style={{ ...box, padding: '20px 22px' }}>
+                <div style={{ background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '14px', marginBottom: '16px', padding: '20px 22px' }}>
                   <h3 style={{ margin: '0 0 16px' }}>Ventas por empresa</h3>
                   {(metricas?.ventasPorEmpresa || []).length > 0 ? (
                     <table style={{ borderCollapse: 'collapse', fontSize: '13px', width: '100%' }}>
@@ -708,8 +777,8 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
                     <p style={{ color: T.textMuted, padding: '20px', textAlign: 'center' }}>Sin datos este mes</p>
                   )}
                 </div>
-                <div style={{ ...box, padding: 20 }}><h3 style={{ marginTop: 0 }}>Empresas mas activas</h3><div style={{ display: 'grid', gap: 10 }}>{(metricas?.empresas_mas_activas || []).map((row, index) => <div key={row.empresa_id} style={{ alignItems: 'center', background: T.cardMuted, borderRadius: 12, display: 'grid', gap: 4, gridTemplateColumns: '40px 1fr auto auto', padding: '14px 16px' }}><div style={{ color: T.indigo, fontSize: 20, fontWeight: 900 }}>#{index + 1}</div><div><div style={{ color: T.text, fontSize: 14, fontWeight: 800 }}>{row.empresa_nombre}</div><div style={{ color: T.textMuted, fontSize: 12 }}>{row.pedidos} pedidos</div></div><div style={{ color: T.textMuted, fontSize: 13 }}>Ventas</div><div style={{ color: T.text, fontSize: 14, fontWeight: 800 }}>{money(row.total_ventas)}</div></div>)}</div></div>
-                <div style={{ ...box, padding: '20px 22px' }}>
+                <div style={{ background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '14px', marginBottom: '16px', padding: '20px 22px' }}><h3 style={{ marginTop: 0 }}>Empresas mas activas</h3><div style={{ display: 'grid', gap: 10 }}>{(metricas?.empresas_mas_activas || []).map((row, index) => <div key={row.empresa_id} style={{ alignItems: 'center', background: T.cardMuted, borderRadius: 12, display: 'grid', gap: 4, gridTemplateColumns: '40px 1fr auto auto', padding: '14px 16px' }}><div style={{ color: T.indigo, fontSize: 20, fontWeight: 900 }}>#{index + 1}</div><div><div style={{ color: T.text, fontSize: 14, fontWeight: 800 }}>{row.empresa_nombre}</div><div style={{ color: T.textMuted, fontSize: 12 }}>{row.pedidos} pedidos</div></div><div style={{ color: T.textMuted, fontSize: 13 }}>Ventas</div><div style={{ color: T.text, fontSize: 14, fontWeight: 800 }}>{money(row.total_ventas)}</div></div>)}</div></div>
+                <div style={{ background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '14px', marginBottom: '16px', padding: '20px 22px' }}>
                   <h3 style={{ margin: '0 0 16px' }}>Pedidos por canal</h3>
                   {(metricas?.pedidosPorCanal || []).length > 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -751,14 +820,25 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
                     <p style={{ color: T.textMuted, padding: '20px', textAlign: 'center' }}>Sin datos este mes</p>
                   )}
                 </div>
-                <div style={{ ...box, overflow: 'hidden' }}>
-                  <div style={{ borderBottom: `1px solid ${T.border}`, padding: '18px 20px' }}><h3 style={{ margin: 0 }}>Uso por empresa</h3></div>
-                  <div style={{ overflowX: 'auto', padding: 20 }}>
-                    <table style={{ borderCollapse: 'collapse', minWidth: 980, width: '100%' }}>
-                      <thead><tr style={{ background: T.cardMuted }}>{['Empresa', 'Tokens usados', 'Ejecuciones', 'Mes', '% del limite del plan'].map((label) => <th key={label} style={head}>{label}</th>)}</tr></thead>
-                      <tbody>{(metricas?.uso_por_empresa || []).map((row) => <tr key={`${row.empresa_id}-${row.mes}`}><td style={cell}><div style={{ color: T.text, fontSize: 14, fontWeight: 700 }}>{row.empresa_nombre}</div><div style={{ color: T.textMuted, fontSize: 12 }}>{row.plan_nombre}</div></td><td style={{ ...cell, color: T.text }}>{Number(row.tokens_usados || 0).toLocaleString()}</td><td style={{ ...cell, color: T.textMuted }}>{Number(row.cantidad_ejecuciones || 0).toLocaleString()}</td><td style={{ ...cell, color: T.textMuted }}>{row.mes}</td><td style={cell}><div style={{ alignItems: 'center', display: 'flex', gap: 10 }}><div style={{ background: T.slateBg, borderRadius: 999, height: 8, overflow: 'hidden', width: 160 }}><div style={{ background: T.indigo, borderRadius: 999, height: '100%', width: `${Math.min(100, Number(row.porcentaje_limite || 0))}%` }} /></div><span style={{ color: T.text, fontSize: 13, fontWeight: 700 }}>{Number(row.porcentaje_limite || 0).toFixed(1)}%</span></div></td></tr>)}</tbody>
-                    </table>
-                  </div>
+                <div style={{ background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '14px', marginBottom: '16px', padding: '20px 22px' }}>
+                  <h3 style={{ margin: '0 0 16px' }}>Uso por empresa</h3>
+                  {(metricas?.usoEmpresas || metricas?.uso_por_empresa || []).length > 0 ? (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ borderCollapse: 'collapse', minWidth: 980, width: '100%' }}>
+                        <thead><tr style={{ background: T.cardMuted }}>{['Empresa', 'Tokens usados', 'Ejecuciones', 'Mes', '% del limite del plan'].map((label) => <th key={label} style={head}>{label}</th>)}</tr></thead>
+                        <tbody>{(metricas?.usoEmpresas || metricas?.uso_por_empresa || []).map((row) => <tr key={`${row.empresa_id}-${row.mes}`}><td style={cell}><div style={{ color: T.text, fontSize: 14, fontWeight: 700 }}>{row.empresa_nombre}</div><div style={{ color: T.textMuted, fontSize: 12 }}>{row.plan_nombre}</div></td><td style={{ ...cell, color: T.text }}>{Number(row.tokens_usados || 0).toLocaleString()}</td><td style={{ ...cell, color: T.textMuted }}>{Number(row.cantidad_ejecuciones || 0).toLocaleString()}</td><td style={{ ...cell, color: T.textMuted }}>{row.mes}</td><td style={cell}><div style={{ alignItems: 'center', display: 'flex', gap: 10 }}><div style={{ background: T.slateBg, borderRadius: 999, height: 8, overflow: 'hidden', width: 160 }}><div style={{ background: T.indigo, borderRadius: 999, height: '100%', width: `${Math.min(100, Number(row.porcentaje_limite || 0))}%` }} /></div><span style={{ color: T.text, fontSize: 13, fontWeight: 700 }}>{Number(row.porcentaje_limite || 0).toFixed(1)}%</span></div></td></tr>)}</tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div style={{ color: '#6b7280', padding: '32px', textAlign: 'center' }}>
+                      <p style={{ fontSize: '28px', margin: '0 0 8px' }}>🤖</p>
+                      <p style={{ fontWeight: 600, margin: '0 0 4px' }}>Sin uso de IA este periodo</p>
+                      <p style={{ fontSize: '13px', margin: 0 }}>
+                        Los datos de tokens y ejecuciones apareceran cuando las empresas usen modulos de automatizacion.
+                      </p>
+                    </div>
+                  )}
+                </div>
                 </div>
               </div>
             )}
