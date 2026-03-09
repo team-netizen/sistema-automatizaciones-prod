@@ -74,50 +74,6 @@ const NAV = [
   { id: "reportes",       label: "Reportes",        icon: "chart"    },
 ];
 
-// â”€â”€â”€ MOCK DATA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const MOCK = {
-  kpis: [
-    { label: "Ventas del Mes",    value: "S/ 48,320", delta: "+12.4%", up: true,  icon: "trending" },
-    { label: "Pedidos Activos",   value: "37",         delta: "+5 hoy", up: true,  icon: "cart"     },
-    { label: "Stock Consolidado", value: "1,284",      delta: "-3.2%",  up: false, icon: "stock"    },
-    { label: "Alertas Activas",   value: "2",          delta: "crÃ­tico",up: false, icon: "bell"     },
-  ],
-  pedidos: [
-    { id:"PED-0041", canal:"WooCommerce",  cliente:"Carlos Mendoza", total:"S/ 1,250", estado:"pendiente",  sucursal:"Miraflores",  tiempo:"5min" },
-    { id:"PED-0040", canal:"Mercado Libre",cliente:"Ana Torres",     total:"S/ 450",   estado:"confirmado", sucursal:"AlmacÃ©n",     tiempo:"12min"},
-    { id:"PED-0039", canal:"WhatsApp",     cliente:"Luis GarcÃ­a",    total:"S/ 890",   estado:"pendiente",  sucursal:"San Isidro",  tiempo:"18min"},
-    { id:"PED-0038", canal:"Shopify",      cliente:"MarÃ­a Quispe",   total:"S/ 320",   estado:"confirmado", sucursal:"Miraflores",  tiempo:"25min"},
-    { id:"PED-0037", canal:"WooCommerce",  cliente:"Jorge Ramos",    total:"S/ 1,700", estado:"cancelado",  sucursal:"AlmacÃ©n",     tiempo:"1h"  },
-  ],
-  sucursales: [
-    { nombre:"AlmacÃ©n Central",  tipo:"almacen", stock:840, pedidos:0,  estado:"activa", sync:"2min" },
-    { nombre:"Tienda Miraflores",tipo:"tienda",  stock:244, pedidos:18, estado:"activa", sync:"1min" },
-    { nombre:"Tienda San Isidro",tipo:"tienda",  stock:200, pedidos:19, estado:"activa", sync:"5min" },
-  ],
-  transferencias: [
-    { guia:"TRF-00003", origen:"AlmacÃ©n Central", destino:"Tienda Miraflores", items:3, estado:"en_transito", fecha:"Hoy 09:30" },
-    { guia:"TRF-00002", origen:"AlmacÃ©n Central", destino:"Tienda San Isidro", items:5, estado:"recibido",    fecha:"Ayer 16:00"},
-    { guia:"TRF-00001", origen:"Tienda Miraflores",destino:"AlmacÃ©n Central",  items:2, estado:"recibido",    fecha:"Lun 11:00" },
-  ],
-  integraciones: [
-    { nombre:"WooCommerce",   icono:"ðŸ›’", estado:"activo",  sync:"3min", pedidos:14, color:"#a78bfa" },
-    { nombre:"Mercado Libre", icono:"ðŸ›ï¸", estado:"activo",  sync:"1min", pedidos:19, color:"#fbbf24" },
-    { nombre:"Shopify",       icono:"ðŸª", estado:"activo",  sync:"2min", pedidos:4,  color:"#34d399" },
-    { nombre:"WhatsApp",      icono:"ðŸ’¬", estado:"manual",  sync:"Manual",pedidos:4, color:"#4ade80" },
-  ],
-  usuarios: [
-    { nombre:"Rosa Mamani",   email:"rosa@empresa.com",  rol:"encargado_sucursal", sucursal:"Miraflores",  activo:true  },
-    { nombre:"Pedro Huanca",  email:"pedro@empresa.com", rol:"encargado_sucursal", sucursal:"San Isidro",  activo:true  },
-    { nombre:"Lucia Flores",  email:"lucia@empresa.com", rol:"vendedor",           sucursal:"Miraflores",  activo:true  },
-    { nombre:"Marco Quispe",  email:"marco@empresa.com", rol:"vendedor",           sucursal:"AlmacÃ©n",     activo:false },
-  ],
-  alertas: [
-    { tipo:"stock_critico",   mensaje:"CÃ¡mara Digital 4K â€” stock 2 unidades (mÃ­n: 5)", nivel:"critico",  tiempo:"Hace 10min", sucursal:"AlmacÃ©n"     },
-    { tipo:"pedido_sin_asignar", mensaje:"PED-0041 sin sucursal asignada hace 5min",   nivel:"warning",  tiempo:"Hace 5min",  sucursal:"â€”"           },
-    { tipo:"canal_sync",      mensaje:"WhatsApp no sincronizado â€” requiere revisiÃ³n",  nivel:"info",     tiempo:"Hace 1h",    sucursal:"â€”"           },
-  ],
-};
-
 // â”€â”€â”€ BADGES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const Badge = ({ estado }) => {
   const M = {
@@ -196,7 +152,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
 
   const actualizarEstadoCardWoo = (estado: "activo" | "manual") => {
     setIntegraciones((prev) => {
-      const base = prev.length > 0 ? prev : MOCK.integraciones.map((item) => ({ ...item }));
+      const base = [...prev];
       let encontrado = false;
 
       const next = base.map((item: any) => {
@@ -245,7 +201,6 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
 
   const recargarSucursales = async () => {
     const data = await operacionesService.getSucursales();
-    console.log('SUCURSALES RAW:', JSON.stringify(data));
     const rows = toRows(data, ["sucursales", "data", "items"]);
     setSucursales(rows);
   };
@@ -376,11 +331,60 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     return () => clearInterval(interval);
   }, []);
 
-  const pedidosMostrar = pedidos.length > 0 ? pedidos : MOCK.pedidos;
-  const sucursalesMostrar = sucursales.length > 0 ? sucursales : MOCK.sucursales;
-  const transferenciasMostrar = transferencias.length > 0 ? transferencias : MOCK.transferencias;
-  const integracionesMostrar = integraciones.length > 0 ? integraciones : MOCK.integraciones;
-  const usuariosMostrar = usuarios.length > 0 ? usuarios : MOCK.usuarios;
+  const toNumberValue = (value: any) => {
+    if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+    if (typeof value === "string") {
+      const normalized = value.replace(/[^0-9.-]/g, "");
+      const numeric = Number(normalized);
+      return Number.isFinite(numeric) ? numeric : 0;
+    }
+    return 0;
+  };
+
+  const toDateValue = (value: any) => {
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  };
+
+  const formatRelativeTime = (value: any) => {
+    const date = toDateValue(value);
+    if (!date) return "-";
+
+    const diffMs = Date.now() - date.getTime();
+    const diffMinutes = Math.max(0, Math.floor(diffMs / 60000));
+
+    if (diffMinutes < 1) return "Ahora";
+    if (diffMinutes < 60) return `${diffMinutes} min`;
+
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) return `${diffHours} h`;
+
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 7) return `${diffDays} d`;
+
+    return date.toLocaleDateString("es-PE", {
+      day: "2-digit",
+      month: "short",
+    });
+  };
+
+  const formatDateTime = (value: any) => {
+    const date = toDateValue(value);
+    if (!date) return "-";
+    return date.toLocaleString("es-PE", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const formatMoney = (value: any) => `S/ ${toNumberValue(value).toLocaleString("es-PE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+
   const alertasMostrar = alertas;
   const alertasNoLeidas = alertas.filter((a: any) => !a?.leida).length;
 
@@ -397,23 +401,16 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
   };
 
   const metricas = kpisData?.metricas;
-  const kpis = metricas
-    ? [
-        { label: "Ventas del Mes",    value:`S/ ${Number(metricas?.ventas_mes || 0).toLocaleString()}`, delta:"+12.4%", up:true,  icon:"trending" },
-        { label: "Pedidos Activos",   value:String(metricas?.pedidos_activos || pedidosMostrar.filter((p: any) => p.estado === "pendiente").length), delta:"+5 hoy", up:true, icon:"cart" },
-        { label: "Stock Consolidado", value:String(Number(metricas?.stock_total || 0).toLocaleString()), delta:"-3.2%", up:false, icon:"stock" },
-        { label: "Alertas Activas",   value:String(metricas?.alertas_activas || alertasMostrar.length), delta:"activas", up:false, icon:"bell" },
-      ]
-    : MOCK.kpis;
 
   const normalizePedido = (p: any) => ({
-    id: p?.id ?? p?.codigo ?? "PED-0000",
-    canal: p?.canal ?? p?.canal_nombre ?? "FÃƒÂ­sico",
-    cliente: p?.cliente ?? p?.cliente_nombre ?? "Cliente",
-    total: typeof p?.total === "number" ? `S/ ${p.total.toLocaleString()}` : (p?.total ?? "S/ 0"),
+    id: p?.numero ?? p?.id ?? p?.codigo ?? "Sin numero",
+    canal: p?.canal ?? p?.canal_nombre ?? p?.medio_pedido ?? "Fisico",
+    cliente: p?.cliente ?? p?.cliente_nombre ?? p?.nombre_cliente ?? "Sin cliente",
+    total: formatMoney(p?.total),
     estado: p?.estado ?? "pendiente",
-    sucursal: p?.sucursal ?? p?.sucursal_nombre ?? "Sin sucursal",
-    tiempo: p?.tiempo ?? p?.created_at ?? "-",
+    sucursal: p?.sucursal ?? p?.sucursal_nombre ?? p?.sucursal_id ?? "Sin sucursal",
+    tiempo: formatRelativeTime(p?.fecha_pedido ?? p?.fecha_creacion ?? p?.created_at ?? p?.fecha),
+    fecha: p?.fecha_pedido ?? p?.fecha_creacion ?? p?.created_at ?? p?.fecha ?? null,
   });
 
   const normalizeSucursal = (s: any) => ({
@@ -426,18 +423,18 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
   });
 
   const normalizeTransferencia = (t: any) => ({
-    guia: t?.guia ?? t?.id ?? "TRF-0000",
+    guia: t?.guia ?? t?.numero ?? t?.id ?? "Sin guia",
     origen: t?.sucursal_origen?.nombre ?? t?.origen ?? "Origen",
     destino: t?.sucursal_destino?.nombre ?? t?.destino ?? "Destino",
     items: Number(t?.items ?? t?.total_items ?? 0),
     estado: t?.estado ?? "en_transito",
-    fecha: t?.fecha ?? t?.created_at ?? "-",
+    fecha: formatDateTime(t?.fecha ?? t?.fecha_creacion ?? t?.created_at),
   });
 
   const normalizeIntegracion = (c: any) => ({
     nombre: c?.canal ?? c?.nombre ?? "Canal",
     icono: c?.icono ?? "Ã°Å¸â€â€”",
-    estado: c?.estado ?? "activo",
+    estado: typeof c?.activo === "boolean" ? (c.activo ? "activo" : "inactivo") : (c?.estado ?? "inactivo"),
     sync: c?.sync ?? c?.ultima_sync ?? "-",
     pedidos: Number(c?.pedidos ?? 0),
     color: c?.color ?? "#34d399",
@@ -456,21 +453,57 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
     tipo: a?.tipo ?? "alerta",
     mensaje: a?.mensaje ?? a?.descripcion ?? "Alerta",
     nivel: a?.nivel ?? "info",
-    tiempo: a?.tiempo ?? a?.fecha_generada ?? a?.created_at ?? "-",
+    tiempo: formatRelativeTime(a?.fecha_generada ?? a?.created_at ?? a?.tiempo),
     sucursal: a?.sucursal ?? a?.sucursal_nombre ?? "-",
     leida: Boolean(a?.leida),
     fecha_generada: a?.fecha_generada ?? a?.created_at ?? null,
   });
 
+  const pedidosNormalizados = pedidos.map(normalizePedido);
+  const sucursalesNormalizadas = sucursales.map(normalizeSucursal);
+  const transferenciasNormalizadas = transferencias.map(normalizeTransferencia);
+  const integracionesNormalizadas = integraciones.map(normalizeIntegracion);
+  const usuariosNormalizados = usuarios.map(normalizeUsuario);
+  const alertasNormalizadas = alertasMostrar.map(normalizeAlerta);
+
+  const pedidosConFechaValida = pedidos.filter((pedido: any) =>
+    Boolean(toDateValue(pedido?.fecha_pedido ?? pedido?.fecha_creacion ?? pedido?.created_at ?? pedido?.fecha)),
+  );
+  const now = new Date();
+  const ventasMes = (pedidosConFechaValida.length > 0 ? pedidosConFechaValida : pedidos).reduce((sum: number, pedido: any) => {
+    const fecha = toDateValue(pedido?.fecha_pedido ?? pedido?.fecha_creacion ?? pedido?.created_at ?? pedido?.fecha);
+    if (
+      pedidosConFechaValida.length > 0
+      && (!fecha || fecha.getMonth() !== now.getMonth() || fecha.getFullYear() !== now.getFullYear())
+    ) {
+      return sum;
+    }
+    return sum + toNumberValue(pedido?.total);
+  }, 0);
+  const pedidosActivos = pedidos.filter((pedido: any) => String(pedido?.estado ?? "").toLowerCase() === "pendiente").length;
+  const stockConsolidado = sucursalesNormalizadas.reduce((sum: number, sucursal: any) => sum + Number(sucursal?.stock ?? 0), 0);
+  const alertasActivas = alertasNoLeidas || Number(metricas?.alertas_activas || 0);
+
+  const kpis = [
+    { label: "Ventas del Mes", value: formatMoney(ventasMes), icon: "trending" },
+    { label: "Pedidos Activos", value: String(pedidosActivos), icon: "cart" },
+    { label: "Stock Consolidado", value: String(stockConsolidado.toLocaleString("es-PE")), icon: "stock" },
+    { label: "Alertas Activas", value: String(alertasActivas), icon: "bell" },
+  ];
+
+  const loadingPedidos = loading && pedidosNormalizados.length === 0;
+  const loadingSucursales = loading && sucursalesNormalizadas.length === 0;
+  const loadingTransferencias = loading && transferenciasNormalizadas.length === 0;
+  const loadingIntegraciones = loading && integracionesNormalizadas.length === 0;
+
   const DATA = {
-    ...MOCK,
     kpis,
-    pedidos: pedidosMostrar.map(normalizePedido),
-    sucursales: sucursalesMostrar.map(normalizeSucursal),
-    transferencias: transferenciasMostrar.map(normalizeTransferencia),
-    integraciones: integracionesMostrar.map(normalizeIntegracion),
-    usuarios: usuariosMostrar.map(normalizeUsuario),
-    alertas: alertasMostrar.map(normalizeAlerta),
+    pedidos: pedidosNormalizados,
+    sucursales: sucursalesNormalizadas,
+    transferencias: transferenciasNormalizadas,
+    integraciones: integracionesNormalizadas,
+    usuarios: usuariosNormalizados,
+    alertas: alertasNormalizadas,
   };
 
   const css = `
@@ -762,6 +795,22 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
       borderRadius:10, overflow:"hidden", ...style }}>{children}</div>
   );
 
+  const LoadingPanel = ({ label = "Cargando..." }) => (
+    <div style={{ padding:"30px 20px", textAlign:"center", color:T.textMid, fontSize:12 }}>
+      {label}
+    </div>
+  );
+
+  const EmptyPanel = ({ icon, title, description }) => (
+    <div style={{ padding:"34px 20px", textAlign:"center", color:T.textMid }}>
+      <div style={{ fontSize:28, marginBottom:8 }}>{icon}</div>
+      <div style={{ color:T.text, fontSize:12, fontWeight:700, marginBottom:4 }}>{title}</div>
+      {description && (
+        <div style={{ fontSize:11, color:T.textMid }}>{description}</div>
+      )}
+    </div>
+  );
+
   // â”€â”€ VISTA: DASHBOARD â”€â”€
   const ViewDashboard = () => (
     <div className="fade" style={{ display:"flex", flexDirection:"column", gap:16 }}>
@@ -779,9 +828,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
               </div>
             </div>
             <div style={{ fontFamily:T.fontDisplay, fontWeight:800, fontSize:26,
-              color:T.text, lineHeight:1, marginBottom:6 }}>{k.value}</div>
-            <span style={{ fontSize:10, color:k.up?"#10b981":"#ef4444",
-              fontFamily:T.fontMono, fontWeight:600 }}>{k.delta}</span>
+              color:T.text, lineHeight:1 }}>{loading ? "..." : k.value}</div>
           </div>
         ))}
       </div>
@@ -802,37 +849,55 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
         {/* Pedidos recientes */}
         <Card>
           <SectionHeader title="Pedidos Recientes" action={() => setNav("pedidos")} actionLabel="Ver todos â†’" />
-          <table style={{ width:"100%", borderCollapse:"collapse" }}>
-            <thead>
-              <tr style={{ background:T.bg }}>
-                {["ID","Canal","Cliente","Total","Estado"].map(h => (
-                  <th key={h} style={{ padding:"7px 16px", textAlign:"left", fontSize:9,
-                    color:T.textDim, fontWeight:700, letterSpacing:"0.09em",
-                    textTransform:"uppercase", fontFamily:T.fontMono }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {DATA.pedidos.slice(0,4).map((p,i) => (
-                <tr key={i} className="tr" style={{ borderTop:`1px solid ${T.border}` }}>
-                  <td style={{ padding:"10px 16px", fontSize:11,
-                    fontFamily:T.fontMono, color:T.accent }}>{p.id}</td>
-                  <td style={{ padding:"10px 16px" }}><CanalTag canal={p.canal} /></td>
-                  <td style={{ padding:"10px 16px", fontSize:12, color:T.text }}>{p.cliente}</td>
-                  <td style={{ padding:"10px 16px", fontSize:12, fontWeight:700,
-                    color:T.text, fontFamily:T.fontMono }}>{p.total}</td>
-                  <td style={{ padding:"10px 16px" }}><Badge estado={p.estado} /></td>
+          {loadingPedidos ? (
+            <LoadingPanel label="Cargando pedidos..." />
+          ) : DATA.pedidos.length === 0 ? (
+            <EmptyPanel
+              icon="📋"
+              title="No hay pedidos aun"
+              description="Los pedidos apareceran aqui cuando lleguen."
+            />
+          ) : (
+            <table style={{ width:"100%", borderCollapse:"collapse" }}>
+              <thead>
+                <tr style={{ background:T.bg }}>
+                  {["ID","Canal","Cliente","Total","Estado"].map(h => (
+                    <th key={h} style={{ padding:"7px 16px", textAlign:"left", fontSize:9,
+                      color:T.textDim, fontWeight:700, letterSpacing:"0.09em",
+                      textTransform:"uppercase", fontFamily:T.fontMono }}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {DATA.pedidos.slice(0,5).map((p,i) => (
+                  <tr key={i} className="tr" style={{ borderTop:`1px solid ${T.border}` }}>
+                    <td style={{ padding:"10px 16px", fontSize:11,
+                      fontFamily:T.fontMono, color:T.accent }}>{p.id}</td>
+                    <td style={{ padding:"10px 16px" }}><CanalTag canal={p.canal} /></td>
+                    <td style={{ padding:"10px 16px", fontSize:12, color:T.text }}>{p.cliente}</td>
+                    <td style={{ padding:"10px 16px", fontSize:12, fontWeight:700,
+                      color:T.text, fontFamily:T.fontMono }}>{p.total}</td>
+                    <td style={{ padding:"10px 16px" }}><Badge estado={p.estado} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </Card>
 
         {/* Sucursales */}
         <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
           <Card>
             <SectionHeader title="Sucursales" action={() => setNav("sucursales")} actionLabel="Gestionar â†’" />
-            {DATA.sucursales.map((s,i) => (
+            {loadingSucursales ? (
+              <LoadingPanel label="Cargando sucursales..." />
+            ) : DATA.sucursales.length === 0 ? (
+              <EmptyPanel
+                icon="🏬"
+                title="No hay sucursales configuradas"
+                description="Crea tu primera sucursal para empezar a operar."
+              />
+            ) : DATA.sucursales.map((s,i) => (
               <div key={i} className="tr" style={{ padding:"11px 20px",
                 borderTop: i>0?`1px solid ${T.border}`:"none",
                 display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -853,7 +918,15 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
           {/* Canales */}
           <Card>
             <SectionHeader title="Canales" action={() => setNav("integraciones")} actionLabel="Configurar â†’" />
-            {DATA.integraciones.map((c,i) => (
+            {loadingIntegraciones ? (
+              <LoadingPanel label="Cargando canales..." />
+            ) : DATA.integraciones.length === 0 ? (
+              <EmptyPanel
+                icon="🔗"
+                title="No hay canales configurados"
+                description="Conecta un canal cuando quieras recibir pedidos."
+              />
+            ) : DATA.integraciones.map((c,i) => (
               <div key={i} className="tr" style={{ padding:"9px 20px",
                 borderTop: i>0?`1px solid ${T.border}`:"none",
                 display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -876,35 +949,45 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
       <Card>
         <SectionHeader title="Transferencias Recientes"
           action={() => setNav("transferencias")} actionLabel="Ver todas â†’" />
-        <table style={{ width:"100%", borderCollapse:"collapse" }}>
-          <thead>
-            <tr style={{ background:T.bg }}>
-              {["GuÃ­a","Origen â†’ Destino","Items","Estado","Fecha"].map(h => (
-                <th key={h} style={{ padding:"7px 20px", textAlign:"left", fontSize:9,
-                  color:T.textDim, fontWeight:700, letterSpacing:"0.09em",
-                  textTransform:"uppercase", fontFamily:T.fontMono }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {DATA.transferencias.map((t,i) => (
-              <tr key={i} className="tr" style={{ borderTop:`1px solid ${T.border}` }}>
-                <td style={{ padding:"11px 20px", fontSize:11,
-                  fontFamily:T.fontMono, color:T.accent }}>{t.guia}</td>
-                <td style={{ padding:"11px 20px", fontSize:12, color:T.text }}>
-                  <span style={{ color:T.textMid }}>{t.origen}</span>
-                  <span style={{ color:T.textDim, margin:"0 6px" }}>â†’</span>
-                  <span>{t.destino}</span>
-                </td>
-                <td style={{ padding:"11px 20px", fontSize:12,
-                  color:T.textMid, textAlign:"center" }}>{t.items}</td>
-                <td style={{ padding:"11px 20px" }}><Badge estado={t.estado} /></td>
-                <td style={{ padding:"11px 20px", fontSize:10,
-                  color:T.textDim, fontFamily:T.fontMono }}>{t.fecha}</td>
+        {loadingTransferencias ? (
+          <LoadingPanel label="Cargando transferencias..." />
+        ) : DATA.transferencias.length === 0 ? (
+          <EmptyPanel
+            icon="🚚"
+            title="No hay transferencias aun"
+            description="Las transferencias entre sucursales apareceran aqui."
+          />
+        ) : (
+          <table style={{ width:"100%", borderCollapse:"collapse" }}>
+            <thead>
+              <tr style={{ background:T.bg }}>
+                {["GuÃ­a","Origen â†’ Destino","Items","Estado","Fecha"].map(h => (
+                  <th key={h} style={{ padding:"7px 20px", textAlign:"left", fontSize:9,
+                    color:T.textDim, fontWeight:700, letterSpacing:"0.09em",
+                    textTransform:"uppercase", fontFamily:T.fontMono }}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {DATA.transferencias.slice(0,5).map((t,i) => (
+                <tr key={i} className="tr" style={{ borderTop:`1px solid ${T.border}` }}>
+                  <td style={{ padding:"11px 20px", fontSize:11,
+                    fontFamily:T.fontMono, color:T.accent }}>{t.guia}</td>
+                  <td style={{ padding:"11px 20px", fontSize:12, color:T.text }}>
+                    <span style={{ color:T.textMid }}>{t.origen}</span>
+                    <span style={{ color:T.textDim, margin:"0 6px" }}>â†’</span>
+                    <span>{t.destino}</span>
+                  </td>
+                  <td style={{ padding:"11px 20px", fontSize:12,
+                    color:T.textMid, textAlign:"center" }}>{t.items}</td>
+                  <td style={{ padding:"11px 20px" }}><Badge estado={t.estado} /></td>
+                  <td style={{ padding:"11px 20px", fontSize:10,
+                    color:T.textDim, fontFamily:T.fontMono }}>{t.fecha}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </Card>
     </div>
   );
@@ -954,7 +1037,7 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
               </tr>
             </thead>
             <tbody>
-              {filtrados.map((p,i) => (
+            {filtrados.map((p,i) => (
                 <tr key={i} className="tr" style={{ borderTop:`1px solid ${T.border}`,
                   cursor:"pointer" }}>
                   <td style={{ padding:"12px 18px", fontSize:11,
@@ -967,10 +1050,14 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
                     color:T.text, fontFamily:T.fontMono }}>{p.total}</td>
                   <td style={{ padding:"12px 18px" }}><Badge estado={p.estado} /></td>
                   <td style={{ padding:"12px 18px", fontSize:10,
-                    color:T.textDim, fontFamily:T.fontMono }}>Hace {p.tiempo}</td>
+                    color:T.textDim, fontFamily:T.fontMono }}>{p.tiempo}</td>
                 </tr>
               ))}
-              {filtrados.length === 0 && (
+              {loadingPedidos && filtrados.length === 0 && (
+                <tr><td colSpan={7} style={{ padding:40, textAlign:"center",
+                  color:T.textMid, fontSize:12 }}>Cargando pedidos...</td></tr>
+              )}
+              {!loadingPedidos && filtrados.length === 0 && (
                 <tr><td colSpan={7} style={{ padding:40, textAlign:"center",
                   color:T.textMid, fontSize:12 }}>No se encontraron pedidos</td></tr>
               )}
@@ -992,37 +1079,49 @@ export const AdminEmpresaDashboard = ({ usuario, onLogout }) => {
           <Ico d={IC.plus} size={14} color={T.accent} /> Nueva Sucursal
         </button>
       </div>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14 }}>
-        {DATA.sucursales.map((s,i) => (
-          <div key={i} style={{ background:T.surface, border:`1px solid ${T.border}`,
-            borderRadius:10, padding:20, cursor:"pointer", transition:"border-color 0.2s" }}
-            onMouseEnter={e => e.currentTarget.style.borderColor=T.border2}
-            onMouseLeave={e => e.currentTarget.style.borderColor=T.border}>
-            <div style={{ display:"flex", justifyContent:"space-between",
-              alignItems:"flex-start", marginBottom:14 }}>
-              <div style={{ background:T.accentDim, borderRadius:8, padding:8 }}>
-                <Ico d={IC.store} size={18} color={T.accent} />
-              </div>
-              <Badge estado={s.estado} />
-            </div>
-            <div style={{ fontFamily:T.fontDisplay, fontWeight:800,
-              fontSize:15, color:T.text, marginBottom:4 }}>{s.nombre}</div>
-            <div style={{ fontSize:10, color:T.textDim, fontFamily:T.fontMono,
-              marginBottom:16, textTransform:"uppercase" }}>{s.tipo}</div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-              {[["Stock",s.stock,"unid.",T.accent],["Pedidos",s.pedidos,"activos","#f59e0b"]].map(([l,v,u,c]) => (
-                <div key={l} style={{ background:T.bg, borderRadius:6, padding:"8px 10px" }}>
-                  <div style={{ fontSize:18, fontWeight:800, color:c,
-                    fontFamily:T.fontMono }}>{v}</div>
-                  <div style={{ fontSize:9, color:T.textDim, textTransform:"uppercase" }}>{u}</div>
+      {loadingSucursales ? (
+        <Card><LoadingPanel label="Cargando sucursales..." /></Card>
+      ) : DATA.sucursales.length === 0 ? (
+        <Card>
+          <EmptyPanel
+            icon="🏬"
+            title="No hay sucursales configuradas"
+            description="Usa el boton superior para crear tu primera sucursal."
+          />
+        </Card>
+      ) : (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14 }}>
+          {DATA.sucursales.map((s,i) => (
+            <div key={i} style={{ background:T.surface, border:`1px solid ${T.border}`,
+              borderRadius:10, padding:20, cursor:"pointer", transition:"border-color 0.2s" }}
+              onMouseEnter={e => e.currentTarget.style.borderColor=T.border2}
+              onMouseLeave={e => e.currentTarget.style.borderColor=T.border}>
+              <div style={{ display:"flex", justifyContent:"space-between",
+                alignItems:"flex-start", marginBottom:14 }}>
+                <div style={{ background:T.accentDim, borderRadius:8, padding:8 }}>
+                  <Ico d={IC.store} size={18} color={T.accent} />
                 </div>
-              ))}
+                <Badge estado={s.estado} />
+              </div>
+              <div style={{ fontFamily:T.fontDisplay, fontWeight:800,
+                fontSize:15, color:T.text, marginBottom:4 }}>{s.nombre}</div>
+              <div style={{ fontSize:10, color:T.textDim, fontFamily:T.fontMono,
+                marginBottom:16, textTransform:"uppercase" }}>{s.tipo}</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                {[["Stock",s.stock,"unid.",T.accent],["Pedidos",s.pedidos,"activos","#f59e0b"]].map(([l,v,u,c]) => (
+                  <div key={l} style={{ background:T.bg, borderRadius:6, padding:"8px 10px" }}>
+                    <div style={{ fontSize:18, fontWeight:800, color:c,
+                      fontFamily:T.fontMono }}>{v}</div>
+                    <div style={{ fontSize:9, color:T.textDim, textTransform:"uppercase" }}>{u}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop:10, fontSize:10, color:T.textDim,
+                fontFamily:T.fontMono }}>ðŸ”„ Sync hace {s.sync}</div>
             </div>
-            <div style={{ marginTop:10, fontSize:10, color:T.textDim,
-              fontFamily:T.fontMono }}>ðŸ”„ Sync hace {s.sync}</div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 
