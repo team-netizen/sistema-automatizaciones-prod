@@ -1,6 +1,8 @@
 import {
+    BadRequestException,
     ForbiddenException,
     Injectable,
+    InternalServerErrorException,
     Logger,
     UnauthorizedException,
 } from '@nestjs/common';
@@ -12,6 +14,24 @@ export class AuthService {
     private readonly logger = new Logger(AuthService.name);
 
     constructor(private readonly supabase: SupabaseService) { }
+
+    private async getMustChangePassword(userId: string): Promise<boolean> {
+        try {
+            const { data, error } = await this.supabase
+                .getAdminClient()
+                .auth.admin.getUserById(userId);
+
+            if (error) {
+                this.logger.warn(`[getMustChangePassword] ${error.message}`);
+                return false;
+            }
+
+            return Boolean(data?.user?.user_metadata?.must_change_password);
+        } catch (error) {
+            this.logger.warn(`[getMustChangePassword] ${error}`);
+            return false;
+        }
+    }
 
     async login(dto: LoginDto): Promise<LoginResponse> {
         const { data: authData, error: authError } = await this.supabase
@@ -30,6 +50,7 @@ export class AuthService {
 
         const userId = authData.user.id;
         const session = authData.session;
+        const mustChangePassword = Boolean(authData.user.user_metadata?.must_change_password);
 
         const { data: perfil, error: perfilError } = await this.supabase
             .getAdminClient()
@@ -114,6 +135,7 @@ export class AuthService {
             empresa_nombre: empresaNombre,
             rol: perfil.rol,
             estado_empresa: estadoEmpresa,
+            must_change_password: mustChangePassword,
         };
 
         await this.registrarAuditoria(
@@ -160,6 +182,7 @@ export class AuthService {
                     empresa_nombre: 'Sistema',
                     rol: perfil.rol,
                     estado_empresa: 'activo',
+                    must_change_password: await this.getMustChangePassword(usuarioId),
                 };
             }
             throw new ForbiddenException('Empresa no encontrada');
@@ -183,7 +206,50 @@ export class AuthService {
             empresa_nombre: empresa.nombre,
             rol: perfil.rol,
             estado_empresa: empresa.estado,
+            must_change_password: await this.getMustChangePassword(usuarioId),
         };
+    }
+
+    async cambiarPassword(userId: string, nuevaPassword: string) {
+        if (!nuevaPassword || nuevaPassword.length < 6) {
+            throw new BadRequestException('La contrasena debe tener minimo 6 caracteres');
+        }
+
+        const { data: currentUserData, error: currentUserError } = await this.supabase
+            .getAdminClient()
+            .auth.admin.getUserById(userId);
+
+        if (currentUserError || !currentUserData?.user) {
+            throw new InternalServerErrorException('No se pudo obtener el usuario actual');
+        }
+
+        const nextMetadata = {
+            ...(currentUserData.user.user_metadata || {}),
+            must_change_password: false,
+        };
+
+        const { error } = await this.supabase.getAdminClient().auth.admin.updateUserById(userId, {
+            password: nuevaPassword,
+            user_metadata: nextMetadata,
+        });
+
+        if (error) {
+            throw new InternalServerErrorException('Error al cambiar contrasena');
+        }
+
+        return { success: true };
+    }
+
+    async recuperarPassword(email: string) {
+        const frontendUrl = (process.env.FRONTEND_URL || '').replace(/\/+$/, '');
+        try {
+            await this.supabase.getClient().auth.resetPasswordForEmail(email, {
+                redirectTo: `${frontendUrl || 'http://localhost:5173'}/reset-password`,
+            });
+            return { success: true };
+        } catch {
+            return { success: true };
+        }
     }
 
     private async registrarAuditoria(

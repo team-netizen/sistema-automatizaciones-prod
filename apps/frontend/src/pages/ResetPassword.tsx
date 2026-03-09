@@ -1,4 +1,6 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { AUTH_URL } from '../lib/api';
+import { setMustChangePasswordOverride } from '../lib/auth';
 import { getSupabaseClient } from '../lib/supabaseClient';
 
 const T = {
@@ -33,7 +35,6 @@ export default function ResetPassword() {
     setIsRecovery(type === 'recovery');
 
     if (supabase) {
-      // Allows Supabase client to process recovery token from URL hash.
       void supabase.auth.getSession();
     } else {
       setError('Cliente de autenticacion no configurado');
@@ -43,8 +44,8 @@ export default function ResetPassword() {
   const canSubmit = useMemo(() => !loading && isRecovery === true, [loading, isRecovery]);
 
   const handleSubmit = async () => {
-    if (password.length < 8) {
-      setError('Minimo 8 caracteres');
+    if (password.length < 6) {
+      setError('Minimo 6 caracteres');
       return;
     }
     if (password !== confirm) {
@@ -52,42 +53,51 @@ export default function ResetPassword() {
       return;
     }
 
-    if (!supabase) {
-      setError('Cliente de autenticacion no configurado');
+    const hash = window.location.hash.startsWith('#')
+      ? window.location.hash.slice(1)
+      : window.location.hash;
+    const hashParams = new URLSearchParams(hash);
+    const hashToken = hashParams.get('access_token');
+    const sessionToken = supabase ? (await supabase.auth.getSession()).data.session?.access_token : null;
+    const accessToken = hashToken || sessionToken;
+
+    if (!accessToken) {
+      setError('No se encontro un token de recuperacion valido');
       return;
     }
 
     setLoading(true);
     setError('');
 
-    const { error: updateError } = await supabase.auth.updateUser({ password });
+    try {
+      const response = await fetch(`${AUTH_URL}/cambiar-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ nuevaPassword: password }),
+      });
 
-    if (updateError) {
-      setError(updateError.message);
-    } else {
-      setSuccess(true);
-      setTimeout(() => {
-        window.location.href = '/';
-      }, 2000);
+      if (!response.ok) {
+        setError('No se pudo actualizar la contrasena');
+      } else {
+        setMustChangePasswordOverride(false);
+        setSuccess(true);
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 2000);
+      }
+    } catch {
+      setError('Error de conexion');
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   if (success) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          height: '100vh',
-          background: T.bg,
-          color: T.accent,
-          fontSize: 18,
-          fontFamily: T.font,
-        }}
-      >
+      <div style={{ alignItems: 'center', background: T.bg, color: T.accent, display: 'flex', fontFamily: T.font, fontSize: 18, height: '100vh', justifyContent: 'center' }}>
         ✓ Contrasena actualizada. Redirigiendo...
       </div>
     );
@@ -95,30 +105,10 @@ export default function ResetPassword() {
 
   if (isRecovery === false) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          height: '100vh',
-          background: T.bg,
-          color: T.text,
-          fontFamily: T.font,
-          padding: 16,
-          textAlign: 'center',
-        }}
-      >
-        <div
-          style={{
-            background: T.surface,
-            border: `1px solid ${T.border}`,
-            borderRadius: 12,
-            padding: 24,
-            maxWidth: 460,
-          }}
-        >
+      <div style={{ alignItems: 'center', background: T.bg, color: T.text, display: 'flex', fontFamily: T.font, height: '100vh', justifyContent: 'center', padding: 16, textAlign: 'center' }}>
+        <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, maxWidth: 460, padding: 24 }}>
           <div style={{ fontSize: 18, marginBottom: 8 }}>Enlace invalido o expirado</div>
-          <div style={{ fontSize: 13, color: T.textMid }}>
+          <div style={{ color: T.textMid, fontSize: 13 }}>
             Solicita nuevamente el correo de recuperacion de contrasena.
           </div>
         </div>
@@ -127,45 +117,18 @@ export default function ResetPassword() {
   }
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: '100vh',
-        background: T.bg,
-        padding: 16,
-      }}
-    >
-      <div
-        style={{
-          background: T.surface,
-          border: `1px solid ${T.border}`,
-          borderRadius: 12,
-          padding: 32,
-          width: 360,
-        }}
-      >
-        <h2 style={{ color: T.text, fontFamily: T.font, marginTop: 0, marginBottom: 24 }}>
+    <div style={{ alignItems: 'center', background: T.bg, display: 'flex', height: '100vh', justifyContent: 'center', padding: 16 }}>
+      <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: 32, width: 360 }}>
+        <h2 style={{ color: T.text, fontFamily: T.font, marginBottom: 24, marginTop: 0 }}>
           Nueva contrasena
         </h2>
 
         <input
           type="password"
-          placeholder="Nueva contrasena (min. 8 caracteres)"
+          placeholder="Nueva contrasena (min. 6 caracteres)"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          style={{
-            width: '100%',
-            background: T.bg,
-            border: `1px solid ${T.border2}`,
-            borderRadius: 8,
-            padding: '10px 14px',
-            color: T.text,
-            fontSize: 13,
-            marginBottom: 12,
-            boxSizing: 'border-box',
-          }}
+          style={{ background: T.bg, border: `1px solid ${T.border2}`, borderRadius: 8, boxSizing: 'border-box', color: T.text, fontSize: 13, marginBottom: 12, padding: '10px 14px', width: '100%' }}
         />
 
         <input
@@ -173,17 +136,7 @@ export default function ResetPassword() {
           placeholder="Confirmar contrasena"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
-          style={{
-            width: '100%',
-            background: T.bg,
-            border: `1px solid ${T.border2}`,
-            borderRadius: 8,
-            padding: '10px 14px',
-            color: T.text,
-            fontSize: 13,
-            marginBottom: 12,
-            boxSizing: 'border-box',
-          }}
+          style={{ background: T.bg, border: `1px solid ${T.border2}`, borderRadius: 8, boxSizing: 'border-box', color: T.text, fontSize: 13, marginBottom: 12, padding: '10px 14px', width: '100%' }}
         />
 
         {error && <div style={{ color: T.danger, fontSize: 12, marginBottom: 12 }}>{error}</div>}
@@ -191,18 +144,8 @@ export default function ResetPassword() {
         <button
           onClick={() => void handleSubmit()}
           disabled={!canSubmit}
-          style={{
-            width: '100%',
-            background: T.accent,
-            border: 'none',
-            borderRadius: 8,
-            padding: '12px 0',
-            color: T.bg,
-            fontWeight: 700,
-            fontSize: 14,
-            cursor: canSubmit ? 'pointer' : 'not-allowed',
-            opacity: canSubmit ? 1 : 0.6,
-          }}
+          style={{ background: T.accent, border: 'none', borderRadius: 8, color: T.bg, cursor: canSubmit ? 'pointer' : 'not-allowed', fontSize: 14, fontWeight: 700, opacity: canSubmit ? 1 : 0.6, padding: '12px 0', width: '100%' }}
+          type="button"
         >
           {loading ? 'Guardando...' : 'Actualizar contrasena'}
         </button>

@@ -467,6 +467,10 @@ export class SuperAdminService {
       email: adminEmail,
       password: adminPassword,
       email_confirm: true,
+      user_metadata: {
+        must_change_password: true,
+        nombre_empresa: nombre,
+      },
     });
 
     if (authErr || !authUser?.user) {

@@ -91,6 +91,28 @@ export class SupabaseAuthGuard implements CanActivate {
       throw new ForbiddenException('No se encontro perfil asociado a este usuario');
     }
 
+    if (perfil.rol === 'super_admin' && !perfil.empresa_id) {
+      (request as Request & {
+        user?: {
+          usuario_id: string;
+          email: string | undefined;
+          empresa_id: string | null;
+          empresa_nombre: string;
+          rol: string;
+          estado_empresa: string;
+        };
+      }).user = {
+        usuario_id: user.id,
+        email: user.email,
+        empresa_id: null,
+        empresa_nombre: 'Sistema',
+        rol: perfil.rol,
+        estado_empresa: 'activo',
+      };
+
+      return true;
+    }
+
     const { data: empresa, error: empresaError } = await this.supabase
       .getAdminClient()
       .from('empresas')
@@ -110,13 +132,13 @@ export class SupabaseAuthGuard implements CanActivate {
     }
 
     (request as Request & {
-      user?: {
-        usuario_id: string;
-        email: string | undefined;
-        empresa_id: string;
-        empresa_nombre: string;
-        rol: string;
-        estado_empresa: string;
+        user?: {
+          usuario_id: string;
+          email: string | undefined;
+          empresa_id: string | null;
+          empresa_nombre: string;
+          rol: string;
+          estado_empresa: string;
       };
     }).user = {
       usuario_id: user.id,

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import './index.css';
 import { LoginPage } from './pages/LoginPage';
+import CambiarPasswordObligatorio from './components/auth/CambiarPasswordObligatorio';
 import { SuperAdminDashboard } from './components/dashboard/SuperAdminDashboard';
 import AdminEmpresaDashboard from './components/dashboard/AdminEmpresaDashboard';
 import { EncargadoDashboard } from './components/dashboard/EncargadoDashboard';
@@ -102,6 +103,10 @@ function App() {
 
   if (!isAuthenticated) {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+  }
+
+  if (usuario?.must_change_password) {
+    return <CambiarPasswordObligatorio onCambioExitoso={() => { void syncSesion(); }} />;
   }
 
   if (isSuperAdminRole(usuario?.rol)) {

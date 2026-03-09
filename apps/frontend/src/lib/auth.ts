@@ -7,6 +7,7 @@ export type PerfilUsuario = {
   rol: 'super_admin' | 'admin_empresa' | 'encargado_sucursal' | 'vendedor';
   sucursal_id: string | null;
   sucursal_nombre?: string | null;
+  must_change_password?: boolean;
 };
 
 type VerificacionSesion = {
@@ -16,6 +17,7 @@ type VerificacionSesion = {
 
 const ACCESS_TOKEN_KEY = 'access_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
+const MUST_CHANGE_PASSWORD_KEY = 'must_change_password_override';
 const ROLE_VALUES = new Set<PerfilUsuario['rol']>([
   'super_admin',
   'admin_empresa',
@@ -147,9 +149,14 @@ export async function getPerfilUsuario(): Promise<PerfilUsuario | null> {
   if (!isPerfilUsuario(data)) return null;
 
   const sucursalNombre = data.sucursal_id ? await getSucursalNombre(client, data.sucursal_id) : null;
+  const mustChangeOverride = sessionStorage.getItem(MUST_CHANGE_PASSWORD_KEY);
+  const mustChangePassword = mustChangeOverride === 'false'
+    ? false
+    : Boolean(session.user.user_metadata?.must_change_password);
   return {
     ...data,
     sucursal_nombre: sucursalNombre,
+    must_change_password: mustChangePassword,
   };
 }
 
@@ -175,4 +182,12 @@ export async function cerrarSesion(): Promise<void> {
 
   sessionStorage.clear();
   localStorage.clear();
+}
+
+export function clearMustChangePasswordOverride() {
+  sessionStorage.removeItem(MUST_CHANGE_PASSWORD_KEY);
+}
+
+export function setMustChangePasswordOverride(value: boolean) {
+  sessionStorage.setItem(MUST_CHANGE_PASSWORD_KEY, String(value));
 }

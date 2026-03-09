@@ -79,4 +79,19 @@ export class AuthController {
             },
         };
     }
+
+    @Post('cambiar-password')
+    @UseGuards(SupabaseAuthGuard)
+    async cambiarPassword(
+        @Req() req: any,
+        @Body() body: { nuevaPassword: string },
+    ) {
+        return this.authService.cambiarPassword(req.user.usuario_id, body.nuevaPassword);
+    }
+
+    @Post('recuperar-password')
+    @HttpCode(HttpStatus.OK)
+    async recuperarPassword(@Body() body: { email: string }) {
+        return this.authService.recuperarPassword(body.email);
+    }
 }

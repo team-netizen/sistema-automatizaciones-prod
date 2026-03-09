@@ -17,6 +17,7 @@ export interface PerfilAutenticado {
     empresa_nombre: string;
     rol: string;
     estado_empresa: string;
+    must_change_password: boolean;
 }
 
 /** Respuesta exitosa del login */
