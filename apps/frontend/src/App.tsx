@@ -58,6 +58,7 @@ function App() {
         sucursal_nombre: perfil.sucursal_nombre || 'Mi sucursal',
       };
 
+      sessionStorage.setItem('usuario', JSON.stringify(usuarioSesion));
       setUsuario(usuarioSesion);
       setIsAuthenticated(true);
     } finally {
@@ -74,6 +75,18 @@ function App() {
   }, [isResetRoute]);
 
   const handleLoginSuccess = (_data: unknown) => {
+    void syncSesion();
+  };
+
+  const handleCambioExitoso = () => {
+    setUsuario((prev) => {
+      if (!prev) return prev;
+
+      const nextUsuario = { ...prev, must_change_password: false };
+      sessionStorage.setItem('usuario', JSON.stringify(nextUsuario));
+      return nextUsuario;
+    });
+    setIsAuthenticated(true);
     void syncSesion();
   };
 
@@ -106,7 +119,7 @@ function App() {
   }
 
   if (usuario?.must_change_password) {
-    return <CambiarPasswordObligatorio onCambioExitoso={() => { void syncSesion(); }} />;
+    return <CambiarPasswordObligatorio onCambioExitoso={handleCambioExitoso} />;
   }
 
   if (isSuperAdminRole(usuario?.rol)) {

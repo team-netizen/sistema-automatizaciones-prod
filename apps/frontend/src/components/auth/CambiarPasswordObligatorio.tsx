@@ -38,6 +38,11 @@ export default function CambiarPasswordObligatorio({ onCambioExitoso }: CambiarP
       }
 
       setMustChangePasswordOverride(false);
+      const usuario = JSON.parse(sessionStorage.getItem('usuario') ?? '{}');
+      sessionStorage.setItem('usuario', JSON.stringify({
+        ...usuario,
+        must_change_password: false,
+      }));
       onCambioExitoso();
     } catch {
       setError('Error de conexion');
@@ -65,7 +70,7 @@ export default function CambiarPasswordObligatorio({ onCambioExitoso }: CambiarP
               placeholder="Minimo 6 caracteres"
               value={nuevaPassword}
               onChange={(e) => setNuevaPassword(e.target.value)}
-              style={{ border: '1.5px solid #d1d5db', borderRadius: '10px', boxSizing: 'border-box', fontSize: '14px', outline: 'none', padding: '11px 14px', width: '100%' }}
+              style={{ background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: '10px', boxSizing: 'border-box', color: '#1a1a2e', fontSize: '14px', outline: 'none', padding: '11px 14px', width: '100%' }}
             />
           </div>
 
@@ -79,7 +84,7 @@ export default function CambiarPasswordObligatorio({ onCambioExitoso }: CambiarP
               value={confirmar}
               onChange={(e) => setConfirmar(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && void handleCambiar()}
-              style={{ border: '1.5px solid #d1d5db', borderRadius: '10px', boxSizing: 'border-box', fontSize: '14px', outline: 'none', padding: '11px 14px', width: '100%' }}
+              style={{ background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: '10px', boxSizing: 'border-box', color: '#1a1a2e', fontSize: '14px', outline: 'none', padding: '11px 14px', width: '100%' }}
             />
           </div>
 
