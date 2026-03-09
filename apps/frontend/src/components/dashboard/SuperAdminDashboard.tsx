@@ -85,6 +85,14 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
   const [empresasPage, setEmpresasPage] = useState(1);
   const [empresaSearch, setEmpresaSearch] = useState('');
   const [empresaDetalle, setEmpresaDetalle] = useState(null);
+  const [modalCrearEmpresa, setModalCrearEmpresa] = useState(false);
+  const [creandoEmpresa, setCreandoEmpresa] = useState(false);
+  const [formEmpresa, setFormEmpresa] = useState({
+    nombre: '',
+    ruc: '',
+    adminEmail: '',
+    adminPassword: '',
+  });
   const [usuarios, setUsuarios] = useState([]);
   const [usuarioRol, setUsuarioRol] = useState('');
   const [usuarioEmpresaId, setUsuarioEmpresaId] = useState('');
@@ -229,6 +237,38 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
     }
   };
 
+  const handleCrearEmpresa = async () => {
+    if (!formEmpresa.nombre || !formEmpresa.ruc || !formEmpresa.adminEmail || !formEmpresa.adminPassword) return;
+    if (formEmpresa.ruc.length !== 11) {
+      window.alert('El RUC debe tener 11 digitos');
+      return;
+    }
+    if (formEmpresa.adminPassword.length < 6) {
+      window.alert('La contrasena temporal debe tener al menos 6 caracteres');
+      return;
+    }
+
+    setCreandoEmpresa(true);
+    try {
+      const nueva = await request('empresas', {
+        method: 'POST',
+        body: JSON.stringify(formEmpresa),
+      });
+
+      setEmpresas((prev) => [nueva, ...prev]);
+      setEmpresasTotal((prev) => prev + 1);
+      setCompanyOptions((prev) => [{ id: nueva.id, nombre: nueva.nombre }, ...prev]);
+      setFormEmpresa({ nombre: '', ruc: '', adminEmail: '', adminPassword: '' });
+      setModalCrearEmpresa(false);
+      void loadDashboard();
+      window.alert(`Empresa "${nueva.nombre}" creada correctamente`);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : 'Error de conexion');
+    } finally {
+      setCreandoEmpresa(false);
+    }
+  };
+
   const sectionTitle = {
     dashboard: 'Dashboard global',
     empresas: 'Empresas',
@@ -306,7 +346,10 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
               <div style={{ ...box, overflow: 'hidden' }}>
                 <div style={{ alignItems: 'center', borderBottom: `1px solid ${T.border}`, display: 'flex', justifyContent: 'space-between', padding: '18px 20px' }}>
                   <h3 style={{ margin: 0 }}>Empresas</h3>
-                  <input value={empresaSearch} onChange={(e) => { setEmpresasPage(1); setEmpresaSearch(e.target.value); }} placeholder="Buscar por nombre o RUC" style={{ ...input, width: 240 }} />
+                  <div style={{ alignItems: 'center', display: 'flex', gap: 12 }}>
+                    <input value={empresaSearch} onChange={(e) => { setEmpresasPage(1); setEmpresaSearch(e.target.value); }} placeholder="Buscar por nombre o RUC" style={{ ...input, width: 240 }} />
+                    <button onClick={() => setModalCrearEmpresa(true)} style={{ background: T.indigo, border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 600, padding: '10px 20px', whiteSpace: 'nowrap' }} type="button">+ Nueva empresa</button>
+                  </div>
                 </div>
                 <div style={{ overflowX: 'auto', padding: 20 }}>
                   <table style={{ borderCollapse: 'collapse', minWidth: 980, width: '100%' }}>
@@ -451,6 +494,31 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
           <input value={planForm.limite_tokens_mensual} onChange={(e) => setPlanForm((v) => ({ ...v, limite_tokens_mensual: e.target.value }))} placeholder="Limite tokens/mes" type="number" style={input} />
           <input value={planForm.limite_ejecuciones_mensual} onChange={(e) => setPlanForm((v) => ({ ...v, limite_ejecuciones_mensual: e.target.value }))} placeholder="Limite ejecuciones/mes" type="number" style={input} />
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}><button onClick={() => void savePlan()} style={{ background: T.indigo, border: 'none', borderRadius: 999, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 800, padding: '11px 16px' }} type="button">{editingPlan ? 'Actualizar plan' : 'Crear plan'}</button></div>
+        </div>
+      </Modal>
+
+      <Modal open={modalCrearEmpresa} onClose={() => setModalCrearEmpresa(false)} title="Nueva empresa" width={480}>
+        <div style={{ display: 'grid', gap: 20 }}>
+          <div>
+            <p style={{ color: T.textMuted, fontSize: 11, fontWeight: 700, letterSpacing: '0.5px', margin: '0 0 12px', textTransform: 'uppercase' }}>Datos de la empresa</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <input type="text" placeholder="Nombre de la empresa *" value={formEmpresa.nombre} onChange={(e) => setFormEmpresa((prev) => ({ ...prev, nombre: e.target.value }))} style={{ ...input, border: '1.5px solid #e8ecf0', fontSize: 14, padding: '10px 14px' }} />
+              <input type="text" placeholder="RUC (11 digitos) *" value={formEmpresa.ruc} maxLength={11} onChange={(e) => setFormEmpresa((prev) => ({ ...prev, ruc: e.target.value.replace(/\D/g, '') }))} style={{ ...input, border: '1.5px solid #e8ecf0', fontSize: 14, padding: '10px 14px' }} />
+            </div>
+          </div>
+
+          <div>
+            <p style={{ color: T.textMuted, fontSize: 11, fontWeight: 700, letterSpacing: '0.5px', margin: '0 0 12px', textTransform: 'uppercase' }}>Usuario administrador</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <input type="email" placeholder="Email del admin *" value={formEmpresa.adminEmail} onChange={(e) => setFormEmpresa((prev) => ({ ...prev, adminEmail: e.target.value }))} style={{ ...input, border: '1.5px solid #e8ecf0', fontSize: 14, padding: '10px 14px' }} />
+              <input type="password" placeholder="Contrasena temporal *" value={formEmpresa.adminPassword} onChange={(e) => setFormEmpresa((prev) => ({ ...prev, adminPassword: e.target.value }))} style={{ ...input, border: '1.5px solid #e8ecf0', fontSize: 14, padding: '10px 14px' }} />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+            <button onClick={() => setModalCrearEmpresa(false)} style={{ background: 'transparent', border: '1.5px solid #e8ecf0', borderRadius: 8, color: T.textMuted, cursor: 'pointer', fontSize: 14, fontWeight: 600, padding: '10px 20px' }} type="button">Cancelar</button>
+            <button onClick={() => handleCrearEmpresa()} disabled={creandoEmpresa || !formEmpresa.nombre || formEmpresa.ruc.length !== 11 || !formEmpresa.adminEmail || !formEmpresa.adminPassword} style={{ background: (!formEmpresa.nombre || formEmpresa.ruc.length !== 11 || !formEmpresa.adminEmail || !formEmpresa.adminPassword) ? '#c7d2fe' : T.indigo, border: 'none', borderRadius: 8, color: '#fff', cursor: (!formEmpresa.nombre || formEmpresa.ruc.length !== 11 || !formEmpresa.adminEmail || !formEmpresa.adminPassword) ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 700, padding: '10px 24px' }} type="button">{creandoEmpresa ? 'Creando...' : 'Crear empresa'}</button>
+          </div>
         </div>
       </Modal>
 

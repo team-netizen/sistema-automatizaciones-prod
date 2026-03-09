@@ -16,6 +16,13 @@ type PlanPayload = {
   limite_ejecuciones_mensual?: number;
 };
 
+type CrearEmpresaPayload = {
+  nombre: string;
+  ruc: string;
+  adminEmail: string;
+  adminPassword: string;
+};
+
 @Injectable()
 export class SuperAdminService {
   private readonly logger = new Logger(SuperAdminService.name);
@@ -360,6 +367,76 @@ export class SuperAdminService {
         encargado_sucursal: usuariosPorRol.encargado_sucursal ?? 0,
         vendedor: usuariosPorRol.vendedor ?? 0,
       },
+    };
+  }
+
+  async crearEmpresa(dto: CrearEmpresaPayload) {
+    const nombre = String(dto.nombre || '').trim();
+    const ruc = String(dto.ruc || '').trim();
+    const adminEmail = String(dto.adminEmail || '').trim().toLowerCase();
+    const adminPassword = String(dto.adminPassword || '');
+
+    if (!nombre || !ruc || !adminEmail || !adminPassword) {
+      throw new BadRequestException('nombre, ruc, adminEmail y adminPassword son requeridos');
+    }
+
+    if (!/^\d{11}$/.test(ruc)) {
+      throw new BadRequestException('El RUC debe tener exactamente 11 digitos');
+    }
+
+    if (adminPassword.length < 6) {
+      throw new BadRequestException('La contrasena debe tener al menos 6 caracteres');
+    }
+
+    const { data: empresa, error: empresaErr } = await this.supabase
+      .from('empresas')
+      .insert({
+        nombre,
+        ruc,
+        estado: 'activo',
+        fecha_creacion: new Date().toISOString(),
+      })
+      .select('id, nombre, ruc, estado, fecha_creacion')
+      .single();
+
+    if (empresaErr || !empresa) {
+      this.logger.error(`[crearEmpresa] empresa: ${JSON.stringify(empresaErr)}`);
+      throw new InternalServerErrorException('Error al crear la empresa');
+    }
+
+    const { data: authUser, error: authErr } = await this.supabase.auth.admin.createUser({
+      email: adminEmail,
+      password: adminPassword,
+      email_confirm: true,
+    });
+
+    if (authErr || !authUser?.user) {
+      await this.supabase.from('empresas').delete().eq('id', empresa.id);
+      this.logger.error(`[crearEmpresa] auth: ${JSON.stringify(authErr)}`);
+      throw new InternalServerErrorException(`Error al crear usuario: ${authErr?.message}`);
+    }
+
+    const { error: perfilErr } = await this.supabase
+      .from('perfiles')
+      .insert({
+        id: authUser.user.id,
+        empresa_id: empresa.id,
+        rol: 'admin_empresa',
+        sucursal_id: null,
+        fecha_creacion: new Date().toISOString(),
+      });
+
+    if (perfilErr) {
+      this.logger.error(`[crearEmpresa] perfil: ${JSON.stringify(perfilErr)}`);
+    }
+
+    this.logger.log(`[crearEmpresa] Empresa creada: ${empresa.nombre} (${empresa.id})`);
+
+    return {
+      ...empresa,
+      adminEmail,
+      plan_activo: 'Sin plan',
+      usuarios: 1,
     };
   }
 

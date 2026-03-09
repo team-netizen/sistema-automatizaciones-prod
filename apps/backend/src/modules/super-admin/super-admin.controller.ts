@@ -32,6 +32,19 @@ export class SuperAdminController {
     return this.superAdminService.getEmpresaDetalle(id);
   }
 
+  @Post('empresas')
+  crearEmpresa(
+    @Body()
+    body: {
+      nombre: string;
+      ruc: string;
+      adminEmail: string;
+      adminPassword: string;
+    },
+  ) {
+    return this.superAdminService.crearEmpresa(body);
+  }
+
   @Patch('empresas/:id/estado')
   cambiarEstadoEmpresa(
     @Param('id') id: string,
