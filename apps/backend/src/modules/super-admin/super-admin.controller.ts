@@ -149,6 +149,24 @@ export class SuperAdminController {
     return this.superAdminService.getMetricas({ mes, desde, hasta, empresaId });
   }
 
+  @Get('alertas')
+  getAlertas(@Query('usuarioId') usuarioId: string) {
+    return this.superAdminService.getAlertas(usuarioId);
+  }
+
+  @Patch('alertas/marcar-todas-leidas')
+  marcarTodasAlertasLeidas(@Query('usuarioId') usuarioId: string) {
+    return this.superAdminService.marcarTodasAlertasLeidas(usuarioId);
+  }
+
+  @Patch('alertas/:id/leida')
+  marcarAlertaLeida(
+    @Param('id') id: string,
+    @Query('usuarioId') usuarioId: string,
+  ) {
+    return this.superAdminService.marcarAlertaLeida(id, usuarioId);
+  }
+
   @Get('modulos')
   getModulos() {
     return this.superAdminService.getModulos();

@@ -1065,6 +1065,64 @@ export class SuperAdminService {
     };
   }
 
+  async getAlertas(usuarioId: string) {
+    if (!usuarioId) {
+      throw new BadRequestException('usuarioId es requerido');
+    }
+
+    const { data, error } = await this.supabase
+      .from('notificaciones')
+      .select('id, titulo, mensaje, tipo, leida, canal, fecha_creacion')
+      .eq('usuario_id', usuarioId)
+      .order('fecha_creacion', { ascending: false })
+      .limit(100);
+
+    if (error) {
+      this.logger.error(`[getAlertas] ${JSON.stringify(error)}`);
+      throw new InternalServerErrorException(error.message);
+    }
+
+    return data ?? [];
+  }
+
+  async marcarAlertaLeida(id: string, usuarioId: string) {
+    if (!id || !usuarioId) {
+      throw new BadRequestException('id y usuarioId son requeridos');
+    }
+
+    const { error } = await this.supabase
+      .from('notificaciones')
+      .update({ leida: true })
+      .eq('id', id)
+      .eq('usuario_id', usuarioId);
+
+    if (error) {
+      this.logger.error(`[marcarAlertaLeida] ${JSON.stringify(error)}`);
+      throw new InternalServerErrorException(error.message);
+    }
+
+    return { success: true };
+  }
+
+  async marcarTodasAlertasLeidas(usuarioId: string) {
+    if (!usuarioId) {
+      throw new BadRequestException('usuarioId es requerido');
+    }
+
+    const { error } = await this.supabase
+      .from('notificaciones')
+      .update({ leida: true })
+      .eq('usuario_id', usuarioId)
+      .eq('leida', false);
+
+    if (error) {
+      this.logger.error(`[marcarTodasAlertasLeidas] ${JSON.stringify(error)}`);
+      throw new InternalServerErrorException(error.message);
+    }
+
+    return { success: true };
+  }
+
   async getModulos() {
     const [{ data: modulos, error: modulosError }, { data: modulosEmpresa, error: modulosEmpresaError }] = await Promise.all([
       this.supabase

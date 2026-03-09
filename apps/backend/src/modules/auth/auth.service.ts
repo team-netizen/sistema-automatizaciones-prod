@@ -46,7 +46,7 @@ export class AuthService {
             );
         }
 
-        let empresaId = perfil.empresa_id ?? '';
+        let empresaId: string | null = perfil.empresa_id ?? null;
         let empresaNombre = 'Sistema';
         let estadoEmpresa = 'activo';
 
@@ -149,6 +149,20 @@ export class AuthService {
 
         if (perfilError || !perfil) {
             throw new ForbiddenException('Perfil no encontrado');
+        }
+
+        if (!perfil.empresa_id) {
+            if (perfil.rol === 'super_admin') {
+                return {
+                    usuario_id: usuarioId,
+                    email: '',
+                    empresa_id: null,
+                    empresa_nombre: 'Sistema',
+                    rol: perfil.rol,
+                    estado_empresa: 'activo',
+                };
+            }
+            throw new ForbiddenException('Empresa no encontrada');
         }
 
         const { data: empresa, error: empresaError } = await this.supabase

@@ -5,7 +5,7 @@ type TipoFiltro = 'todos' | 'alerta' | 'informativa' | 'sistema' | 'otro';
 
 interface AlertasSucursalProps {
   usuarioId: string;
-  empresaId: string;
+  empresaId?: string | null;
   token: string;
   apiBase: string;
   polling?: boolean;
@@ -122,9 +122,10 @@ export default function AlertasSucursal({
   const [estadoFiltro, setEstadoFiltro] = useState<EstadoFiltro>('todas');
   const [tipoFiltro, setTipoFiltro] = useState<TipoFiltro>('todos');
   const [actionLoading, setActionLoading] = useState(false);
+  const esSuperAdmin = !empresaId || empresaId === 'null';
 
   const fetchAlertas = async (options?: { silent?: boolean }) => {
-    if (!usuarioId || !empresaId || !token) {
+    if (!usuarioId || !token) {
       setAlertas([]);
       setLoading(false);
       return false;
@@ -135,12 +136,15 @@ export default function AlertasSucursal({
     }
 
     try {
-      const params = new URLSearchParams({
-        usuarioId,
-        empresaId,
-      });
+      const params = new URLSearchParams({ usuarioId });
+      if (!esSuperAdmin && empresaId) {
+        params.set('empresaId', empresaId);
+      }
+      const endpoint = esSuperAdmin
+        ? `${normalizeApiBase(apiBase)}/api/super-admin/alertas?${params.toString()}`
+        : `${normalizeApiBase(apiBase)}/api/operaciones/alertas?${params.toString()}`;
 
-      const response = await fetch(`${normalizeApiBase(apiBase)}/api/operaciones/alertas?${params.toString()}`, {
+      const response = await fetch(endpoint, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -208,7 +212,7 @@ export default function AlertasSucursal({
     }, 30000);
 
     return () => window.clearInterval(interval);
-  }, [apiBase, empresaId, polling, token, usuarioId]);
+  }, [apiBase, empresaId, esSuperAdmin, polling, token, usuarioId]);
 
   const alertasFiltradas = useMemo(() => {
     return alertas.filter((alerta) => {
@@ -234,7 +238,10 @@ export default function AlertasSucursal({
   const marcarUnaLeida = async (id: string) => {
     setActionLoading(true);
     try {
-      const response = await fetch(`${normalizeApiBase(apiBase)}/api/operaciones/alertas/${id}/leida`, {
+      const endpoint = esSuperAdmin
+        ? `${normalizeApiBase(apiBase)}/api/super-admin/alertas/${id}/leida?usuarioId=${encodeURIComponent(usuarioId)}`
+        : `${normalizeApiBase(apiBase)}/api/operaciones/alertas/${id}/leida`;
+      const response = await fetch(endpoint, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -264,7 +271,15 @@ export default function AlertasSucursal({
   const marcarTodas = async () => {
     setActionLoading(true);
     try {
-      const response = await fetch(`${normalizeApiBase(apiBase)}/api/operaciones/alertas/marcar-todas-leidas`, {
+      const endpoint = esSuperAdmin
+        ? `${normalizeApiBase(apiBase)}/api/super-admin/alertas/marcar-todas-leidas?usuarioId=${encodeURIComponent(usuarioId)}`
+        : `${normalizeApiBase(apiBase)}/api/operaciones/alertas/marcar-todas-leidas`;
+      const response = await fetch(endpoint, esSuperAdmin ? {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      } : {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,

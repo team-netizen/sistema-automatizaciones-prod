@@ -13,7 +13,7 @@ export interface LoginDto {
 export interface PerfilAutenticado {
     usuario_id: string;
     email: string;
-    empresa_id: string;
+    empresa_id: string | null;
     empresa_nombre: string;
     rol: string;
     estado_empresa: string;

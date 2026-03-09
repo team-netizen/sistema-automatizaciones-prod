@@ -916,7 +916,7 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
               </div>
             )}
 
-            {nav === 'alertas' && <AlertasSucursal usuarioId={usuario.id} empresaId={String(usuario.empresa_id || '')} token={token} apiBase={apiBase} polling={false} />}
+            {nav === 'alertas' && <AlertasSucursal usuarioId={usuario.id} empresaId={usuario.empresa_id ?? null} token={token} apiBase={apiBase} polling={false} />}
           </div>
         </main>
       </div>

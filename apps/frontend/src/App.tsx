@@ -136,7 +136,7 @@ function App() {
           nombre: usuario.nombre || usuario.email || 'Vendedor',
           email: usuario.email || '',
           rol: usuario.rol,
-          empresa_id: usuario.empresa_id,
+          empresa_id: usuario.empresa_id || '',
           sucursal_id: usuario.sucursal_id || '',
           sucursal_nombre: usuario.sucursal_nombre || 'Mi sucursal',
         }}

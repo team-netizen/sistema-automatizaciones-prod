@@ -3,7 +3,7 @@ import type { Session, SupabaseClient } from '@supabase/supabase-js';
 
 export type PerfilUsuario = {
   id: string;
-  empresa_id: string;
+  empresa_id: string | null;
   rol: 'super_admin' | 'admin_empresa' | 'encargado_sucursal' | 'vendedor';
   sucursal_id: string | null;
   sucursal_nombre?: string | null;
@@ -56,7 +56,7 @@ function isPerfilUsuario(value: unknown): value is PerfilUsuario {
   const rol = row.rol;
   const sucursalId = row.sucursal_id;
 
-  if (typeof id !== 'string' || typeof empresaId !== 'string') return false;
+  if (typeof id !== 'string' || (typeof empresaId !== 'string' && empresaId !== null)) return false;
   if (typeof rol !== 'string' || !ROLE_VALUES.has(rol as PerfilUsuario['rol'])) return false;
   if (typeof sucursalId !== 'string' && sucursalId !== null) return false;
 
