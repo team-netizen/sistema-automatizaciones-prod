@@ -9,6 +9,8 @@ type CambiarPasswordObligatorioProps = {
 export default function CambiarPasswordObligatorio({ onCambioExitoso }: CambiarPasswordObligatorioProps) {
   const [nuevaPassword, setNuevaPassword] = useState('');
   const [confirmar, setConfirmar] = useState('');
+  const [mostrarNueva, setMostrarNueva] = useState(false);
+  const [mostrarConfirmar, setMostrarConfirmar] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
 
@@ -65,27 +67,45 @@ export default function CambiarPasswordObligatorio({ onCambioExitoso }: CambiarP
             <label style={{ color: '#374151', display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>
               Nueva contrasena
             </label>
-            <input
-              type="password"
-              placeholder="Minimo 6 caracteres"
-              value={nuevaPassword}
-              onChange={(e) => setNuevaPassword(e.target.value)}
-              style={{ background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: '10px', boxSizing: 'border-box', color: '#1a1a2e', fontSize: '14px', outline: 'none', padding: '11px 14px', width: '100%' }}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                type={mostrarNueva ? 'text' : 'password'}
+                placeholder="Minimo 6 caracteres"
+                value={nuevaPassword}
+                onChange={(e) => setNuevaPassword(e.target.value)}
+                style={{ background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: '10px', boxSizing: 'border-box', color: '#111827', fontSize: '14px', outline: 'none', padding: '11px 44px 11px 14px', width: '100%' }}
+              />
+              <button
+                type="button"
+                onClick={() => setMostrarNueva((prev) => !prev)}
+                style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: 0, position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)' }}
+              >
+                {mostrarNueva ? '🙈' : '👁️'}
+              </button>
+            </div>
           </div>
 
           <div>
             <label style={{ color: '#374151', display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>
               Confirmar contrasena
             </label>
-            <input
-              type="password"
-              placeholder="Repite la contrasena"
-              value={confirmar}
-              onChange={(e) => setConfirmar(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && void handleCambiar()}
-              style={{ background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: '10px', boxSizing: 'border-box', color: '#1a1a2e', fontSize: '14px', outline: 'none', padding: '11px 14px', width: '100%' }}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                type={mostrarConfirmar ? 'text' : 'password'}
+                placeholder="Repite la contrasena"
+                value={confirmar}
+                onChange={(e) => setConfirmar(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && void handleCambiar()}
+                style={{ background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: '10px', boxSizing: 'border-box', color: '#111827', fontSize: '14px', outline: 'none', padding: '11px 44px 11px 14px', width: '100%' }}
+              />
+              <button
+                type="button"
+                onClick={() => setMostrarConfirmar((prev) => !prev)}
+                style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: 0, position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)' }}
+              >
+                {mostrarConfirmar ? '🙈' : '👁️'}
+              </button>
+            </div>
           </div>
 
           {error && <p style={{ color: '#ef4444', fontSize: '13px', margin: 0, textAlign: 'center' }}>{error}</p>}
