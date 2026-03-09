@@ -502,8 +502,8 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
 
   return (
     <>
-      <div style={{ background: T.bg, color: T.text, display: 'flex', minHeight: '100vh' }}>
-        <aside style={{ background: T.shell, borderRight: '1px solid rgba(148, 163, 184, 0.12)', color: '#e2e8f0', display: 'flex', flexDirection: 'column', padding: 22, width: 250 }}>
+      <div style={{ background: T.bg, color: T.text, display: 'grid', gridTemplateColumns: '250px 1fr', height: '100vh', overflow: 'hidden' }}>
+        <aside style={{ background: T.shell, borderRight: '1px solid rgba(148, 163, 184, 0.12)', color: '#e2e8f0', display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', padding: 22, width: 250 }}>
           <div style={{ marginBottom: 30 }}>
             <div style={{ color: '#fff', fontSize: 22, fontWeight: 900 }}>SISAUTO</div>
             <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 6 }}>Panel de control global</div>
@@ -516,7 +516,7 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
           {onLogout && <button onClick={onLogout} style={{ background: 'rgba(248, 113, 113, 0.12)', border: '1px solid rgba(248, 113, 113, 0.2)', borderRadius: 14, color: '#fecaca', cursor: 'pointer', fontSize: 14, fontWeight: 700, marginTop: 'auto', padding: '12px 14px' }} type="button">Cerrar sesión</button>}
         </aside>
 
-        <main style={{ display: 'flex', flex: 1, flexDirection: 'column', minWidth: 0 }}>
+        <main style={{ display: 'flex', flexDirection: 'column', height: '100vh', minWidth: 0, overflowX: 'hidden', overflowY: 'auto' }}>
           <header style={{ alignItems: 'center', background: '#fff', borderBottom: `1px solid ${T.border}`, display: 'flex', justifyContent: 'space-between', padding: '18px 28px', position: 'sticky', top: 0, zIndex: 20 }}>
             <div>
               <div style={{ color: T.text, fontSize: 20, fontWeight: 900 }}>SISAUTO / Super Admin</div>
@@ -531,7 +531,7 @@ export function SuperAdminDashboard({ usuario, token, apiBase, onLogout }) {
             </div>
           </header>
 
-          <div style={{ background: 'linear-gradient(180deg, #eef2ff 0%, #f8fafc 180px)', flex: 1, padding: 28 }}>
+          <div style={{ background: 'linear-gradient(180deg, #eef2ff 0%, #f8fafc 180px)', flex: 1, minHeight: 'calc(100vh - 77px)', padding: 28 }}>
             {error && <div style={{ background: T.dangerBg, border: '1px solid #fecaca', borderRadius: 12, color: T.danger, fontSize: 13, fontWeight: 700, marginBottom: 16, padding: '12px 14px' }}>{error}</div>}
             {loading && nav !== 'alertas' && <div style={{ color: T.textMuted, fontSize: 13, marginBottom: 16 }}>Cargando datos...</div>}
 
