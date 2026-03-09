@@ -54,17 +54,17 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const handleRecuperarPassword = async () => {
     if (!emailRecuperar) return;
     setEnviandoRecuperar(true);
+    setError('');
 
     try {
-      const response = await fetch(`${AUTH_URL}/recuperar-password`, {
+      await fetch(`${AUTH_URL}/recuperar-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: emailRecuperar }),
       });
-
-      if (response.ok) {
-        setRecuperarEnviado(true);
-      }
+      setRecuperarEnviado(true);
+    } catch {
+      setRecuperarEnviado(true);
     } finally {
       setEnviandoRecuperar(false);
     }

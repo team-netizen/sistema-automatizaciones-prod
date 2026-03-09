@@ -269,11 +269,21 @@ export class AuthService {
     async recuperarPassword(email: string) {
         const frontendUrl = (process.env.FRONTEND_URL || '').replace(/\/+$/, '');
         try {
-            await this.supabase.getClient().auth.resetPasswordForEmail(email, {
+            this.logger.log(`[recuperarPassword] Solicitando reset para: ${email}`);
+
+            const { error } = await this.supabase.getClient().auth.resetPasswordForEmail(email, {
                 redirectTo: `${frontendUrl || 'http://localhost:5173'}/reset-password`,
             });
+
+            if (error) {
+                this.logger.error(`[recuperarPassword] Error: ${JSON.stringify(error)}`);
+            } else {
+                this.logger.log(`[recuperarPassword] Email enviado correctamente a: ${email}`);
+            }
+
             return { success: true };
-        } catch {
+        } catch (error: any) {
+            this.logger.error(`[recuperarPassword] Exception: ${error?.message}`);
             return { success: true };
         }
     }

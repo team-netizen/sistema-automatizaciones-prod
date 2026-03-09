@@ -66,6 +66,17 @@ function App() {
   };
 
   useEffect(() => {
+    const hash = typeof window !== 'undefined' ? window.location.hash : '';
+    if (hash.includes('type=recovery') && hash.includes('access_token')) {
+      const params = new URLSearchParams(hash.slice(1));
+      const accessToken = params.get('access_token');
+      if (accessToken) {
+        sessionStorage.setItem('recovery_token', accessToken);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
     if (isResetRoute) {
       setIsLoadingSesion(false);
       return;
@@ -87,7 +98,15 @@ function App() {
   };
 
   if (isResetRoute) {
-    return <ResetPassword />;
+    return (
+      <ResetPassword
+        onExito={() => {
+          sessionStorage.removeItem('recovery_token');
+          window.history.replaceState(null, '', '/');
+          window.location.replace('/');
+        }}
+      />
+    );
   }
 
   if (isLoadingSesion) {
