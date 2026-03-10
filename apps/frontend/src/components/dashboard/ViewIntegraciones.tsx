@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { BASE_URL } from '../../lib/api';
 import { operacionesService } from '../../modules/operaciones/services/operacionesService';
 
@@ -227,6 +227,8 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
   const [sincronizando, setSincronizando] = useState<Record<string, boolean>>({});
   const [oauthMlListo, setOauthMlListo] = useState(false);
   const [authUrlMl, setAuthUrlMl] = useState('');
+  const oauthMessageHandlerRef = useRef<((event: MessageEvent) => void) | null>(null);
+  const oauthPopupCheckIntervalRef = useRef<number | null>(null);
 
   const empresaId = String(usuario?.empresa_id || '');
   const backendBase = (BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '')).replace(
@@ -247,6 +249,9 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
 
   useEffect(() => {
     void cargarIntegraciones();
+    return () => {
+      limpiarEscuchaOauthMl();
+    };
   }, []);
 
   const getIntegracionActiva = (tipo: string) =>
@@ -271,13 +276,62 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
     return `${base}?${params.toString()}`;
   }, [modalTipo, credenciales.app_id, credenciales.redirect_uri, empresaId]);
   const oauthMlUrlFinal = authUrlMl || oauthMlUrl;
+  const mostrarSoloAutorizacionMl = modalTipo === 'mercadolibre' && Boolean(authUrlMl);
+
+  const limpiarEscuchaOauthMl = () => {
+    if (oauthMessageHandlerRef.current) {
+      window.removeEventListener('message', oauthMessageHandlerRef.current);
+      oauthMessageHandlerRef.current = null;
+    }
+
+    if (oauthPopupCheckIntervalRef.current !== null) {
+      window.clearInterval(oauthPopupCheckIntervalRef.current);
+      oauthPopupCheckIntervalRef.current = null;
+    }
+  };
 
   const cerrarModal = () => {
+    limpiarEscuchaOauthMl();
     setAuthUrlMl('');
     setCredenciales({});
     setError('');
     setOauthMlListo(false);
     setModalTipo(null);
+  };
+
+  const handleAutorizarML = () => {
+    if (!oauthMlUrlFinal) {
+      setError('No se pudo generar la URL de autorizacion de Mercado Libre');
+      return;
+    }
+
+    const popup = window.open(oauthMlUrlFinal, '_blank', 'width=600,height=700');
+    if (!popup) {
+      setError('El navegador bloqueo la ventana emergente. Habilita popups e intenta de nuevo.');
+      return;
+    }
+
+    limpiarEscuchaOauthMl();
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data !== 'ml-oauth-complete') return;
+      limpiarEscuchaOauthMl();
+      void (async () => {
+        await cargarIntegraciones();
+        cerrarModal();
+      })();
+    };
+
+    oauthMessageHandlerRef.current = handleMessage;
+    window.addEventListener('message', handleMessage);
+
+    oauthPopupCheckIntervalRef.current = window.setInterval(() => {
+      if (!popup.closed) return;
+      limpiarEscuchaOauthMl();
+      void (async () => {
+        await cargarIntegraciones();
+        cerrarModal();
+      })();
+    }, 1000);
   };
 
   const abrirModalConectar = (tipo: string) => {
@@ -596,7 +650,7 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
             </div>
 
             <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {modalData.campos.map((campo) => (
+              {!mostrarSoloAutorizacionMl && modalData.campos.map((campo) => (
                 <div key={campo.key}>
                   <label
                     style={{
@@ -675,23 +729,43 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
               {modalTipo === 'mercadolibre' && oauthMlListo && oauthMlUrlFinal && (
                 <div
                   style={{
-                    background: '#ffe60018',
-                    border: '1px solid #ffe60044',
-                    borderRadius: 8,
-                    padding: 12,
-                    fontSize: 12,
-                    color: '#ffe600',
+                    background: 'rgba(99,102,241,0.1)',
+                    border: '1px solid #6366f1',
+                    borderRadius: 10,
+                    padding: 16,
+                    marginTop: 16,
                   }}
                 >
-                  Haz clic para autorizar en Mercado Libre:
-                  <a
-                    href={oauthMlUrlFinal}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ display: 'block', marginTop: 6, color: '#ffe600', wordBreak: 'break-all' }}
+                  <p
+                    style={{
+                      color: '#a5b4fc',
+                      fontSize: 13,
+                      margin: '0 0 12px',
+                      fontWeight: 600,
+                    }}
                   >
-                    {oauthMlUrlFinal}
-                  </a>
+                    Credenciales guardadas. Ahora autoriza la app:
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleAutorizarML}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      background: '#ffe600',
+                      color: '#333',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontWeight: 700,
+                      fontSize: '14px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Autorizar en Mercado Libre
+                  </button>
+                  <p style={{ color: '#6b7280', fontSize: '11px', margin: '8px 0 0', textAlign: 'center' }}>
+                    Se abrira una ventana emergente. Al autorizar, esta ventana se cerrara automaticamente.
+                  </p>
                 </div>
               )}
 
@@ -733,20 +807,22 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
               >
                 Cancelar
               </button>
-              <button
-                type="button"
-                onClick={() => void guardarIntegracion()}
-                style={{
-                  ...btnBase,
-                  background: T.accent,
-                  border: 'none',
-                  color: T.bg,
-                  minWidth: 150,
-                }}
-                disabled={guardando}
-              >
-                {guardando ? 'Guardando...' : 'Guardar y Conectar'}
-              </button>
+              {!mostrarSoloAutorizacionMl && (
+                <button
+                  type="button"
+                  onClick={() => void guardarIntegracion()}
+                  style={{
+                    ...btnBase,
+                    background: T.accent,
+                    border: 'none',
+                    color: T.bg,
+                    minWidth: 150,
+                  }}
+                  disabled={guardando}
+                >
+                  {guardando ? 'Guardando...' : 'Guardar y Conectar'}
+                </button>
+              )}
             </div>
           </div>
         </div>

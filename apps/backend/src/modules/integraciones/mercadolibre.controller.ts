@@ -10,12 +10,13 @@ import {
   Param,
   Post,
   Query,
+  Res,
   Req,
   UseGuards,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Job, Queue } from 'bullmq';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { Roles } from '../../core/auth/roles.decorator';
 import { type PerfilUsuario, RolesGuard } from '../../core/auth/roles.guard';
 import { MercadoLibreService } from './mercadolibre.service';
@@ -51,13 +52,39 @@ export class MercadoLibreController {
   }
 
   @Get('mercadolibre/callback')
-  @HttpCode(HttpStatus.OK)
   async oauthCallback(
     @Query('code') code: string,
     @Query('state') state: string,
+    @Res() res: Response,
   ) {
     this.logger.log(`[ML callback] code=${code ? 'present' : 'missing'} state=${state || 'missing'}`);
-    return this.mercadoLibreService.handleCallback(code, state);
+    await this.mercadoLibreService.handleCallback(code, state);
+
+    return res.status(HttpStatus.OK).send(`
+      <!DOCTYPE html>
+      <html lang="es">
+        <head>
+          <meta charset="UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <title>OAuth Mercado Libre</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 0; padding: 24px; background: #0b0f12; color: #e8f5ee; }
+            .card { max-width: 520px; margin: 24px auto; border: 1px solid #1c2830; border-radius: 10px; background: #0f1419; padding: 18px; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <p>Autorizacion completada. Cerrando ventana...</p>
+          </div>
+          <script>
+            if (window.opener) {
+              window.opener.postMessage('ml-oauth-complete', '*');
+            }
+            setTimeout(function () { window.close(); }, 1000);
+          </script>
+        </body>
+      </html>
+    `);
   }
 
   @Post(':tipo/sync-manual')
