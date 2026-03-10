@@ -30,11 +30,14 @@ function isSuperAdminRole(rol?: PerfilUsuario['rol'] | null): boolean {
 
 function App() {
   const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/';
+  const currentHash = typeof window !== 'undefined' ? window.location.hash : '';
   const isResetRoute = currentPath === '/reset-password' || currentPath === '/auth/callback';
+  const hasRecoveryHash = currentHash.includes('type=recovery') && currentHash.includes('access_token');
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [usuario, setUsuario] = useState<UsuarioSesion | null>(null);
   const [isLoadingSesion, setIsLoadingSesion] = useState(true);
+  const [isRecoveryFlow, setIsRecoveryFlow] = useState(hasRecoveryHash || isResetRoute);
 
   const syncSesion = async () => {
     setIsLoadingSesion(true);
@@ -70,19 +73,27 @@ function App() {
     if (hash.includes('type=recovery') && hash.includes('access_token')) {
       const params = new URLSearchParams(hash.slice(1));
       const accessToken = params.get('access_token');
-      if (accessToken) {
+      const type = params.get('type');
+      if (type === 'recovery' && accessToken) {
         sessionStorage.setItem('recovery_token', accessToken);
+        window.history.replaceState(null, '', '/reset-password');
+        setIsRecoveryFlow(true);
+        return;
       }
+    }
+
+    if (isResetRoute && sessionStorage.getItem('recovery_token')) {
+      setIsRecoveryFlow(true);
     }
   }, []);
 
   useEffect(() => {
-    if (isResetRoute) {
+    if (isRecoveryFlow || isResetRoute) {
       setIsLoadingSesion(false);
       return;
     }
     void syncSesion();
-  }, [isResetRoute]);
+  }, [isRecoveryFlow, isResetRoute]);
 
   const handleLoginSuccess = (_data: unknown) => {
     void syncSesion();
@@ -97,10 +108,11 @@ function App() {
     window.location.replace('/');
   };
 
-  if (isResetRoute) {
+  if (isRecoveryFlow || isResetRoute) {
     return (
       <ResetPassword
         onExito={() => {
+          setIsRecoveryFlow(false);
           sessionStorage.removeItem('recovery_token');
           window.history.replaceState(null, '', '/');
           window.location.replace('/');
