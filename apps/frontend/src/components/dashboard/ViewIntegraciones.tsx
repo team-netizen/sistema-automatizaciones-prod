@@ -55,19 +55,19 @@ const INTEGRACIONES_DISPONIBLES = [
       {
         key: 'app_id',
         label: 'App ID',
-        placeholder: 'Tu App ID de ML',
+        placeholder: 'Ej: 1471731808551072',
         type: 'text',
       },
       {
         key: 'client_secret',
         label: 'Client Secret',
-        placeholder: 'Tu Client Secret',
+        placeholder: 'Tu client secret de ML',
         type: 'password',
       },
       {
         key: 'redirect_uri',
         label: 'Redirect URI',
-        placeholder: 'https://...',
+        placeholder: 'https://...onrender.com/api/integraciones/mercadolibre/callback',
         type: 'text',
       },
     ],
@@ -83,19 +83,19 @@ const INTEGRACIONES_DISPONIBLES = [
       {
         key: 'shop_url',
         label: 'URL de la tienda',
-        placeholder: 'mitienda.myshopify.com',
+        placeholder: 'Ej: mitienda.myshopify.com',
         type: 'text',
       },
       {
         key: 'api_key',
         label: 'API Key',
-        placeholder: 'Tu API Key',
+        placeholder: 'Tu API Key de Shopify',
         type: 'text',
       },
       {
         key: 'api_secret',
         label: 'API Secret',
-        placeholder: 'Tu API Secret',
+        placeholder: 'Tu API Secret de Shopify',
         type: 'password',
       },
       {
@@ -117,19 +117,19 @@ const INTEGRACIONES_DISPONIBLES = [
       {
         key: 'phone_number_id',
         label: 'Phone Number ID',
-        placeholder: 'ID del numero en Meta',
+        placeholder: 'ID del numero de WhatsApp',
         type: 'text',
       },
       {
         key: 'access_token',
         label: 'Access Token',
-        placeholder: 'Token de Meta Business',
+        placeholder: 'Token de acceso permanente',
         type: 'password',
       },
       {
         key: 'verify_token',
-        label: 'Verify Token',
-        placeholder: 'Token de verificacion webhook',
+        label: 'Webhook Verify Token',
+        placeholder: 'Token para verificar webhook',
         type: 'text',
       },
     ],
@@ -189,6 +189,19 @@ const getResumen = (integracion: any, tipo: string) => {
   return null;
 };
 
+const getCredencialesIniciales = (tipo: string): Record<string, string> => {
+  if (tipo === 'mercadolibre') {
+    return { app_id: '', client_secret: '', redirect_uri: '' };
+  }
+  if (tipo === 'shopify') {
+    return { shop_url: '', api_key: '', api_secret: '', access_token: '' };
+  }
+  if (tipo === 'whatsapp') {
+    return { phone_number_id: '', access_token: '', verify_token: '' };
+  }
+  return {};
+};
+
 export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
   const [integraciones, setIntegraciones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -228,6 +241,7 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
     () => INTEGRACIONES_DISPONIBLES.find((item) => item.tipo === modalTipo) || null,
     [modalTipo],
   );
+  const desactivarAutocomplete = modalTipo === 'mercadolibre' || modalTipo === 'shopify' || modalTipo === 'whatsapp';
 
   const oauthMlUrl = useMemo(() => {
     if (modalTipo !== 'mercadolibre') return '';
@@ -245,7 +259,7 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
   const abrirModalConectar = (tipo: string) => {
     setModalTipo(tipo);
     setModalModo('conectar');
-    setCredenciales({});
+    setCredenciales(getCredencialesIniciales(tipo));
     setError('');
     setOauthMlListo(false);
   };
@@ -522,6 +536,7 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
                     {campo.label}
                   </label>
                   <input
+                    key={`${modalTipo || 'integracion'}-${modalModo}-${campo.key}`}
                     type={campo.type}
                     value={credenciales[campo.key] || ''}
                     onChange={(event) =>
@@ -530,6 +545,12 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
                         [campo.key]: event.target.value,
                       }))
                     }
+                    name={`integracion_${modalTipo || 'canal'}_${campo.key}`}
+                    autoComplete={desactivarAutocomplete ? 'new-password' : undefined}
+                    autoCorrect={desactivarAutocomplete ? 'off' : undefined}
+                    autoCapitalize={desactivarAutocomplete ? 'off' : undefined}
+                    spellCheck={desactivarAutocomplete ? false : undefined}
+                    data-lpignore={desactivarAutocomplete ? 'true' : undefined}
                     placeholder={campo.placeholder}
                     style={inputStyle}
                   />

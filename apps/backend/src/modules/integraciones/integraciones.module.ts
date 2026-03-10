@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { SupabaseModule } from '../../shared/supabase/supabase.module';
+import { MercadoLibreController } from './mercadolibre.controller';
 import { WooCommerceClient } from './woocommerce/woocommerce.client';
 import { WooCommerceController } from './woocommerce/woocommerce.controller';
 import { WooCommerceProcessor } from './woocommerce/woocommerce.processor';
@@ -12,7 +13,7 @@ import { WooCommerceSyncService } from './woocommerce/woocommerce.sync.service';
     SupabaseModule,
     BullModule.registerQueue({ name: 'woocommerce-sync' }),
   ],
-  controllers: [WooCommerceController],
+  controllers: [WooCommerceController, MercadoLibreController],
   providers: [
     WooCommerceClient,
     WooCommerceSyncService,
