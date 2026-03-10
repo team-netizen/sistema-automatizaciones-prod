@@ -396,6 +396,25 @@ export const operacionesService = {
     return parseOrThrow(response, 'Error al desconectar integracion');
   },
 
+  syncManualIntegracion: async (tipo: string) => {
+    const response = await authFetch(`${API_URL}/integraciones/${tipo}/sync-manual`, {
+      method: 'POST',
+    });
+
+    if (!response.ok) {
+      let message = `Error al sincronizar ${tipo}`;
+      try {
+        const error = (await response.json()) as { message?: string };
+        if (error?.message) message = error.message;
+      } catch {
+        // noop
+      }
+      throw new Error(message);
+    }
+
+    return response.json();
+  },
+
   getReservas: async () => {
     const response = await authFetch(`${API_URL}/operaciones/reservas`);
     return parseOrThrow(response, 'Error al obtener reservas');

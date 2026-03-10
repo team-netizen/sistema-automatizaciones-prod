@@ -165,6 +165,7 @@ type IntegracionesService = typeof operacionesService & {
     modo: 'conectar' | 'configurar';
   }) => Promise<any>;
   desconectarIntegracion?: (tipo: string) => Promise<any>;
+  syncManualIntegracion?: (tipo: string) => Promise<any>;
 };
 
 const service = operacionesService as IntegracionesService;
@@ -223,6 +224,7 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
   const [confirmDesconectar, setConfirmDesconectar] = useState<string | null>(null);
+  const [sincronizando, setSincronizando] = useState<Record<string, boolean>>({});
   const [oauthMlListo, setOauthMlListo] = useState(false);
 
   const empresaId = String(usuario?.empresa_id || '');
@@ -335,6 +337,23 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
     }
   };
 
+  const handleSyncManual = async (tipo: string) => {
+    setSincronizando((prev) => ({ ...prev, [tipo]: true }));
+    try {
+      if (!service.syncManualIntegracion) {
+        throw new Error('Metodo syncManualIntegracion no disponible');
+      }
+
+      await service.syncManualIntegracion(tipo);
+      alert(`Sincronizacion de ${tipo} iniciada correctamente`);
+      await cargarIntegraciones();
+    } catch (err: any) {
+      alert(err?.message || `Error al sincronizar ${tipo}`);
+    } finally {
+      setSincronizando((prev) => ({ ...prev, [tipo]: false }));
+    }
+  };
+
   return (
     <div className="fade" style={{ color: T.text, fontFamily: T.font }}>
       <div style={{ marginBottom: 18 }}>
@@ -368,6 +387,7 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
           const integracionActiva = getIntegracionActiva(item.tipo);
           const conectada = Boolean(integracionActiva);
           const resumen = getResumen(integracionActiva, item.tipo);
+          const permiteSyncManual = item.tipo === 'woocommerce' || item.tipo === 'mercadolibre';
 
           return (
             <div
@@ -441,6 +461,32 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
                 <div style={{ fontSize: 11, color: '#f59e0b', fontStyle: 'italic' }}>
                   ℹ️ {item.nota}
                 </div>
+              )}
+
+              {conectada && permiteSyncManual && (
+                <button
+                  type="button"
+                  onClick={() => void handleSyncManual(item.tipo)}
+                  disabled={Boolean(sincronizando[item.tipo])}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    background: 'transparent',
+                    color: sincronizando[item.tipo] ? '#6b7280' : '#ffffff',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: sincronizando[item.tipo] ? 'not-allowed' : 'pointer',
+                    marginTop: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  {sincronizando[item.tipo] ? 'Sincronizando...' : 'Sincronizar ahora'}
+                </button>
               )}
 
               <div style={{ marginTop: 'auto', display: 'flex', gap: 8 }}>
