@@ -202,6 +202,18 @@ const getCredencialesIniciales = (tipo: string): Record<string, string> => {
   return {};
 };
 
+const normalizarCredenciales = (credenciales: unknown): Record<string, string> => {
+  if (!credenciales || typeof credenciales !== 'object') return {};
+
+  return Object.entries(credenciales as Record<string, unknown>).reduce(
+    (acc, [key, value]) => ({
+      ...acc,
+      [key]: value == null ? '' : String(value),
+    }),
+    {} as Record<string, string>,
+  );
+};
+
 export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
   const [integraciones, setIntegraciones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -266,9 +278,11 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
 
   const abrirModalConfigurar = (tipo: string) => {
     const intActiva = getIntegracionActiva(tipo);
+    const credencialesBase = getCredencialesIniciales(tipo);
+    const credencialesGuardadas = normalizarCredenciales(intActiva?.credenciales);
     setModalTipo(tipo);
     setModalModo('configurar');
-    setCredenciales({});
+    setCredenciales({ ...credencialesBase, ...credencialesGuardadas });
     setError('');
     setOauthMlListo(false);
     if (!intActiva) setError('Integracion no encontrada');
@@ -297,11 +311,9 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
       });
 
       await cargarIntegraciones();
-      if (modalTipo === 'mercadolibre') {
-        setOauthMlListo(true);
-      } else {
-        setModalTipo(null);
-      }
+      setModalTipo(null);
+      setCredenciales({});
+      setOauthMlListo(false);
     } catch (err: any) {
       setError(err?.message || 'Error al conectar');
     } finally {
