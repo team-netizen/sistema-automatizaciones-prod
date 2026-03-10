@@ -1105,7 +1105,8 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 1400,
-            padding: 16,
+            overflowY: 'auto',
+            padding: 20,
           }}
         >
           <div
@@ -1118,6 +1119,9 @@ export const ViewProductos = ({ usuario }: ViewProductosProps) => {
               borderRadius: 12,
               boxShadow: '0 28px 80px rgba(0,0,0,0.45)',
               padding: 18,
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              margin: 'auto',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
