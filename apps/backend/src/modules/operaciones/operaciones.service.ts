@@ -2458,13 +2458,27 @@ export class OperacionesService {
         throw new BadRequestException('tipo de integracion requerido');
       }
 
+      const tipo = String(data.tipo).trim().toLowerCase();
+      const credenciales = data.credenciales || {};
+      const esMercadoLibre = tipo === 'mercadolibre';
+      const accessTokenMl = esMercadoLibre
+        ? String((credenciales as Record<string, unknown>)?.access_token ?? '').trim()
+        : '';
+      const authUrlMl = esMercadoLibre
+        ? this.construirAuthUrlMercadoLibre(
+            empresa_id,
+            credenciales as Record<string, unknown>,
+          )
+        : null;
+      const activa = esMercadoLibre ? accessTokenMl.length > 0 : true;
+
       const nombreCanal =
         {
           woocommerce: 'WooCommerce',
           mercadolibre: 'Mercado Libre',
           shopify: 'Shopify',
           whatsapp: 'WhatsApp',
-        }[data.tipo] || data.tipo;
+        }[tipo] || tipo;
 
       let canalId: string | null = null;
       {
@@ -2498,15 +2512,15 @@ export class OperacionesService {
       if (!canalId) throw new Error('No se pudo obtener canal_id');
 
       const backendUrl = (process.env.BACKEND_URL || '').replace(/\/+$/, '');
-      const webhookUrl = `${backendUrl}/api/integraciones/${data.tipo}/webhook/${empresa_id}`;
+      const webhookUrl = `${backendUrl}/api/integraciones/${tipo}/webhook/${empresa_id}`;
 
       const payload = {
         empresa_id,
         canal_id: canalId,
-        tipo_integracion: data.tipo,
-        credenciales: data.credenciales || {},
+        tipo_integracion: tipo,
+        credenciales,
         webhook_url: webhookUrl,
-        activa: true,
+        activa,
         intervalo_sync_minutos: 15,
       };
 
@@ -2521,7 +2535,7 @@ export class OperacionesService {
           .from('integraciones_canal')
           .select('id')
           .eq('empresa_id', empresa_id)
-          .eq('tipo_integracion', data.tipo)
+          .eq('tipo_integracion', tipo)
           .maybeSingle();
 
         if (existingError && existingError.code !== 'PGRST116') {
@@ -2535,9 +2549,9 @@ export class OperacionesService {
             .getAdminClient()
             .from('integraciones_canal')
             .update({
-              credenciales: data.credenciales || {},
+              credenciales,
               webhook_url: webhookUrl,
-              activa: true,
+              activa,
               intervalo_sync_minutos: 15,
             })
             .eq('id', existingId);
@@ -2553,7 +2567,19 @@ export class OperacionesService {
         }
       }
 
-      return { success: true, webhook_url: webhookUrl };
+      if (esMercadoLibre) {
+        return {
+          success: true,
+          webhook_url: webhookUrl,
+          auth_url: authUrlMl,
+          activa,
+          mensaje: authUrlMl
+            ? 'Credenciales guardadas. Autoriza la app en Mercado Libre.'
+            : 'Credenciales guardadas. Completa app_id y redirect_uri para autorizar en Mercado Libre.',
+        };
+      }
+
+      return { success: true, webhook_url: webhookUrl, activa };
     } catch (error) {
       this.handleError('conectarIntegracion', error, 'Error al conectar integracion');
     }
@@ -3395,6 +3421,24 @@ export class OperacionesService {
       const message = error instanceof Error ? error.message : 'error desconocido';
       this.logger.warn(`[forzarSyncWooCommerce] ${message}`);
     }
+  }
+
+  private construirAuthUrlMercadoLibre(
+    empresa_id: string,
+    credenciales: Record<string, unknown>,
+  ): string | null {
+    const appId = String(credenciales?.app_id ?? '').trim();
+    const redirectUri = String(credenciales?.redirect_uri ?? '').trim();
+    if (!appId || !redirectUri) return null;
+
+    const base = 'https://auth.mercadolibre.com.pe/authorization';
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: appId,
+      redirect_uri: redirectUri,
+      state: empresa_id,
+    });
+    return `${base}?${params.toString()}`;
   }
 
   private normalizeDateRange(desde?: string, hasta?: string): { inicioIso: string; finIso: string } {

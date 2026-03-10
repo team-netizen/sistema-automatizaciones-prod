@@ -8,6 +8,7 @@ import { SupabaseService } from '../../shared/supabase/supabase.service';
 
 type IntegracionMl = {
   id: string;
+  activa: boolean;
   credenciales: Record<string, unknown>;
 };
 
@@ -109,7 +110,101 @@ export class MercadoLibreService {
     };
   }
 
+  async handleCallback(code: string, empresaId: string) {
+    const oauthCode = String(code ?? '').trim();
+    const empresa = String(empresaId ?? '').trim();
+    if (!oauthCode || !empresa) {
+      throw new BadRequestException('code y state son obligatorios');
+    }
+
+    this.logger.log(`[ML callback] Iniciando intercambio de token empresa=${empresa}`);
+
+    const integracion = await this.obtenerIntegracion(empresa);
+    const appId = this.readString(integracion.credenciales.app_id);
+    const clientSecret = this.readString(integracion.credenciales.client_secret);
+    const redirectUri = this.readString(integracion.credenciales.redirect_uri);
+
+    if (!appId || !clientSecret || !redirectUri) {
+      throw new BadRequestException(
+        'Faltan credenciales de ML (app_id/client_secret/redirect_uri). Reconfigura la integracion.',
+      );
+    }
+
+    const tokenRes = await fetch('https://api.mercadolibre.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        grant_type: 'authorization_code',
+        client_id: appId,
+        client_secret: clientSecret,
+        code: oauthCode,
+        redirect_uri: redirectUri,
+      }),
+    });
+
+    const raw = await tokenRes.text();
+    let tokenData: Record<string, unknown> = {};
+    try {
+      tokenData = JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      tokenData = {};
+    }
+
+    if (!tokenRes.ok) {
+      this.logger.error(`[ML callback] Error obteniendo token: status=${tokenRes.status} body=${raw}`);
+      throw new BadRequestException('No se pudo obtener el token de Mercado Libre');
+    }
+
+    const accessToken = this.readString(tokenData.access_token);
+    if (!accessToken) {
+      this.logger.error(`[ML callback] Respuesta sin access_token: ${raw}`);
+      throw new BadRequestException('No se pudo obtener el token de Mercado Libre');
+    }
+
+    const nuevasCredenciales = {
+      ...integracion.credenciales,
+      oauth_code: oauthCode,
+      oauth_code_fecha: new Date().toISOString(),
+      access_token: accessToken,
+      refresh_token: this.readString(tokenData.refresh_token),
+      user_id: tokenData.user_id == null ? null : String(tokenData.user_id),
+      token_type: this.readString(tokenData.token_type) ?? 'Bearer',
+      expires_in: this.toNumber(tokenData.expires_in),
+      token_obtenido_en: new Date().toISOString(),
+    };
+
+    const { error: updateError } = await this.supabase
+      .getAdminClient()
+      .from('integraciones_canal')
+      .update({
+        credenciales: nuevasCredenciales,
+        activa: true,
+        ultima_sincronizacion: new Date().toISOString(),
+      })
+      .eq('id', integracion.id);
+
+    if (updateError) {
+      throw new InternalServerErrorException(
+        `No se pudo guardar token de Mercado Libre: ${updateError.message}`,
+      );
+    }
+
+    this.logger.log(`[ML callback] Token guardado para empresa ${empresa} OK`);
+    return {
+      success: true,
+      mensaje: 'Autorizacion completada. Puedes cerrar esta ventana.',
+    };
+  }
+
   private async obtenerIntegracionActiva(empresaId: string): Promise<IntegracionMl> {
+    const integracion = await this.obtenerIntegracion(empresaId);
+    if (!integracion.activa) {
+      throw new BadRequestException('Mercado Libre no esta conectado para esta empresa');
+    }
+    return integracion;
+  }
+
+  private async obtenerIntegracion(empresaId: string): Promise<IntegracionMl> {
     const { data, error } = await this.supabase
       .getAdminClient()
       .from('integraciones_canal')
@@ -126,13 +221,14 @@ export class MercadoLibreService {
       );
     }
 
-    if (!data?.id || !data.activa) {
+    if (!data?.id) {
       throw new BadRequestException('Mercado Libre no esta conectado para esta empresa');
     }
 
     const credenciales = this.toRecord(data.credenciales) ?? {};
     return {
       id: String(data.id),
+      activa: Boolean(data.activa),
       credenciales,
     };
   }

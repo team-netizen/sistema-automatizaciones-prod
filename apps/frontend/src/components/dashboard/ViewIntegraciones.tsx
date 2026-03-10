@@ -226,6 +226,7 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
   const [confirmDesconectar, setConfirmDesconectar] = useState<string | null>(null);
   const [sincronizando, setSincronizando] = useState<Record<string, boolean>>({});
   const [oauthMlListo, setOauthMlListo] = useState(false);
+  const [authUrlMl, setAuthUrlMl] = useState('');
 
   const empresaId = String(usuario?.empresa_id || '');
   const backendBase = (BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '')).replace(
@@ -269,11 +270,21 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
     });
     return `${base}?${params.toString()}`;
   }, [modalTipo, credenciales.app_id, credenciales.redirect_uri, empresaId]);
+  const oauthMlUrlFinal = authUrlMl || oauthMlUrl;
+
+  const cerrarModal = () => {
+    setAuthUrlMl('');
+    setCredenciales({});
+    setError('');
+    setOauthMlListo(false);
+    setModalTipo(null);
+  };
 
   const abrirModalConectar = (tipo: string) => {
     setModalTipo(tipo);
     setModalModo('conectar');
     setCredenciales(getCredencialesIniciales(tipo));
+    setAuthUrlMl('');
     setError('');
     setOauthMlListo(false);
   };
@@ -285,6 +296,7 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
     setModalTipo(tipo);
     setModalModo('configurar');
     setCredenciales({ ...credencialesBase, ...credencialesGuardadas });
+    setAuthUrlMl('');
     setError('');
     setOauthMlListo(false);
     if (!intActiva) setError('Integracion no encontrada');
@@ -306,16 +318,19 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
         throw new Error('Metodo conectarIntegracion no disponible');
       }
 
-      await service.conectarIntegracion({
+      const respuesta = await service.conectarIntegracion({
         tipo: modalTipo,
         credenciales,
         modo: modalModo,
       });
 
       await cargarIntegraciones();
-      setModalTipo(null);
-      setCredenciales({});
-      setOauthMlListo(false);
+      if (modalTipo === 'mercadolibre') {
+        setAuthUrlMl(String(respuesta?.auth_url || ''));
+        setOauthMlListo(true);
+      } else {
+        cerrarModal();
+      }
     } catch (err: any) {
       setError(err?.message || 'Error al conectar');
     } finally {
@@ -544,7 +559,7 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
           role="dialog"
           aria-modal="true"
           onClick={() => {
-            if (!guardando) setModalTipo(null);
+            if (!guardando) cerrarModal();
           }}
           style={{
             position: 'fixed',
@@ -657,7 +672,7 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
                 </div>
               )}
 
-              {modalTipo === 'mercadolibre' && oauthMlListo && oauthMlUrl && (
+              {modalTipo === 'mercadolibre' && oauthMlListo && oauthMlUrlFinal && (
                 <div
                   style={{
                     background: '#ffe60018',
@@ -670,12 +685,12 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
                 >
                   Haz clic para autorizar en Mercado Libre:
                   <a
-                    href={oauthMlUrl}
+                    href={oauthMlUrlFinal}
                     target="_blank"
                     rel="noreferrer"
                     style={{ display: 'block', marginTop: 6, color: '#ffe600', wordBreak: 'break-all' }}
                   >
-                    {oauthMlUrl}
+                    {oauthMlUrlFinal}
                   </a>
                 </div>
               )}
@@ -707,7 +722,7 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
             >
               <button
                 type="button"
-                onClick={() => setModalTipo(null)}
+                onClick={cerrarModal}
                 style={{
                   ...btnBase,
                   background: T.surface2,

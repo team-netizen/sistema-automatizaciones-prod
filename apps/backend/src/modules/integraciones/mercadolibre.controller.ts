@@ -18,7 +18,6 @@ import type { Job, Queue } from 'bullmq';
 import type { Request } from 'express';
 import { Roles } from '../../core/auth/roles.decorator';
 import { type PerfilUsuario, RolesGuard } from '../../core/auth/roles.guard';
-import { SupabaseService } from '../../shared/supabase/supabase.service';
 import { MercadoLibreService } from './mercadolibre.service';
 
 type AuthenticatedRequest = Request & {
@@ -36,7 +35,6 @@ export class MercadoLibreController {
   private readonly logger = new Logger(MercadoLibreController.name);
 
   constructor(
-    private readonly supabase: SupabaseService,
     private readonly mercadoLibreService: MercadoLibreService,
     @InjectQueue('woocommerce-sync')
     private readonly wooQueue: Queue<WooSyncJobData>,
@@ -58,31 +56,8 @@ export class MercadoLibreController {
     @Query('code') code: string,
     @Query('state') state: string,
   ) {
-    if (code && state) {
-      const { data: current } = await this.supabase
-        .getAdminClient()
-        .from('integraciones_canal')
-        .select('id, credenciales')
-        .eq('empresa_id', state)
-        .eq('tipo_integracion', 'mercadolibre')
-        .maybeSingle();
-
-      if (current?.id) {
-        const credenciales = {
-          ...((current.credenciales || {}) as Record<string, unknown>),
-          oauth_code: code,
-          oauth_code_fecha: new Date().toISOString(),
-        };
-
-        await this.supabase
-          .getAdminClient()
-          .from('integraciones_canal')
-          .update({ credenciales })
-          .eq('id', current.id);
-      }
-    }
-
-    return { message: 'Autorizacion exitosa, puedes cerrar esta ventana' };
+    this.logger.log(`[ML callback] code=${code ? 'present' : 'missing'} state=${state || 'missing'}`);
+    return this.mercadoLibreService.handleCallback(code, state);
   }
 
   @Post(':tipo/sync-manual')
