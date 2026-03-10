@@ -56,11 +56,12 @@ export class MercadoLibreService {
       accessToken,
     );
 
-    const userId = await this.getMLUserId(accessTokenVigente);
+    const userId = this.readStringOrNumber(credenciales.user_id);
     if (!userId) {
-      this.logger.warn(`[ML] No se pudo obtener user id para empresa ${empresaId}`);
-      return { success: false, mensaje: 'No se pudo obtener usuario de Mercado Libre' };
+      this.logger.warn(`[ML] No hay user_id en credenciales para empresa ${empresaId}`);
+      return { success: false, mensaje: 'No hay user_id de Mercado Libre en credenciales' };
     }
+    this.logger.log(`[ML] userId=${userId} empresa=${empresaId}`);
 
     const publicaciones = await this.getPublicacionesML(userId, accessTokenVigente);
     const productosPorSku = new Map<string, ProductoMl>();
@@ -448,19 +449,6 @@ export class MercadoLibreService {
     return totals;
   }
 
-  private async getMLUserId(accessToken: string): Promise<string | null> {
-    try {
-      const response = await fetch('https://api.mercadolibre.com/users/me', {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      if (!response.ok) return null;
-      const data = (await response.json()) as Record<string, unknown>;
-      return this.readString(data.id);
-    } catch {
-      return null;
-    }
-  }
-
   private async getPublicacionesML(
     userId: string,
     accessToken: string,
@@ -571,6 +559,17 @@ export class MercadoLibreService {
     if (typeof value !== 'string') return null;
     const normalized = value.trim();
     return normalized.length > 0 ? normalized : null;
+  }
+
+  private readStringOrNumber(value: unknown): string | null {
+    if (typeof value === 'string') {
+      const normalized = value.trim();
+      return normalized.length > 0 ? normalized : null;
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return String(value);
+    }
+    return null;
   }
 
   private toNumber(value: unknown): number | null {
