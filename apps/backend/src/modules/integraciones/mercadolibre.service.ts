@@ -66,7 +66,9 @@ export class MercadoLibreService {
     const publicaciones = await this.getPublicacionesML(userId, accessTokenVigente);
     const productosPorSku = new Map<string, ProductoMl>();
     for (const producto of productos) {
-      productosPorSku.set(producto.sku.toLowerCase(), producto);
+      const skuNormalizado = this.normalizarSku(producto.sku);
+      if (!skuNormalizado) continue;
+      productosPorSku.set(skuNormalizado, producto);
     }
 
     let actualizados = 0;
@@ -75,14 +77,21 @@ export class MercadoLibreService {
 
     for (const publicacion of publicaciones) {
       const itemId = this.readString(publicacion.id);
+      const sellerCustomField = this.readString(publicacion.seller_custom_field) ?? '';
+      const sellerSku = this.readString(publicacion.seller_sku) ?? '';
       const skuPublicacion = this.resolverSellerSku(publicacion);
+      this.logger.log(
+        `[ML DEBUG] itemId=${itemId ?? 'N/A'} seller_custom_field="${sellerCustomField}" seller_sku="${sellerSku}" sku usado="${skuPublicacion ?? ''}"`,
+      );
+
       if (!itemId || !skuPublicacion) {
         omitidos += 1;
         continue;
       }
 
-      const producto = productosPorSku.get(skuPublicacion.toLowerCase());
+      const producto = productosPorSku.get(this.normalizarSku(skuPublicacion));
       if (!producto) {
+        this.logger.warn(`[ML] SKU no encontrado en BD: "${skuPublicacion}" (item: ${itemId})`);
         omitidos += 1;
         continue;
       }
@@ -478,37 +487,57 @@ export class MercadoLibreService {
 
       if (itemIds.length === 0) return [];
 
-      const detalles = await Promise.all(
-        itemIds.map(async (itemId) => {
-          try {
-            const detailRes = await fetch(`https://api.mercadolibre.com/items/${itemId}`, {
-              headers: { Authorization: `Bearer ${accessToken}` },
-            });
-            if (!detailRes.ok) return null;
-            const detail = (await detailRes.json()) as Record<string, unknown>;
-            return detail;
-          } catch {
-            return null;
-          }
-        }),
-      );
+      const detalles: PublicacionMl[] = [];
+      for (const loteIds of this.chunkArray(itemIds, 20)) {
+        const idsCsv = loteIds.join(',');
+        try {
+          const detailRes = await fetch(
+            `https://api.mercadolibre.com/items?ids=${idsCsv}&attributes=id,seller_custom_field,seller_sku,available_quantity,attributes`,
+            { headers: { Authorization: `Bearer ${accessToken}` } },
+          );
 
-      return detalles.filter((row): row is PublicacionMl => row !== null);
+          if (!detailRes.ok) {
+            const raw = await detailRes.text();
+            this.logger.warn(
+              `[ML] Error obteniendo detalles por lote (${idsCsv}): ${detailRes.status} ${raw}`,
+            );
+            continue;
+          }
+
+          const batchData = (await detailRes.json()) as unknown;
+          const rows = Array.isArray(batchData) ? batchData : [];
+          for (const row of rows) {
+            const envelope = this.toRecord(row);
+            const body = this.toRecord(envelope?.body);
+            const code = this.toNumber(envelope?.code);
+            if (!body || (code !== null && code >= 400)) continue;
+            detalles.push(body);
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      return detalles;
     } catch {
       return [];
     }
   }
 
   private resolverSellerSku(publicacion: PublicacionMl): string | null {
-    const direct = this.readString(publicacion.seller_custom_field);
-    if (direct) return direct;
+    const sellerCustomField = this.readString(publicacion.seller_custom_field);
+    if (sellerCustomField) return sellerCustomField;
+
+    const sellerSku = this.readString(publicacion.seller_sku);
+    if (sellerSku) return sellerSku;
 
     const attributes = Array.isArray(publicacion.attributes)
       ? (publicacion.attributes as Array<Record<string, unknown>>)
       : [];
-    const sellerSkuAttribute = attributes.find(
-      (attribute) => this.readString(attribute.id)?.toUpperCase() === 'SELLER_SKU',
-    );
+    const sellerSkuAttribute = attributes.find((attribute) => {
+      const attributeId = this.readString(attribute.id)?.toUpperCase();
+      return attributeId === 'SELLER_SKU' || attributeId === 'SKU';
+    });
 
     return (
       this.readString(sellerSkuAttribute?.value_name) ??
@@ -585,5 +614,18 @@ export class MercadoLibreService {
       if (message) return message;
     }
     return 'error desconocido';
+  }
+
+  private normalizarSku(value: string): string {
+    return String(value ?? '').trim().toLowerCase();
+  }
+
+  private chunkArray<T>(values: T[], chunkSize: number): T[][] {
+    if (chunkSize <= 0) return [values];
+    const chunks: T[][] = [];
+    for (let index = 0; index < values.length; index += chunkSize) {
+      chunks.push(values.slice(index, index + chunkSize));
+    }
+    return chunks;
   }
 }
