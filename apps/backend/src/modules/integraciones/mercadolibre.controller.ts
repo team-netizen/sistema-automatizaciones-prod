@@ -6,7 +6,6 @@ import {
   Get,
   HttpCode,
   HttpStatus,
-  InternalServerErrorException,
   Logger,
   Param,
   Post,
@@ -20,6 +19,7 @@ import type { Request } from 'express';
 import { Roles } from '../../core/auth/roles.decorator';
 import { type PerfilUsuario, RolesGuard } from '../../core/auth/roles.guard';
 import { SupabaseService } from '../../shared/supabase/supabase.service';
+import { MercadoLibreService } from './mercadolibre.service';
 
 type AuthenticatedRequest = Request & {
   perfil: PerfilUsuario;
@@ -37,6 +37,7 @@ export class MercadoLibreController {
 
   constructor(
     private readonly supabase: SupabaseService,
+    private readonly mercadoLibreService: MercadoLibreService,
     @InjectQueue('woocommerce-sync')
     private readonly wooQueue: Queue<WooSyncJobData>,
   ) {}
@@ -127,43 +128,13 @@ export class MercadoLibreController {
     }
 
     if (tipoNormalizado === 'mercadolibre') {
-      const { data: integracion, error: selectError } = await this.supabase
-        .getAdminClient()
-        .from('integraciones_canal')
-        .select('id, activa')
-        .eq('empresa_id', empresa_id)
-        .eq('tipo_integracion', 'mercadolibre')
-        .maybeSingle();
-
-      if (selectError) {
-        throw new InternalServerErrorException(
-          `Error al consultar integracion de Mercado Libre: ${selectError.message}`,
-        );
-      }
-
-      if (!integracion?.id || !integracion.activa) {
-        throw new BadRequestException('Mercado Libre no esta conectado para esta empresa');
-      }
-
-      const nowIso = new Date().toISOString();
-      const { error: updateError } = await this.supabase
-        .getAdminClient()
-        .from('integraciones_canal')
-        .update({ ultima_sincronizacion: nowIso })
-        .eq('id', integracion.id);
-
-      if (updateError) {
-        throw new InternalServerErrorException(
-          `Error al registrar sync manual de Mercado Libre: ${updateError.message}`,
-        );
-      }
-
       this.logger.log(`[sync-manual] Mercado Libre solicitado empresa=${empresa_id}`);
+      const resultado = await this.mercadoLibreService.syncManual(empresa_id);
       return {
         ok: true,
         empresa_id,
         tipo: tipoNormalizado,
-        mensaje: 'Sync manual de Mercado Libre registrado',
+        ...resultado,
       };
     }
 

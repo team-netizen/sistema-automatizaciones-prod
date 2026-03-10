@@ -510,25 +510,48 @@ export class OperacionesService {
 
     if (error) throw new Error(error.message);
 
-    const stockItems = Array.isArray(data?.stock_por_sucursal)
-      ? data.stock_por_sucursal.filter((s: any) => Number(s?.cantidad) > 0)
-      : [];
+    const stockInicialPorSucursal = new Map<string, number>();
+    if (Array.isArray(data?.stock_por_sucursal)) {
+      for (const row of data.stock_por_sucursal) {
+        const sucursalId = String(row?.sucursal_id ?? '').trim();
+        if (!sucursalId) continue;
+        const cantidad = Math.max(0, Number(row?.cantidad || 0));
+        stockInicialPorSucursal.set(sucursalId, cantidad);
+      }
+    }
 
-    if (stockItems.length > 0) {
-      const inserts = stockItems.map((s: any) => ({
+    const { data: sucursales, error: sucursalesError } = await this.supabase
+      .getAdminClient()
+      .from('sucursales')
+      .select('id, activa')
+      .eq('empresa_id', empresa_id);
+
+    if (sucursalesError) {
+      console.error('Error consultando sucursales para stock inicial:', sucursalesError.message);
+    } else {
+      const sucursalesActivas = ((sucursales ?? []) as Array<Record<string, unknown>>)
+        .filter((sucursal) => Boolean(sucursal.activa ?? true))
+        .map((sucursal) => String(sucursal.id ?? '').trim())
+        .filter((id) => id.length > 0);
+
+      const inserts = sucursalesActivas.map((sucursalId) => ({
         empresa_id,
         producto_id: producto.id,
-        sucursal_id: s.sucursal_id,
-        cantidad: Number(s.cantidad),
+        sucursal_id: sucursalId,
+        cantidad: stockInicialPorSucursal.get(sucursalId) ?? 0,
+        cantidad_reservada: 0,
+        ultima_actualizacion: new Date().toISOString(),
       }));
 
-      const { error: stockError } = await this.supabase
-        .getAdminClient()
-        .from('stock_por_sucursal')
-        .insert(inserts);
+      if (inserts.length > 0) {
+        const { error: stockError } = await this.supabase
+          .getAdminClient()
+          .from('stock_por_sucursal')
+          .insert(inserts);
 
-      if (stockError) {
-        console.error('Error insertando stock inicial:', stockError.message);
+        if (stockError) {
+          console.error('Error insertando stock inicial:', stockError.message);
+        }
       }
     }
 
