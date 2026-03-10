@@ -463,27 +463,7 @@ export class MercadoLibreService {
     accessToken: string,
   ): Promise<PublicacionMl[]> {
     try {
-      const searchRes = await fetch(
-        `https://api.mercadolibre.com/users/${userId}/items/search?limit=100`,
-        {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        },
-      );
-
-      if (!searchRes.ok) {
-        const raw = await searchRes.text();
-        this.logger.warn(
-          `[ML] Error obteniendo publicaciones de ${userId}: ${searchRes.status} ${raw}`,
-        );
-        return [];
-      }
-
-      const searchData = (await searchRes.json()) as { results?: unknown[] };
-      const itemIds = Array.isArray(searchData.results)
-        ? searchData.results
-            .map((itemId) => this.readString(itemId))
-            .filter((itemId): itemId is string => Boolean(itemId))
-        : [];
+      const itemIds = await this.obtenerTodosLosItemIds(userId, accessToken);
 
       if (itemIds.length === 0) return [];
 
@@ -522,6 +502,56 @@ export class MercadoLibreService {
     } catch {
       return [];
     }
+  }
+
+  private async obtenerTodosLosItemIds(
+    userId: string,
+    accessToken: string,
+  ): Promise<string[]> {
+    const todosLosItemIds: string[] = [];
+    let offset = 0;
+    const limit = 100;
+    const maxItems = 1000;
+
+    while (true) {
+      const searchRes = await fetch(
+        `https://api.mercadolibre.com/users/${userId}/items/search?limit=${limit}&offset=${offset}`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
+      );
+
+      if (!searchRes.ok) {
+        const raw = await searchRes.text();
+        this.logger.warn(
+          `[ML] Error obteniendo publicaciones de ${userId} offset=${offset}: ${searchRes.status} ${raw}`,
+        );
+        break;
+      }
+
+      const searchData = (await searchRes.json()) as { results?: unknown[] };
+      const itemIds = Array.isArray(searchData.results)
+        ? searchData.results
+            .map((itemId) => this.readString(itemId))
+            .filter((itemId): itemId is string => Boolean(itemId))
+        : [];
+
+      todosLosItemIds.push(...itemIds);
+      this.logger.log(
+        `[ML] Pagina offset=${offset}: ${itemIds.length} items (total acumulado: ${todosLosItemIds.length})`,
+      );
+
+      if (itemIds.length < limit) break;
+      if (todosLosItemIds.length >= maxItems) break;
+      offset += limit;
+    }
+
+    if (todosLosItemIds.length > maxItems) {
+      return todosLosItemIds.slice(0, maxItems);
+    }
+
+    this.logger.log(`[ML] Total publicaciones encontradas: ${todosLosItemIds.length}`);
+    return todosLosItemIds;
   }
 
   private resolverSellerSku(publicacion: PublicacionMl): string | null {
