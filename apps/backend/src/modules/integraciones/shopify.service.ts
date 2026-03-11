@@ -590,12 +590,45 @@ export class ShopifyService {
         headers: { 'X-Shopify-Access-Token': accessToken },
       });
 
+      this.logger.log(`[Shopify debug] GET products status=${res.status}`);
+
       if (!res.ok) {
-        this.logger.warn(`[Shopify] Error obteniendo productos para SKU map: ${res.status}`);
+        const errorText = await res.text();
+        this.logger.warn(`[Shopify debug] Error response: ${errorText.substring(0, 500)}`);
         break;
       }
 
-      const json = await res.json() as { products: Array<Record<string, unknown>> };
+      const rawText = await res.text();
+      this.logger.log(`[Shopify debug] Response preview: ${rawText.substring(0, 500)}`);
+
+      let json: { products: Array<Record<string, unknown>> } = { products: [] };
+      try {
+        json = JSON.parse(rawText) as { products: Array<Record<string, unknown>> };
+      } catch {
+        this.logger.warn('[Shopify debug] No se pudo parsear JSON');
+        break;
+      }
+
+      this.logger.log(`[Shopify debug] Productos en respuesta: ${json.products?.length ?? 0}`);
+      if (json.products?.length > 0) {
+        const primerProducto = json.products[0] as Record<string, unknown>;
+        const variants = Array.isArray(primerProducto.variants)
+          ? primerProducto.variants as Array<Record<string, unknown>>
+          : [];
+        this.logger.log(
+          `[Shopify debug] Primer producto: id=${String(primerProducto.id ?? '')} title=${String(primerProducto.title ?? '')}`,
+        );
+        this.logger.log(
+          `[Shopify debug] Variantes del primer producto: ${JSON.stringify(
+            variants.map((v) => ({
+              id: v.id,
+              sku: v.sku,
+              inventory_item_id: v.inventory_item_id,
+            })),
+          )}`,
+        );
+      }
+
       for (const producto of json.products || []) {
         const variants = Array.isArray(producto.variants) ? producto.variants as Array<Record<string, unknown>> : [];
         for (const variante of variants) {
@@ -846,6 +879,7 @@ export class ShopifyService {
     return normalized.length > 0 ? normalized : null;
   }
 }
+
 
 
 
