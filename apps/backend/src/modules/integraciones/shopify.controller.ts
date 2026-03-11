@@ -35,8 +35,12 @@ type ShopifyAuthBody = {
 };
 
 type ShopifyCallbackRawQuery = Record<string, string | string[] | undefined>;
-
 type ShopifyCallbackQuery = Record<string, string | undefined>;
+
+type ShopifyAppRequestContext = {
+  empresa_id: string;
+  credenciales: Record<string, unknown>;
+};
 
 function normalizeQuery(query: ShopifyCallbackRawQuery): ShopifyCallbackQuery {
   return Object.entries(query).reduce<ShopifyCallbackQuery>((acc, [key, value]) => {
@@ -62,6 +66,42 @@ export class ShopifyController {
     private readonly supabase: SupabaseService,
     private readonly shopifyService: ShopifyService,
   ) {}
+
+  @Get('shopify')
+  async appEntry(
+    @Query() rawQuery: ShopifyCallbackRawQuery,
+    @Res() res: Response,
+  ) {
+    const query = normalizeQuery(rawQuery);
+    const frontendUrl = this.readFrontendUrl();
+    const shop = this.readString(query.shop);
+    const hasSignedParams = Boolean(query.shop || query.hmac || query.timestamp);
+
+    if (hasSignedParams) {
+      if (!shop || !query.hmac || !query.timestamp) {
+        return res.status(HttpStatus.BAD_REQUEST).send(this.renderAppMessage('Solicitud incompleta de Shopify.'));
+      }
+
+      try {
+        const context = await this.obtenerContextoApp(shop);
+        const apiSecret = this.readString(context.credenciales.api_secret);
+        if (!apiSecret || !this.shopifyService.validateSignedRequest(query, apiSecret)) {
+          return res.status(HttpStatus.UNAUTHORIZED).send(this.renderAppMessage('Solicitud de Shopify no valida.'));
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'No se pudo validar la solicitud de Shopify.';
+        return res.status(HttpStatus.BAD_REQUEST).send(this.renderAppMessage(message));
+      }
+    }
+
+    if (frontendUrl) {
+      return res.redirect(HttpStatus.FOUND, frontendUrl);
+    }
+
+    return res.status(HttpStatus.OK).send(
+      this.renderAppMessage('Shopify esta configurado en el backend. Vuelve al dashboard para administrar la integracion.'),
+    );
+  }
 
   @Post('shopify/auth-url')
   @UseGuards(RolesGuard, EmpresaGuard)
@@ -93,7 +133,9 @@ export class ShopifyController {
     const query = normalizeQuery(rawQuery);
     const { code, shop, state, hmac } = query;
 
-    this.logger.log(`[Shopify callback] shop=${shop || 'missing'} state=${state || 'missing'}`);
+    this.logger.log(
+      `[Shopify callback] shop=${shop ? 'present' : 'missing'} state=${state ? 'present' : 'missing'}`,
+    );
 
     try {
       await this.shopifyService.handleCallback(
@@ -183,7 +225,7 @@ export class ShopifyController {
     if (secret) {
       const raw = typeof body === 'string' ? body : JSON.stringify(body || {});
       const digest = crypto.createHmac('sha256', secret).update(raw, 'utf8').digest('base64');
-      if (!hmac || !crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(hmac))) {
+      if (!this.safeCompareBase64(digest, hmac)) {
         throw new UnauthorizedException('Firma Shopify invalida');
       }
     }
@@ -215,6 +257,64 @@ export class ShopifyController {
     return perfilEmpresaId;
   }
 
+  private readFrontendUrl(): string | null {
+    const value = String(process.env.FRONTEND_URL ?? '').trim().replace(/\/+$/, '');
+    return value || null;
+  }
+
+  private renderAppMessage(message: string): string {
+    const safeMessage = escapeHtml(message);
+    return `
+      <!DOCTYPE html>
+      <html lang="es">
+        <head>
+          <meta charset="UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <title>Shopify App</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 0; padding: 24px; background: #0b0f12; color: #e8f5ee; }
+            .card { max-width: 560px; margin: 24px auto; border: 1px solid #1c2830; border-radius: 10px; background: #0f1419; padding: 18px; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <p>${safeMessage}</p>
+          </div>
+        </body>
+      </html>
+    `;
+  }
+
+  private async obtenerContextoApp(shop: string): Promise<ShopifyAppRequestContext> {
+    const { data, error } = await this.supabase
+      .getAdminClient()
+      .from('integraciones_canal')
+      .select('empresa_id, credenciales')
+      .eq('tipo_integracion', 'shopify')
+      .filter('credenciales->>shop_url', 'eq', shop)
+      .limit(2);
+
+    if (error) {
+      throw new ForbiddenException('No se pudo validar la solicitud de Shopify.');
+    }
+
+    if (!Array.isArray(data) || data.length !== 1) {
+      throw new ForbiddenException('No existe una integracion Shopify unica para esta tienda.');
+    }
+
+    const row = data[0] as Record<string, unknown>;
+    const empresaId = this.readString(row.empresa_id);
+    const credenciales = row.credenciales;
+    if (!empresaId || !credenciales || typeof credenciales !== 'object' || Array.isArray(credenciales)) {
+      throw new ForbiddenException('Integracion Shopify invalida.');
+    }
+
+    return {
+      empresa_id: empresaId,
+      credenciales: credenciales as Record<string, unknown>,
+    };
+  }
+
   private async obtenerApiSecret(empresa_id: string): Promise<string | null> {
     const { data } = await this.supabase
       .getAdminClient()
@@ -228,5 +328,19 @@ export class ShopifyController {
     const credenciales = (data?.credenciales || {}) as Record<string, unknown>;
     const secret = credenciales.api_secret;
     return typeof secret === 'string' && secret.trim() ? secret.trim() : null;
+  }
+
+  private safeCompareBase64(left: string, right: string | undefined): boolean {
+    if (!right) return false;
+    const leftBuffer = Buffer.from(left, 'utf8');
+    const rightBuffer = Buffer.from(right, 'utf8');
+    if (leftBuffer.length !== rightBuffer.length) return false;
+    return crypto.timingSafeEqual(leftBuffer, rightBuffer);
+  }
+
+  private readString(value: unknown): string | null {
+    if (typeof value !== 'string') return null;
+    const normalized = value.trim();
+    return normalized.length > 0 ? normalized : null;
   }
 }

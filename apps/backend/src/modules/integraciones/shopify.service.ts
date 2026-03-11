@@ -14,6 +14,7 @@ type ShopifyCredenciales = {
 };
 
 type ShopifyCallbackQuery = Record<string, string | undefined>;
+type ShopifyRequestVerificationQuery = Record<string, string | undefined>;
 
 type ShopifyIntegracionPayload = {
   empresa_id: string;
@@ -28,6 +29,8 @@ type ShopifyIntegracionPayload = {
 @Injectable()
 export class ShopifyService {
   private readonly logger = new Logger(ShopifyService.name);
+  private static readonly SHOP_DOMAIN_REGEX = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.myshopify\.com$/;
+  private static readonly OAUTH_STATE_MAX_AGE_MS = 15 * 60 * 1000;
 
   constructor(private readonly supabase: SupabaseService) {}
 
@@ -126,11 +129,15 @@ export class ShopifyService {
     const apiSecret = this.readString(credenciales.api_secret);
     const shopGuardado = this.normalizarShopUrl(this.readString(credenciales.shop_url) ?? '');
     const stateGuardado = this.readString(credenciales.oauth_state);
+    const stateFechaGuardado = this.readDate(credenciales.oauth_state_fecha);
 
     if (!apiKey || !apiSecret) {
       throw new BadRequestException('Faltan api_key/api_secret en credenciales de Shopify');
     }
     if (!stateGuardado || !this.safeEqual(stateGuardado, oauthState)) {
+      throw new BadRequestException('State invalido o expirado');
+    }
+    if (!stateFechaGuardado || this.isExpiredState(stateFechaGuardado)) {
       throw new BadRequestException('State invalido o expirado');
     }
     if (!this.verifyHmac(query, apiSecret, oauthHmac)) {
@@ -160,7 +167,9 @@ export class ShopifyService {
 
     const accessToken = this.readString(tokenData.access_token);
     if (!tokenRes.ok || !accessToken) {
-      this.logger.error(`[Shopify callback] Error obteniendo token: status=${tokenRes.status} body=${raw}`);
+      this.logger.error(
+        `[Shopify callback] Error obteniendo token: status=${tokenRes.status} has_access_token=${Boolean(accessToken)} response_length=${raw.length}`,
+      );
       throw new BadRequestException('No se pudo obtener access_token de Shopify');
     }
 
@@ -173,6 +182,7 @@ export class ShopifyService {
       oauth_code: oauthCode,
       oauth_code_fecha: new Date().toISOString(),
       oauth_state: null,
+      oauth_state_fecha: null,
     };
 
     const { error: updateError } = await this.supabase
@@ -215,12 +225,24 @@ export class ShopifyService {
     };
   }
 
+  validateSignedRequest(query: ShopifyRequestVerificationQuery, secret: string): boolean {
+    const hmac = this.readString(query.hmac);
+    if (!secret || !hmac) return false;
+    return this.verifyHmac(query, secret, hmac);
+  }
+
   private normalizarShopUrl(raw: unknown): string {
-    return String(raw ?? '')
+    const normalized = String(raw ?? '')
       .trim()
       .replace(/^https?:\/\//i, '')
       .replace(/\/+$/, '')
       .toLowerCase();
+
+    if (!normalized || !ShopifyService.SHOP_DOMAIN_REGEX.test(normalized)) {
+      throw new BadRequestException('shop_url invalido. Usa el dominio *.myshopify.com');
+    }
+
+    return normalized;
   }
 
   private obtenerBackendUrl(): string {
@@ -343,6 +365,16 @@ export class ShopifyService {
       return false;
     }
     return crypto.timingSafeEqual(leftBuffer, rightBuffer);
+  }
+
+  private isExpiredState(stateDate: Date): boolean {
+    return Date.now() - stateDate.getTime() > ShopifyService.OAUTH_STATE_MAX_AGE_MS;
+  }
+
+  private readDate(value: unknown): Date | null {
+    if (typeof value !== 'string') return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
   }
 
   private readId(row: unknown): string | null {

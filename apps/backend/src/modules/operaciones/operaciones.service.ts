@@ -2437,6 +2437,7 @@ export class OperacionesService {
         const canalId = this.readString(row, 'canal_id');
         return {
           ...row,
+          credenciales: this.redactSensitiveCredentials(row.credenciales),
           canal: canalId ? canalesMap.get(canalId) ?? null : null,
         };
       });
@@ -3632,6 +3633,28 @@ export class OperacionesService {
     return [...new Set(rows.map((row) => this.readString(row, key)).filter((id): id is string => Boolean(id)))];
   }
 
+  private redactSensitiveCredentials(value: unknown): Record<string, unknown> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return {};
+    }
+
+    const sensitiveKeys = new Set([
+      'api_secret',
+      'access_token',
+      'oauth_state',
+      'refresh_token',
+      'webhook_secret',
+    ]);
+
+    return Object.entries(value as Record<string, unknown>).reduce<Record<string, unknown>>((acc, [key, current]) => {
+      if (sensitiveKeys.has(key)) {
+        return acc;
+      }
+      acc[key] = current;
+      return acc;
+    }, {});
+  }
+
   private readString(row: Record<string, unknown>, key: string): string | null {
     const value = row[key];
     return typeof value === 'string' && value.trim().length > 0 ? value : null;
@@ -3684,3 +3707,5 @@ export class OperacionesService {
     throw new InternalServerErrorException(fallbackMessage);
   }
 }
+
+
