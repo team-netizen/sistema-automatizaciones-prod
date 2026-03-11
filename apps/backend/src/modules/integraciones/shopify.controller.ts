@@ -231,6 +231,7 @@ export class ShopifyController {
     @Param('empresa_id') empresa_id: string,
     @Body() body: any,
     @Headers('x-shopify-hmac-sha256') hmac: string,
+    @Headers('x-shopify-topic') topic: string,
   ) {
     const secret = await this.obtenerApiSecret(empresa_id);
     if (secret) {
@@ -241,7 +242,19 @@ export class ShopifyController {
       }
     }
 
-    this.logger.log(`Shopify webhook recibido para empresa ${empresa_id}`);
+    const topicNormalizado = String(topic || '').toLowerCase();
+    this.logger.log(`Shopify webhook recibido para empresa ${empresa_id} topic=${topicNormalizado || 'desconocido'}`);
+
+    if (topicNormalizado === 'orders/paid' || topicNormalizado === 'orders/fulfilled') {
+      const lineItems: Array<{ sku?: string; quantity?: number; title?: string }> = Array.isArray(body?.line_items)
+        ? body.line_items
+        : [];
+      if (lineItems.length > 0) {
+        const orderId = this.readString(body?.id) ?? undefined;
+        await this.shopifyService.descontarStockPorPedido(empresa_id, lineItems, orderId);
+      }
+    }
+
     return { received: true };
   }
 

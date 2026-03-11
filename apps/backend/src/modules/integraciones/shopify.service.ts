@@ -380,7 +380,12 @@ export class ShopifyService {
     return this.readString(value);
   }
 
-  async syncManual(empresaId: string): Promise<{ success: boolean; productos_sincronizados: number; mensaje: string }> {
+  async syncManual(empresaId: string): Promise<{
+    success: boolean;
+    productos_actualizados: number;
+    productos_sin_match: number;
+    mensaje: string;
+  }> {
     const { data, error } = await this.supabase
       .getAdminClient()
       .from('integraciones_canal')
@@ -402,34 +407,32 @@ export class ShopifyService {
       throw new BadRequestException('Faltan credenciales de Shopify. Reconecta la integracion.');
     }
 
-    let productos: any[] = [];
-    let pageInfo: string | null = null;
-    let pagina = 0;
+    const shopifyProductosPorSku = await this.obtenerProductosShopifyPorSku(shopUrl, accessToken);
+    const stockPorSku = await this.obtenerStockConsolidadoSisAutoPorSku(empresaId);
+    const locationId = await this.obtenerLocationId(shopUrl, accessToken);
 
-    do {
-      pagina++;
-      const url: string = pageInfo
-        ? `https://${shopUrl}/admin/api/2024-01/products.json?limit=250&page_info=${pageInfo}`
-        : `https://${shopUrl}/admin/api/2024-01/products.json?limit=250`;
+    let actualizados = 0;
+    let sinMatch = 0;
 
-      const res: Response = await fetch(url, {
-        headers: {
-          'X-Shopify-Access-Token': accessToken,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!res.ok) {
-        throw new BadRequestException(`Error obteniendo productos de Shopify: ${res.status}`);
+    for (const [skuNormalizado, cantidadSisAuto] of stockPorSku.entries()) {
+      const shopifyVariante = shopifyProductosPorSku.get(skuNormalizado);
+      if (!shopifyVariante) {
+        sinMatch += 1;
+        continue;
       }
 
-      const json = await res.json() as { products: any[] };
-      productos = productos.concat(json.products || []);
+      const updated = await this.actualizarInventarioShopify(
+        shopUrl,
+        accessToken,
+        shopifyVariante.inventory_item_id,
+        locationId,
+        cantidadSisAuto,
+      );
 
-      const linkHeader: string = res.headers.get('Link') || '';
-      const nextMatch: RegExpMatchArray | null = linkHeader.match(/<[^>]*page_info=([^>&"]+)[^>]*>;\s*rel="next"/);
-      pageInfo = nextMatch ? nextMatch[1] : null;
-    } while (pageInfo && pagina < 20);
+      if (updated) {
+        actualizados += 1;
+      }
+    }
 
     await this.supabase
       .getAdminClient()
@@ -438,13 +441,343 @@ export class ShopifyService {
       .eq('empresa_id', empresaId)
       .eq('tipo_integracion', 'shopify');
 
-    this.logger.log(`[Shopify sync] empresa=${empresaId} productos=${productos.length}`);
+    this.logger.log(
+      `[Shopify sync] empresa=${empresaId} actualizados=${actualizados} sin_match=${sinMatch}`,
+    );
 
     return {
       success: true,
-      productos_sincronizados: productos.length,
-      mensaje: `Sincronizacion completada: ${productos.length} productos obtenidos de Shopify`,
+      productos_actualizados: actualizados,
+      productos_sin_match: sinMatch,
+      mensaje: `Sync completado: ${actualizados} productos actualizados en Shopify, ${sinMatch} sin match por SKU`,
     };
+  }
+
+  async descontarStockPorPedido(
+    empresaId: string,
+    lineItems: Array<{ sku?: string; quantity?: number; title?: string }>,
+    orderId?: string,
+  ): Promise<void> {
+    if (!lineItems?.length) return;
+
+    if (orderId) {
+      const { data: existente } = await this.supabase
+        .getAdminClient()
+        .from('movimientos_stock')
+        .select('id')
+        .eq('empresa_id', empresaId)
+        .eq('referencia_tipo', 'shopify_order')
+        .eq('referencia_id', orderId)
+        .limit(1)
+        .maybeSingle();
+
+      if (existente) {
+        this.logger.log(`[Shopify webhook] Pedido ya procesado order_id=${orderId}`);
+        return;
+      }
+    }
+
+    const sucursalId = await this.obtenerSucursalPrincipalActiva(empresaId);
+    if (!sucursalId) {
+      this.logger.warn(`[Shopify webhook] No se encontro sucursal activa para empresa ${empresaId}`);
+      return;
+    }
+
+    for (const item of lineItems) {
+      const skuOriginal = this.readString(item?.sku) ?? '';
+      const skuNormalizado = this.normalizarSku(skuOriginal);
+      const cantidad = Math.max(0, Math.trunc(Number(item?.quantity || 0)));
+
+      if (!skuNormalizado || cantidad <= 0) continue;
+
+      const producto = await this.buscarProductoInternoPorSku(empresaId, skuOriginal);
+      if (!producto) {
+        this.logger.warn(`[Shopify webhook] SKU no encontrado en SisAuto: ${skuOriginal}`);
+        continue;
+      }
+
+      const stockActual = await this.supabase
+        .getAdminClient()
+        .from('stock_por_sucursal')
+        .select('id, cantidad')
+        .eq('empresa_id', empresaId)
+        .eq('producto_id', producto.id)
+        .eq('sucursal_id', sucursalId)
+        .maybeSingle();
+
+      if (stockActual.error || !stockActual.data) {
+        this.logger.warn(`[Shopify webhook] Stock no encontrado para SKU=${skuOriginal} sucursal=${sucursalId}`);
+        continue;
+      }
+
+      const row = stockActual.data as Record<string, unknown>;
+      const stockId = this.readString(row.id);
+      const cantidadActual = this.readNumber(row.cantidad);
+      if (!stockId) {
+        this.logger.warn(`[Shopify webhook] Registro de stock sin id para SKU=${skuOriginal}`);
+        continue;
+      }
+
+      const nuevaCantidad = Math.max(0, cantidadActual - cantidad);
+
+      const { error: updateError } = await this.supabase
+        .getAdminClient()
+        .from('stock_por_sucursal')
+        .update({
+          cantidad: nuevaCantidad,
+          ultima_actualizacion: new Date().toISOString(),
+        })
+        .eq('id', stockId)
+        .eq('empresa_id', empresaId);
+
+      if (updateError) {
+        throw new InternalServerErrorException(`Error descontando stock Shopify: ${updateError.message}`);
+      }
+
+      const { error: movimientoError } = await this.supabase
+        .getAdminClient()
+        .from('movimientos_stock')
+        .insert({
+          empresa_id: empresaId,
+          producto_id: producto.id,
+          sucursal_id: sucursalId,
+          tipo: 'salida',
+          cantidad: -cantidad,
+          motivo: `Venta Shopify (SKU: ${producto.sku})`,
+          referencia_tipo: 'shopify_order',
+          referencia_id: orderId ?? null,
+          creado_por: null,
+          fecha_creacion: new Date().toISOString(),
+        });
+
+      if (movimientoError) {
+        throw new InternalServerErrorException(`Error registrando movimiento Shopify: ${movimientoError.message}`);
+      }
+
+      this.logger.log(
+        `[Shopify webhook] Stock descontado SKU=${producto.sku} cantidad=${cantidad} sucursal=${sucursalId}`,
+      );
+    }
+  }
+
+  private async obtenerProductosShopifyPorSku(
+    shopUrl: string,
+    accessToken: string,
+  ): Promise<Map<string, { inventory_item_id: string; variant_id: string }>> {
+    const resultado = new Map<string, { inventory_item_id: string; variant_id: string }>();
+    let pageInfo: string | null = null;
+    let pagina = 0;
+
+    do {
+      pagina += 1;
+      const url: string = pageInfo
+        ? `https://${shopUrl}/admin/api/2024-01/products.json?limit=250&fields=id,variants&page_info=${pageInfo}`
+        : `https://${shopUrl}/admin/api/2024-01/products.json?limit=250&fields=id,variants`;
+
+      const res: Response = await fetch(url, {
+        headers: { 'X-Shopify-Access-Token': accessToken },
+      });
+
+      if (!res.ok) {
+        throw new BadRequestException(`Error obteniendo productos de Shopify: ${res.status}`);
+      }
+
+      const json = await res.json() as { products: Array<Record<string, unknown>> };
+      for (const producto of json.products || []) {
+        const variants = Array.isArray(producto.variants) ? producto.variants as Array<Record<string, unknown>> : [];
+        for (const variante of variants) {
+          const skuOriginal = this.readString(variante.sku);
+          const sku = this.normalizarSku(skuOriginal);
+          const inventoryItemId = this.readString(variante.inventory_item_id);
+          const variantId = this.readString(variante.id);
+          if (!sku || !inventoryItemId || !variantId) continue;
+          resultado.set(sku, {
+            inventory_item_id: inventoryItemId,
+            variant_id: variantId,
+          });
+        }
+      }
+
+      const linkHeader: string = res.headers.get('Link') || '';
+      const nextMatch: RegExpMatchArray | null = linkHeader.match(/<[^>]*page_info=([^>&"]+)[^>]*>;\s*rel="next"/);
+      pageInfo = nextMatch ? nextMatch[1] : null;
+    } while (pageInfo && pagina < 20);
+
+    return resultado;
+  }
+
+  private async obtenerLocationId(shopUrl: string, accessToken: string): Promise<string> {
+    const res: Response = await fetch(`https://${shopUrl}/admin/api/2024-01/locations.json`, {
+      headers: { 'X-Shopify-Access-Token': accessToken },
+    });
+
+    if (!res.ok) {
+      throw new BadRequestException('No se pudo obtener locations de Shopify');
+    }
+
+    const json = await res.json() as { locations: Array<Record<string, unknown>> };
+    const locations = (json.locations || []).filter((location) => location.active !== false);
+    if (locations.length === 0) {
+      throw new BadRequestException('No hay locations activas en Shopify');
+    }
+
+    const locationId = this.readString(locations[0].id);
+    if (!locationId) {
+      throw new BadRequestException('Location de Shopify invalida');
+    }
+
+    return locationId;
+  }
+
+  private async actualizarInventarioShopify(
+    shopUrl: string,
+    accessToken: string,
+    inventoryItemId: string,
+    locationId: string,
+    cantidad: number,
+  ): Promise<boolean> {
+    const res: Response = await fetch(
+      `https://${shopUrl}/admin/api/2024-01/inventory_levels/set.json`,
+      {
+        method: 'POST',
+        headers: {
+          'X-Shopify-Access-Token': accessToken,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          location_id: Number(locationId),
+          inventory_item_id: Number(inventoryItemId),
+          available: Math.max(0, Math.round(cantidad)),
+        }),
+      },
+    );
+
+    if (!res.ok) {
+      const text = await res.text();
+      this.logger.warn(
+        `[Shopify] Error actualizando inventory_item=${inventoryItemId}: ${res.status} ${text}`,
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  private async obtenerStockConsolidadoSisAutoPorSku(empresaId: string): Promise<Map<string, number>> {
+    const productos = await this.supabase
+      .getAdminClient()
+      .from('productos')
+      .select('id, sku')
+      .eq('empresa_id', empresaId)
+      .not('sku', 'is', null);
+
+    if (productos.error) {
+      throw new InternalServerErrorException(`Error obteniendo productos por SKU: ${productos.error.message}`);
+    }
+
+    const skuByProducto = new Map<string, string>();
+    for (const row of (productos.data ?? []) as Array<Record<string, unknown>>) {
+      const id = this.readString(row.id);
+      const skuOriginal = this.readString(row.sku);
+      const sku = this.normalizarSku(skuOriginal);
+      if (!id || !sku) continue;
+      skuByProducto.set(id, sku);
+    }
+
+    const productoIds = Array.from(skuByProducto.keys());
+    const out = new Map<string, number>();
+    if (productoIds.length === 0) return out;
+
+    const stock = await this.supabase
+      .getAdminClient()
+      .from('stock_por_sucursal')
+      .select('producto_id, cantidad')
+      .eq('empresa_id', empresaId)
+      .in('producto_id', productoIds);
+
+    if (stock.error) {
+      throw new InternalServerErrorException(`Error obteniendo stock de SisAuto: ${stock.error.message}`);
+    }
+
+    for (const row of (stock.data ?? []) as Array<Record<string, unknown>>) {
+      const productoId = this.readString(row.producto_id);
+      if (!productoId) continue;
+      const sku = skuByProducto.get(productoId);
+      if (!sku) continue;
+      out.set(sku, (out.get(sku) ?? 0) + this.readNumber(row.cantidad));
+    }
+
+    return out;
+  }
+
+  private async obtenerSucursalPrincipalActiva(empresaId: string): Promise<string | null> {
+    const { data, error } = await this.supabase
+      .getAdminClient()
+      .from('sucursales')
+      .select('id, activa')
+      .eq('empresa_id', empresaId)
+      .order('fecha_creacion', { ascending: true });
+
+    if (error) {
+      this.logger.warn(`[Shopify webhook] Error obteniendo sucursales: ${error.message}`);
+      return null;
+    }
+
+    for (const row of (data ?? []) as Array<Record<string, unknown>>) {
+      const id = this.readString(row.id);
+      const activa = row.activa;
+      if (!id) continue;
+      if (activa === false) continue;
+      return id;
+    }
+
+    return null;
+  }
+
+  private async buscarProductoInternoPorSku(empresaId: string, sku: string): Promise<{ id: string; sku: string } | null> {
+    const clean = sku.trim();
+    if (!clean) return null;
+
+    const exact = await this.supabase
+      .getAdminClient()
+      .from('productos')
+      .select('id, sku')
+      .eq('empresa_id', empresaId)
+      .eq('sku', clean)
+      .maybeSingle();
+
+    if (!exact.error && exact.data) {
+      const row = exact.data as Record<string, unknown>;
+      const id = this.readString(row.id);
+      const skuFound = this.readString(row.sku);
+      if (id && skuFound) return { id, sku: skuFound };
+    }
+
+    const ci = await this.supabase
+      .getAdminClient()
+      .from('productos')
+      .select('id, sku')
+      .eq('empresa_id', empresaId)
+      .ilike('sku', clean)
+      .limit(1)
+      .maybeSingle();
+
+    if (ci.error || !ci.data) return null;
+
+    const row = ci.data as Record<string, unknown>;
+    const id = this.readString(row.id);
+    const skuFound = this.readString(row.sku);
+    return id && skuFound ? { id, sku: skuFound } : null;
+  }
+
+  private normalizarSku(value: unknown): string | null {
+    const sku = this.readString(value);
+    return sku ? sku.toLowerCase() : null;
+  }
+
+  private readNumber(value: unknown): number {
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue) ? numberValue : 0;
   }
 
   private readString(value: unknown): string | null {
@@ -453,5 +786,6 @@ export class ShopifyService {
     return normalized.length > 0 ? normalized : null;
   }
 }
+
 
 
