@@ -20,6 +20,7 @@ import type { Request, Response } from 'express';
 import { Roles } from '../../core/auth/roles.decorator';
 import { type PerfilUsuario, RolesGuard } from '../../core/auth/roles.guard';
 import { MercadoLibreService } from './mercadolibre.service';
+import { ShopifyService } from './shopify.service';
 
 type AuthenticatedRequest = Request & {
   perfil: PerfilUsuario;
@@ -37,6 +38,7 @@ export class MercadoLibreController {
 
   constructor(
     private readonly mercadoLibreService: MercadoLibreService,
+    private readonly shopifyService: ShopifyService,
     @InjectQueue('woocommerce-sync')
     private readonly wooQueue: Queue<WooSyncJobData>,
   ) {}
@@ -132,6 +134,17 @@ export class MercadoLibreController {
     if (tipoNormalizado === 'mercadolibre') {
       this.logger.log(`[sync-manual] Mercado Libre solicitado empresa=${empresa_id}`);
       const resultado = await this.mercadoLibreService.syncManual(empresa_id);
+      return {
+        ok: true,
+        empresa_id,
+        tipo: tipoNormalizado,
+        ...resultado,
+      };
+    }
+
+    if (tipoNormalizado === 'shopify') {
+      this.logger.log(`[sync-manual] Shopify solicitado empresa=${empresa_id}`);
+      const resultado = await this.shopifyService.syncManual(empresa_id);
       return {
         ok: true,
         empresa_id,
