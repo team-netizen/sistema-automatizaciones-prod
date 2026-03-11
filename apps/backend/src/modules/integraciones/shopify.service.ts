@@ -143,9 +143,6 @@ export class ShopifyService {
     if (!this.verifyHmac(query, apiSecret, oauthHmac)) {
       throw new BadRequestException('HMAC invalido');
     }
-    if (shopGuardado && shopGuardado !== shopNormalized) {
-      throw new BadRequestException('El shop del callback no coincide con la configuracion guardada');
-    }
 
     const tokenRes = await fetch(`https://${shopNormalized}/admin/oauth/access_token`, {
       method: 'POST',
@@ -389,3 +386,4 @@ export class ShopifyService {
     return normalized.length > 0 ? normalized : null;
   }
 }
+
