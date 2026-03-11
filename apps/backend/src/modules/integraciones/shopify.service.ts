@@ -602,8 +602,8 @@ export class ShopifyService {
         for (const variante of variants) {
           const skuOriginal = this.readString(variante.sku);
           const sku = this.normalizarSku(skuOriginal);
-          const inventoryItemId = this.readString(variante.inventory_item_id);
-          const variantId = this.readString(variante.id);
+          const inventoryItemId = variante.inventory_item_id != null ? String(variante.inventory_item_id) : null;
+          const variantId = variante.id != null ? String(variante.id) : null;
           if (!sku || !inventoryItemId || !variantId) continue;
           resultado.set(sku, {
             inventory_item_id: inventoryItemId,
@@ -847,9 +847,3 @@ export class ShopifyService {
     return normalized.length > 0 ? normalized : null;
   }
 }
-
-
-
-
-
-
