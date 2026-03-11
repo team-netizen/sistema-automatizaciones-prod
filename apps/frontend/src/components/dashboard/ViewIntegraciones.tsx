@@ -322,6 +322,7 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
     setOauthShopifyListo(false);
     setEsperandoOauthShopify(false);
     setModalTipo(null);
+    void cargarIntegraciones();
   };
 
   const handleAutorizarML = () => {
@@ -376,7 +377,10 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
     setError('');
     setEsperandoOauthShopify(true);
     limpiarEscuchaOauthShopify();
-    const handleMessage = (event: MessageEvent) => {
+
+    let shopifyOauthCompletado = false;
+
+    const handleMessageConFlag = (event: MessageEvent) => {
       if (
         event.data !== 'shopify-oauth-complete'
         && event.data !== 'shopify-connected'
@@ -385,6 +389,7 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
         return;
       }
 
+      shopifyOauthCompletado = true;
       limpiarEscuchaOauthShopify();
 
       if (event.data === 'shopify-error') {
@@ -400,14 +405,19 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
       })();
     };
 
-    oauthShopifyMessageHandlerRef.current = handleMessage;
-    window.addEventListener('message', handleMessage);
+    oauthShopifyMessageHandlerRef.current = handleMessageConFlag;
+    window.addEventListener('message', handleMessageConFlag);
 
     oauthShopifyPopupCheckIntervalRef.current = window.setInterval(() => {
       if (!popup.closed) return;
       limpiarEscuchaOauthShopify();
-      setEsperandoOauthShopify(false);
-      setError('Autorizacion cancelada. Intenta nuevamente.');
+      if (!shopifyOauthCompletado) {
+        setEsperandoOauthShopify(false);
+        void (async () => {
+          await cargarIntegraciones();
+          cerrarModal();
+        })();
+      }
     }, 1000);
   };
 
