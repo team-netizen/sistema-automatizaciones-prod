@@ -389,6 +389,19 @@ export const operacionesService = {
     return parseOrThrow(response, 'Error al conectar integracion');
   },
 
+  guardarCredencialesShopify: async (data: {
+    empresa_id?: string;
+    shop_url: string;
+    api_key: string;
+    api_secret: string;
+  }) => {
+    const response = await authFetch(`${API_URL}/integraciones/shopify/auth-url`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return parseOrThrow(response, 'Error al guardar credenciales de Shopify');
+  },
+
   desconectarIntegracion: async (tipo: string) => {
     const response = await authFetch(`${API_URL}/operaciones/integraciones/${tipo}/desconectar`, {
       method: 'POST',
@@ -518,3 +531,4 @@ export const operacionesService = {
     return response.json();
   },
 };
+

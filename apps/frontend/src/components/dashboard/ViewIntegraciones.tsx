@@ -98,14 +98,8 @@ const INTEGRACIONES_DISPONIBLES = [
         placeholder: 'Tu API Secret de Shopify',
         type: 'password',
       },
-      {
-        key: 'access_token',
-        label: 'Access Token',
-        placeholder: 'shpat_...',
-        type: 'password',
-      },
     ],
-    nota: 'Crea una app privada en tu panel de Shopify -> Apps -> Develop apps',
+    nota: 'La conexion se completa con OAuth despues de guardar credenciales.',
   },
   {
     tipo: 'whatsapp',
@@ -164,6 +158,12 @@ type IntegracionesService = typeof operacionesService & {
     credenciales: Record<string, string>;
     modo: 'conectar' | 'configurar';
   }) => Promise<any>;
+  guardarCredencialesShopify?: (data: {
+    empresa_id?: string;
+    shop_url: string;
+    api_key: string;
+    api_secret: string;
+  }) => Promise<any>;
   desconectarIntegracion?: (tipo: string) => Promise<any>;
   syncManualIntegracion?: (tipo: string) => Promise<any>;
 };
@@ -195,7 +195,7 @@ const getCredencialesIniciales = (tipo: string): Record<string, string> => {
     return { app_id: '', client_secret: '', redirect_uri: '' };
   }
   if (tipo === 'shopify') {
-    return { shop_url: '', api_key: '', api_secret: '', access_token: '' };
+    return { shop_url: '', api_key: '', api_secret: '' };
   }
   if (tipo === 'whatsapp') {
     return { phone_number_id: '', access_token: '', verify_token: '' };
@@ -227,8 +227,13 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
   const [sincronizando, setSincronizando] = useState<Record<string, boolean>>({});
   const [oauthMlListo, setOauthMlListo] = useState(false);
   const [authUrlMl, setAuthUrlMl] = useState('');
-  const oauthMessageHandlerRef = useRef<((event: MessageEvent) => void) | null>(null);
-  const oauthPopupCheckIntervalRef = useRef<number | null>(null);
+  const [oauthShopifyListo, setOauthShopifyListo] = useState(false);
+  const [authUrlShopify, setAuthUrlShopify] = useState('');
+  const [esperandoOauthShopify, setEsperandoOauthShopify] = useState(false);
+  const oauthMlMessageHandlerRef = useRef<((event: MessageEvent) => void) | null>(null);
+  const oauthMlPopupCheckIntervalRef = useRef<number | null>(null);
+  const oauthShopifyMessageHandlerRef = useRef<((event: MessageEvent) => void) | null>(null);
+  const oauthShopifyPopupCheckIntervalRef = useRef<number | null>(null);
 
   const empresaId = String(usuario?.empresa_id || '');
   const backendBase = (BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '')).replace(
@@ -251,6 +256,7 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
     void cargarIntegraciones();
     return () => {
       limpiarEscuchaOauthMl();
+      limpiarEscuchaOauthShopify();
     };
   }, []);
 
@@ -276,26 +282,45 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
     return `${base}?${params.toString()}`;
   }, [modalTipo, credenciales.app_id, credenciales.redirect_uri, empresaId]);
   const oauthMlUrlFinal = authUrlMl || oauthMlUrl;
+  const oauthShopifyUrlFinal = authUrlShopify;
   const mostrarSoloAutorizacionMl = modalTipo === 'mercadolibre' && Boolean(authUrlMl);
+  const mostrarSoloAutorizacionShopify = modalTipo === 'shopify' && Boolean(authUrlShopify);
+  const mostrarSoloAutorizacion = mostrarSoloAutorizacionMl || mostrarSoloAutorizacionShopify;
 
   const limpiarEscuchaOauthMl = () => {
-    if (oauthMessageHandlerRef.current) {
-      window.removeEventListener('message', oauthMessageHandlerRef.current);
-      oauthMessageHandlerRef.current = null;
+    if (oauthMlMessageHandlerRef.current) {
+      window.removeEventListener('message', oauthMlMessageHandlerRef.current);
+      oauthMlMessageHandlerRef.current = null;
     }
 
-    if (oauthPopupCheckIntervalRef.current !== null) {
-      window.clearInterval(oauthPopupCheckIntervalRef.current);
-      oauthPopupCheckIntervalRef.current = null;
+    if (oauthMlPopupCheckIntervalRef.current !== null) {
+      window.clearInterval(oauthMlPopupCheckIntervalRef.current);
+      oauthMlPopupCheckIntervalRef.current = null;
+    }
+  };
+
+  const limpiarEscuchaOauthShopify = () => {
+    if (oauthShopifyMessageHandlerRef.current) {
+      window.removeEventListener('message', oauthShopifyMessageHandlerRef.current);
+      oauthShopifyMessageHandlerRef.current = null;
+    }
+
+    if (oauthShopifyPopupCheckIntervalRef.current !== null) {
+      window.clearInterval(oauthShopifyPopupCheckIntervalRef.current);
+      oauthShopifyPopupCheckIntervalRef.current = null;
     }
   };
 
   const cerrarModal = () => {
     limpiarEscuchaOauthMl();
+    limpiarEscuchaOauthShopify();
     setAuthUrlMl('');
+    setAuthUrlShopify('');
     setCredenciales({});
     setError('');
     setOauthMlListo(false);
+    setOauthShopifyListo(false);
+    setEsperandoOauthShopify(false);
     setModalTipo(null);
   };
 
@@ -321,10 +346,10 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
       })();
     };
 
-    oauthMessageHandlerRef.current = handleMessage;
+    oauthMlMessageHandlerRef.current = handleMessage;
     window.addEventListener('message', handleMessage);
 
-    oauthPopupCheckIntervalRef.current = window.setInterval(() => {
+    oauthMlPopupCheckIntervalRef.current = window.setInterval(() => {
       if (!popup.closed) return;
       limpiarEscuchaOauthMl();
       void (async () => {
@@ -334,13 +359,68 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
     }, 1000);
   };
 
+  const handleAutorizarShopify = (authUrlParam?: string) => {
+    const finalUrl = authUrlParam || oauthShopifyUrlFinal;
+    if (!finalUrl) {
+      setError('No se pudo generar la URL de autorizacion de Shopify');
+      return;
+    }
+
+    const popup = window.open(finalUrl, '_blank', 'width=600,height=700');
+    if (!popup) {
+      setEsperandoOauthShopify(false);
+      setError('El navegador bloqueo la ventana emergente. Habilita popups e intenta de nuevo.');
+      return;
+    }
+
+    setError('');
+    setEsperandoOauthShopify(true);
+    limpiarEscuchaOauthShopify();
+    const handleMessage = (event: MessageEvent) => {
+      if (
+        event.data !== 'shopify-oauth-complete'
+        && event.data !== 'shopify-connected'
+        && event.data !== 'shopify-error'
+      ) {
+        return;
+      }
+
+      limpiarEscuchaOauthShopify();
+
+      if (event.data === 'shopify-error') {
+        setEsperandoOauthShopify(false);
+        setError('Error durante la autorizacion en Shopify. Intenta nuevamente.');
+        return;
+      }
+
+      void (async () => {
+        setEsperandoOauthShopify(false);
+        await cargarIntegraciones();
+        cerrarModal();
+      })();
+    };
+
+    oauthShopifyMessageHandlerRef.current = handleMessage;
+    window.addEventListener('message', handleMessage);
+
+    oauthShopifyPopupCheckIntervalRef.current = window.setInterval(() => {
+      if (!popup.closed) return;
+      limpiarEscuchaOauthShopify();
+      setEsperandoOauthShopify(false);
+      setError('Autorizacion cancelada. Intenta nuevamente.');
+    }, 1000);
+  };
+
   const abrirModalConectar = (tipo: string) => {
     setModalTipo(tipo);
     setModalModo('conectar');
     setCredenciales(getCredencialesIniciales(tipo));
     setAuthUrlMl('');
+    setAuthUrlShopify('');
     setError('');
     setOauthMlListo(false);
+    setOauthShopifyListo(false);
+    setEsperandoOauthShopify(false);
   };
 
   const abrirModalConfigurar = (tipo: string) => {
@@ -351,8 +431,11 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
     setModalModo('configurar');
     setCredenciales({ ...credencialesBase, ...credencialesGuardadas });
     setAuthUrlMl('');
+    setAuthUrlShopify('');
     setError('');
     setOauthMlListo(false);
+    setOauthShopifyListo(false);
+    setEsperandoOauthShopify(false);
     if (!intActiva) setError('Integracion no encontrada');
   };
 
@@ -368,6 +451,29 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
     setGuardando(true);
     setError('');
     try {
+      if (modalTipo === 'shopify') {
+        if (!service.guardarCredencialesShopify) {
+          throw new Error('Metodo guardarCredencialesShopify no disponible');
+        }
+
+        const respuestaShopify = await service.guardarCredencialesShopify({
+          empresa_id: empresaId || undefined,
+          shop_url: String(credenciales.shop_url || ''),
+          api_key: String(credenciales.api_key || ''),
+          api_secret: String(credenciales.api_secret || ''),
+        });
+
+        const authUrl = String(respuestaShopify?.auth_url || '');
+        if (!authUrl) {
+          throw new Error('No se pudo generar la URL de autorizacion de Shopify');
+        }
+
+        setAuthUrlShopify(authUrl);
+        setOauthShopifyListo(true);
+        handleAutorizarShopify(authUrl);
+        return;
+      }
+
       if (!service.conectarIntegracion) {
         throw new Error('Metodo conectarIntegracion no disponible');
       }
@@ -613,7 +719,7 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
           role="dialog"
           aria-modal="true"
           onClick={() => {
-            if (!guardando) cerrarModal();
+            if (!guardando && !esperandoOauthShopify) cerrarModal();
           }}
           style={{
             position: 'fixed',
@@ -650,7 +756,7 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
             </div>
 
             <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {!mostrarSoloAutorizacionMl && modalData.campos.map((campo) => (
+              {!mostrarSoloAutorizacion && modalData.campos.map((campo) => (
                 <div key={campo.key}>
                   <label
                     style={{
@@ -723,6 +829,53 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
                   >
                     Copiar
                   </button>
+                </div>
+              )}
+
+              {modalTipo === 'shopify' && oauthShopifyListo && oauthShopifyUrlFinal && (
+                <div
+                  style={{
+                    background: 'rgba(150,191,72,0.12)',
+                    border: '1px solid rgba(150,191,72,0.5)',
+                    borderRadius: 10,
+                    padding: 16,
+                    marginTop: 16,
+                  }}
+                >
+                  <p
+                    style={{
+                      color: '#c4e086',
+                      fontSize: 13,
+                      margin: '0 0 12px',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {esperandoOauthShopify
+                      ? 'Esperando autorizacion en Shopify...'
+                      : 'Credenciales guardadas. Si el popup no se abrio o lo cerraste, reintenta la autorizacion:'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleAutorizarShopify()}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      background: '#96bf48',
+                      color: '#0b0f12',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontWeight: 700,
+                      fontSize: '14px',
+                      cursor: esperandoOauthShopify ? 'not-allowed' : 'pointer',
+                      opacity: esperandoOauthShopify ? 0.7 : 1,
+                    }}
+                    disabled={esperandoOauthShopify}
+                  >
+                    {esperandoOauthShopify ? 'Esperando autorizacion...' : 'Autorizar en Shopify'}
+                  </button>
+                  <p style={{ color: '#6b7280', fontSize: '11px', margin: '8px 0 0', textAlign: 'center' }}>
+                    Se abrira una ventana emergente. Al autorizar, esta ventana se cerrara automaticamente.
+                  </p>
                 </div>
               )}
 
@@ -803,11 +956,11 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
                   border: `1px solid ${T.border2}`,
                   color: T.textMid,
                 }}
-                disabled={guardando}
+                disabled={guardando || esperandoOauthShopify}
               >
                 Cancelar
               </button>
-              {!mostrarSoloAutorizacionMl && (
+              {!mostrarSoloAutorizacion && (
                 <button
                   type="button"
                   onClick={() => void guardarIntegracion()}
@@ -818,9 +971,9 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
                     color: T.bg,
                     minWidth: 150,
                   }}
-                  disabled={guardando}
+                  disabled={guardando || esperandoOauthShopify}
                 >
-                  {guardando ? 'Guardando...' : 'Guardar y Conectar'}
+                  {guardando ? 'Guardando...' : esperandoOauthShopify ? 'Esperando autorizacion...' : 'Guardar y Conectar'}
                 </button>
               )}
             </div>
@@ -893,3 +1046,4 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
     </div>
   );
 };
+
