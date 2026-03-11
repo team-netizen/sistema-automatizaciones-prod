@@ -583,15 +583,16 @@ export class ShopifyService {
     do {
       pagina += 1;
       const url: string = pageInfo
-        ? `https://${shopUrl}/admin/api/2024-01/products.json?limit=250&fields=id,variants&page_info=${pageInfo}`
-        : `https://${shopUrl}/admin/api/2024-01/products.json?limit=250&fields=id,variants`;
+        ? `https://${shopUrl}/admin/api/2024-01/products.json?limit=250&page_info=${pageInfo}`
+        : `https://${shopUrl}/admin/api/2024-01/products.json?limit=250`;
 
       const res: Response = await fetch(url, {
         headers: { 'X-Shopify-Access-Token': accessToken },
       });
 
       if (!res.ok) {
-        throw new BadRequestException(`Error obteniendo productos de Shopify: ${res.status}`);
+        this.logger.warn(`[Shopify] Error obteniendo productos para SKU map: ${res.status}`);
+        break;
       }
 
       const json = await res.json() as { products: Array<Record<string, unknown>> };
@@ -614,6 +615,10 @@ export class ShopifyService {
       const nextMatch: RegExpMatchArray | null = linkHeader.match(/<[^>]*page_info=([^>&"]+)[^>]*>;\s*rel="next"/);
       pageInfo = nextMatch ? nextMatch[1] : null;
     } while (pageInfo && pagina < 20);
+
+    this.logger.log(
+      `[Shopify] SKUs encontrados en Shopify: ${Array.from(resultado.keys()).join(', ') || 'ninguno'}`,
+    );
 
     return resultado;
   }
@@ -841,6 +846,7 @@ export class ShopifyService {
     return normalized.length > 0 ? normalized : null;
   }
 }
+
 
 
 
