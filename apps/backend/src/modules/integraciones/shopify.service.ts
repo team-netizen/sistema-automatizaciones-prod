@@ -642,12 +642,14 @@ export class ShopifyService {
         return null;
       }
 
-      const locationId = this.readString(locations[0].id);
+      const rawId = locations[0].id;
+      const locationId = rawId != null ? String(rawId) : null;
       if (!locationId) {
         this.logger.warn('[Shopify] Location invalida. Se usara fallback por variante.');
         return null;
       }
 
+      this.logger.log(`[Shopify] Location encontrada: ${locationId}`);
       return locationId;
     } catch {
       this.logger.warn('[Shopify] Error obteniendo locations. Se usara fallback por variante.');
