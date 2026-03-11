@@ -452,7 +452,14 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
   const guardarIntegracion = async () => {
     if (!modalTipo || !modalData) return;
 
-    const camposVacios = modalData.campos.filter((campo) => !String(credenciales[campo.key] || '').trim());
+    const camposVacios = modalData.campos.filter((campo) => {
+      const valor = String(credenciales[campo.key] || '').trim();
+      if (!valor) {
+        if (modalModo === 'configurar' && campo.type === 'password') return false;
+        return true;
+      }
+      return false;
+    });
     if (camposVacios.length > 0) {
       setError(`Completa: ${camposVacios.map((c) => c.label).join(', ')}`);
       return;
@@ -766,39 +773,54 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
             </div>
 
             <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {!mostrarSoloAutorizacion && modalData.campos.map((campo) => (
-                <div key={campo.key}>
-                  <label
-                    style={{
-                      display: 'block',
-                      fontSize: 12,
-                      color: T.textMid,
-                      marginBottom: 6,
-                    }}
-                  >
-                    {campo.label}
-                  </label>
-                  <input
-                    key={`${modalTipo || 'integracion'}-${modalModo}-${campo.key}`}
-                    type={campo.type}
-                    value={credenciales[campo.key] || ''}
-                    onChange={(event) =>
-                      setCredenciales((prev) => ({
-                        ...prev,
-                        [campo.key]: event.target.value,
-                      }))
-                    }
-                    name={`integracion_${modalTipo || 'canal'}_${campo.key}`}
-                    autoComplete={desactivarAutocomplete ? 'new-password' : undefined}
-                    autoCorrect={desactivarAutocomplete ? 'off' : undefined}
-                    autoCapitalize={desactivarAutocomplete ? 'off' : undefined}
-                    spellCheck={desactivarAutocomplete ? false : undefined}
-                    data-lpignore={desactivarAutocomplete ? 'true' : undefined}
-                    placeholder={campo.placeholder}
-                    style={inputStyle}
-                  />
-                </div>
-              ))}
+              {!mostrarSoloAutorizacion && modalData.campos.map((campo) => {
+                const esCampoSecreto = campo.type === 'password';
+                const esModoConfigurar = modalModo === 'configurar';
+                const valorVacio = !String(credenciales[campo.key] || '').trim();
+                const mostrarPlaceholderGuardado = esCampoSecreto && esModoConfigurar && valorVacio;
+
+                return (
+                  <div key={campo.key}>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: 12,
+                        color: T.textMid,
+                        marginBottom: 6,
+                      }}
+                    >
+                      {campo.label}
+                      {mostrarPlaceholderGuardado && (
+                        <span style={{ marginLeft: 8, color: '#00e87b', fontSize: 11 }}>
+                          guardado - dejar vacio para no cambiar
+                        </span>
+                      )}
+                    </label>
+                    <input
+                      key={`${modalTipo || 'integracion'}-${modalModo}-${campo.key}`}
+                      type={campo.type}
+                      value={credenciales[campo.key] || ''}
+                      onChange={(event) =>
+                        setCredenciales((prev) => ({
+                          ...prev,
+                          [campo.key]: event.target.value,
+                        }))
+                      }
+                      name={`integracion_${modalTipo || 'canal'}_${campo.key}`}
+                      autoComplete={desactivarAutocomplete ? 'new-password' : undefined}
+                      autoCorrect={desactivarAutocomplete ? 'off' : undefined}
+                      autoCapitalize={desactivarAutocomplete ? 'off' : undefined}
+                      spellCheck={desactivarAutocomplete ? false : undefined}
+                      data-lpignore={desactivarAutocomplete ? 'true' : undefined}
+                      placeholder={mostrarPlaceholderGuardado ? '********************************' : campo.placeholder}
+                      style={{
+                        ...inputStyle,
+                        borderColor: mostrarPlaceholderGuardado ? 'rgba(0,232,123,0.3)' : undefined,
+                      }}
+                    />
+                  </div>
+                );
+              })}
 
               {modalTipo === 'whatsapp' && (
                 <div
@@ -1056,4 +1078,5 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
     </div>
   );
 };
+
 
