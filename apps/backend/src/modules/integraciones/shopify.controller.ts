@@ -203,6 +203,17 @@ export class ShopifyController {
     }
   }
 
+  @Post('shopify/sync-manual')
+  @UseGuards(RolesGuard, EmpresaGuard)
+  @Roles('admin_empresa', 'super_admin')
+  async syncManual(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: { empresa_id?: string },
+  ) {
+    const empresaId = this.resolveEmpresaId(req, body?.empresa_id);
+    return this.shopifyService.syncManual(empresaId);
+  }
+
   @Get('shopify/estado/:empresaId')
   @UseGuards(RolesGuard)
   @Roles('admin_empresa', 'super_admin')

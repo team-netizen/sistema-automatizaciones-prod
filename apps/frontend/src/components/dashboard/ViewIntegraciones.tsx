@@ -579,7 +579,7 @@ export const ViewIntegraciones = ({ usuario }: ViewIntegracionesProps) => {
           const integracionActiva = getIntegracionActiva(item.tipo);
           const conectada = Boolean(integracionActiva);
           const resumen = getResumen(integracionActiva, item.tipo);
-          const permiteSyncManual = item.tipo === 'woocommerce' || item.tipo === 'mercadolibre';
+          const permiteSyncManual = item.tipo === 'woocommerce' || item.tipo === 'mercadolibre' || item.tipo === 'shopify';
 
           return (
             <div

@@ -380,10 +380,78 @@ export class ShopifyService {
     return this.readString(value);
   }
 
+  async syncManual(empresaId: string): Promise<{ success: boolean; productos_sincronizados: number; mensaje: string }> {
+    const { data, error } = await this.supabase
+      .getAdminClient()
+      .from('integraciones_canal')
+      .select('credenciales')
+      .eq('empresa_id', empresaId)
+      .eq('tipo_integracion', 'shopify')
+      .eq('activa', true)
+      .maybeSingle();
+
+    if (error || !data) {
+      throw new BadRequestException('Shopify no esta conectado para esta empresa');
+    }
+
+    const credenciales = (data.credenciales ?? {}) as Record<string, unknown>;
+    const accessToken = this.readString(credenciales.access_token);
+    const shopUrl = this.readString(credenciales.shop_url);
+
+    if (!accessToken || !shopUrl) {
+      throw new BadRequestException('Faltan credenciales de Shopify. Reconecta la integracion.');
+    }
+
+    let productos: any[] = [];
+    let pageInfo: string | null = null;
+    let pagina = 0;
+
+    do {
+      pagina++;
+      const url: string = pageInfo
+        ? `https://${shopUrl}/admin/api/2024-01/products.json?limit=250&page_info=${pageInfo}`
+        : `https://${shopUrl}/admin/api/2024-01/products.json?limit=250`;
+
+      const res: Response = await fetch(url, {
+        headers: {
+          'X-Shopify-Access-Token': accessToken,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!res.ok) {
+        throw new BadRequestException(`Error obteniendo productos de Shopify: ${res.status}`);
+      }
+
+      const json = await res.json() as { products: any[] };
+      productos = productos.concat(json.products || []);
+
+      const linkHeader: string = res.headers.get('Link') || '';
+      const nextMatch: RegExpMatchArray | null = linkHeader.match(/<[^>]*page_info=([^>&"]+)[^>]*>;\s*rel="next"/);
+      pageInfo = nextMatch ? nextMatch[1] : null;
+    } while (pageInfo && pagina < 20);
+
+    await this.supabase
+      .getAdminClient()
+      .from('integraciones_canal')
+      .update({ ultima_sincronizacion: new Date().toISOString() })
+      .eq('empresa_id', empresaId)
+      .eq('tipo_integracion', 'shopify');
+
+    this.logger.log(`[Shopify sync] empresa=${empresaId} productos=${productos.length}`);
+
+    return {
+      success: true,
+      productos_sincronizados: productos.length,
+      mensaje: `Sincronizacion completada: ${productos.length} productos obtenidos de Shopify`,
+    };
+  }
+
   private readString(value: unknown): string | null {
     if (typeof value !== 'string') return null;
     const normalized = value.trim();
     return normalized.length > 0 ? normalized : null;
   }
 }
+
 
