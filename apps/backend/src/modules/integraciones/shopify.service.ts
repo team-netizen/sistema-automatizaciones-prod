@@ -76,6 +76,7 @@ export class ShopifyService {
       'write_orders',
       'read_inventory',
       'write_inventory',
+      'read_locations',
     ].join(',');
     const authUrl = `https://${shop}/admin/oauth/authorize` +
       `?client_id=${encodeURIComponent(apiKey)}` +
@@ -421,13 +422,24 @@ export class ShopifyService {
         continue;
       }
 
-      const updated = await this.actualizarInventarioShopify(
-        shopUrl,
-        accessToken,
-        shopifyVariante.inventory_item_id,
-        locationId,
-        cantidadSisAuto,
-      );
+      let updated = false;
+
+      if (locationId) {
+        updated = await this.actualizarInventarioShopify(
+          shopUrl,
+          accessToken,
+          shopifyVariante.inventory_item_id,
+          locationId,
+          cantidadSisAuto,
+        );
+      } else {
+        updated = await this.actualizarStockVariante(
+          shopUrl,
+          accessToken,
+          shopifyVariante.variant_id,
+          cantidadSisAuto,
+        );
+      }
 
       if (updated) {
         actualizados += 1;
@@ -606,27 +618,35 @@ export class ShopifyService {
     return resultado;
   }
 
-  private async obtenerLocationId(shopUrl: string, accessToken: string): Promise<string> {
-    const res: Response = await fetch(`https://${shopUrl}/admin/api/2024-01/locations.json`, {
-      headers: { 'X-Shopify-Access-Token': accessToken },
-    });
+  private async obtenerLocationId(shopUrl: string, accessToken: string): Promise<string | null> {
+    try {
+      const res: Response = await fetch(`https://${shopUrl}/admin/api/2024-01/locations.json`, {
+        headers: { 'X-Shopify-Access-Token': accessToken },
+      });
 
-    if (!res.ok) {
-      throw new BadRequestException('No se pudo obtener locations de Shopify');
+      if (!res.ok) {
+        this.logger.warn(`[Shopify] No se pudo obtener locations (status=${res.status}). Se usara fallback por variante.`);
+        return null;
+      }
+
+      const json = await res.json() as { locations: Array<Record<string, unknown>> };
+      const locations = (json.locations || []).filter((location) => location.active !== false);
+      if (locations.length === 0) {
+        this.logger.warn('[Shopify] No hay locations activas. Se usara fallback por variante.');
+        return null;
+      }
+
+      const locationId = this.readString(locations[0].id);
+      if (!locationId) {
+        this.logger.warn('[Shopify] Location invalida. Se usara fallback por variante.');
+        return null;
+      }
+
+      return locationId;
+    } catch {
+      this.logger.warn('[Shopify] Error obteniendo locations. Se usara fallback por variante.');
+      return null;
     }
-
-    const json = await res.json() as { locations: Array<Record<string, unknown>> };
-    const locations = (json.locations || []).filter((location) => location.active !== false);
-    if (locations.length === 0) {
-      throw new BadRequestException('No hay locations activas en Shopify');
-    }
-
-    const locationId = this.readString(locations[0].id);
-    if (!locationId) {
-      throw new BadRequestException('Location de Shopify invalida');
-    }
-
-    return locationId;
   }
 
   private async actualizarInventarioShopify(
@@ -656,6 +676,41 @@ export class ShopifyService {
       const text = await res.text();
       this.logger.warn(
         `[Shopify] Error actualizando inventory_item=${inventoryItemId}: ${res.status} ${text}`,
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  private async actualizarStockVariante(
+    shopUrl: string,
+    accessToken: string,
+    variantId: string,
+    cantidad: number,
+  ): Promise<boolean> {
+    const res: Response = await fetch(
+      `https://${shopUrl}/admin/api/2024-01/variants/${variantId}.json`,
+      {
+        method: 'PUT',
+        headers: {
+          'X-Shopify-Access-Token': accessToken,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          variant: {
+            id: Number(variantId),
+            inventory_quantity: Math.max(0, Math.round(cantidad)),
+            inventory_management: 'shopify',
+          },
+        }),
+      },
+    );
+
+    if (!res.ok) {
+      const text = await res.text();
+      this.logger.warn(
+        `[Shopify] Error actualizando variante=${variantId}: ${res.status} ${text}`,
       );
       return false;
     }
